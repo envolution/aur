@@ -6,7 +6,7 @@ jobs:
     aur-publish:
         runs-on: ubuntu-latest
         steps:
-        - uses: actions/checkout@v2
+        - uses: actions/checkout@v4
     
         - name: Publish AUR package
           uses: envolution/aur-release-action@v4.2

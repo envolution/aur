@@ -1,6 +1,7 @@
 #Based on https://gitlab.archlinux.org/archlinux/packaging/packages/gnome-shell/-/raw/main/PKGBUILD
-# Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
-# Maintainer: Fabian Bornschein <fabiscafe@archlinux.org>
+# Maintainer: envolution
+# Contributor: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
+# Contributor: Fabian Bornschein <fabiscafe@archlinux.org>
 # Contributor: Ionut Biru <ibiru@archlinux.org>
 # Contributor: Flamelab <panosfilip@gmail.com
 

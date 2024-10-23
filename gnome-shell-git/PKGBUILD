@@ -53,7 +53,7 @@ depends=(
   libsoup3
   libx11
   libxfixes
-  mutter
+  mutter-git
   pango
   polkit
   systemd-libs

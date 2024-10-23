@@ -54,7 +54,7 @@ depends=(
   libsoup3
   libx11
   libxfixes
-  mutter-git #we need mutter-clutter 16, currently only 15 in mutter
+  mutter-git #we need mutter-clutter 16, currently only 15 in base mutter
   pango
   polkit
   systemd-libs

@@ -9,7 +9,7 @@ jobs:
         - uses: actions/checkout@v2
     
         - name: Publish AUR package
-          uses: envolution/aur-release-action@4.1.1
+          uses: envolution/aur-release-action@v4.1.1
           with:
             package_name: gnome-shell-git # Use this if the package name in AUR is different from the repository name
             ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }} # The private SSH key to use to push the changes to the AUR

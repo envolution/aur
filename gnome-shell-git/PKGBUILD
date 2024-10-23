@@ -53,7 +53,7 @@ depends=(
   libsoup3
   libx11
   libxfixes
-  mutter-git
+  aur/mutter-git #we need mutter-clutter 16, currently only 15 in mutter
   pango
   polkit
   systemd-libs
@@ -90,8 +90,6 @@ b2sums=('SKIP'
 prepare() {
   # Inject gvc
   ln -s libgnome-volume-control gvc
-  pwd
-  ls
   cd gnome-shell
 }
 

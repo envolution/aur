@@ -90,7 +90,8 @@ pkgver() {
 prepare() {
   # Inject gvc
   ln -s libgnome-volume-control gvc
-
+  pwd
+  ls
   cd gnome-shell
 }
 

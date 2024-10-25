@@ -41,19 +41,16 @@ jobs:
           me=$(whoami)
           echo "--- I am $me my HOME is $HOME ---"
           ls -latr $HOME
-          export CACHE_DIR="/github/home/runner/mutter-cache"
-          
-
-          # Ensure the cache directory exists
-          sudo chown $me:$me $HOME
-          sudo mkdir -p "$CACHE_DIR"
-          
-          
+          export CACHE_DIR="/github/home/mutter-cache"
+                    
           # Check if the cached package exists
           if [ -f "$CACHE_DIR/mutter-*.zst" ]; then
               echo "Cache hit for mutter-git. Installing from cache..."
               sudo pacman -U --noconfirm "$CACHE_DIR/mutter-*.pkg.tar.zst"
           else
+              # Ensure the cache directory exists
+              sudo mkdir -p "$CACHE_DIR"
+              sudo chown $me:$me $CACHE_DIR          
               echo "No cache found for mutter-git, building it..."
               git clone https://aur.archlinux.org/mutter-git.git "$CACHE_DIR/mutter-git" 
               cd "$CACHE_DIR/mutter-git" || exit 1

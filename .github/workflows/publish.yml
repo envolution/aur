@@ -17,7 +17,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          /home/builder
+          /home/runner
         key: ${{ runner.os }}-mutter-git-
         restore-keys: ${{ runner.os }}-mutter-git-
 

@@ -37,7 +37,8 @@ jobs:
           #!/bin/bash
           
           set -o errexit -o pipefail -o nounset
-
+          local me
+          me=${whoami}
           export CACHE_DIR="/home/runner/mutter-cache"
           export HOME=/home/builder
           
@@ -70,7 +71,8 @@ jobs:
               
               mv mutter-*.zst "$CACHE_DIR"  # Move the built package to the cache
               echo "---listing CACHE_DIR---"
-              ls -latr "$CACHE_DIR"              
+              ls -latr "$CACHE_DIR"         
+              echo "I am $me"
           fi
           
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes

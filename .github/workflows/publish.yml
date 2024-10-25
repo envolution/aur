@@ -46,7 +46,7 @@ jobs:
           #!/bin/bash
           set -o errexit -o pipefail -o nounset
 
-          export CACHE_DIR="$GITHUB_WORKSPACE/mutter-cache"
+          export CACHE_DIR="$HOME/mutter-cache"
           export HOME=/home/builder
 
           # Ensure the cache directory exists
@@ -58,7 +58,7 @@ jobs:
               cp -r "$CACHE_DIR/"* .
           else
               echo "No cache found for mutter-git, building it..."
-              cd "$GITHUB_WORKSPACE" # Move to the workspace where we have permissions
+              cd "$HOME" # Move to the HOME directory where we have permissions
               git clone https://aur.archlinux.org/mutter-git.git
               cd mutter-git || exit 1
               makepkg --syncdeps --noconfirm --cleanbuild

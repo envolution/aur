@@ -23,7 +23,7 @@ jobs:
 
     # Cache the build directory
     - name: Cache AUR build directory
-      uses: actions/cache@v3
+      uses: actions/cache@v4.1.2
       with:
         path: /tmp/package
         key: build-cache-${{ runner.os }}-${{ hashFiles('gnome-shell-git/PKGBUILD', 'mutter-git/PKGBUILD') }}

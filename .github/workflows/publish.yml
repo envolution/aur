@@ -50,3 +50,18 @@ jobs:
           makepkg -si --noconfirm && \
           popd
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
+
+
+
+
+
+
+    # Success notification
+    - name: Success Notification
+      if: success()
+      run: echo "All packages have been published successfully."
+
+    # Failure notification
+    - name: Failure Notification
+      if: failure()
+      run: echo "Package publishing failed. Please check the logs for details."

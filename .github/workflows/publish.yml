@@ -12,15 +12,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    #gnome-shell-fit requires libmutterclutter16, so we have to build it - we cache it because it takes a while
-    - name: Cache mutter-git build
-      uses: actions/cache@v4
-      with:
-        path: |
-          **/mutter-cache
-        key: ${{ runner.os }}-mutter-git-
-        restore-keys: ${{ runner.os }}-mutter-git-
-
     - name: Publish AUR package
       uses: envolution/aur-release-action@v6.4
       with:
@@ -76,7 +67,14 @@ jobs:
           
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
 
-
+    #gnome-shell-fit requires libmutterclutter16, so we have to build it - we cache it because it takes a while
+    - name: Cache mutter-git build
+      uses: actions/cache@v4
+      with:
+        path: |
+          /home/runner/mutter-cache
+        key: ${{ runner.os }}-mutter-git-
+        restore-keys: ${{ runner.os }}-mutter-git-
 
 
 

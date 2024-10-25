@@ -17,7 +17,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          mutter-cache
+          runner/mutter-cache
         key: ${{ runner.os }}-mutter-git-
         restore-keys: ${{ runner.os }}-mutter-git-
 
@@ -40,8 +40,7 @@ jobs:
           local me
           me=$(whoami)
           echo "--- I am $me my HOME is $HOME ---"
-          export CACHE_DIR="/home/runner/mutter-cache"
-          export HOME=/home/builder
+          export CACHE_DIR="/github/home/runner/mutter-cache"
           
 
           # Ensure the cache directory exists

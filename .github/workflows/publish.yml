@@ -55,12 +55,10 @@ jobs:
 
       - name: Install paru
         run: |          
-          cd /tmp; mkdir paru; cd paru
-          $(
+          cd /tmp; mkdir paru; cd paru          
            . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin)
            sudo pacman -U --noconfirm (curl -JLO $source_x86_64 2>/dev/null && ls -t | head -1)
-          )
-          
+              
 
       - name: Install mutter-git
         run: |

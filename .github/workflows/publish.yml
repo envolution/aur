@@ -44,7 +44,7 @@ jobs:
         ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }} # The private SSH key to use to push the changes to the AUR
         github_token: ${{ secrets.GITHUB_TOKEN }} # The GitHub token to use to update the PKGBUILD file and the AUR submodule
         pkgbuild_path: gnome-shell-git/PKGBUILD # Use this if the PKGBUILD file is not in the root directory
-        update_pkgbuild: false # Use this if you want to update the PKGBUILD in the main repository
+        update_pkgbuild: true # Use this if you want to update the PKGBUILD in the main repository
         try_build_and_install: true # Use this if you want to try to build and install the package before publishing
         git_username: envolution # Use this if you want to change the git username (recommended)
         git_email: involution@gmail.com # Use this if you want to change the git email (recommended)

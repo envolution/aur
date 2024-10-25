@@ -39,7 +39,7 @@ jobs:
           set -o errexit -o pipefail -o nounset
           local me
           me=$(whoami)
-          echo "--- I am $me ---"
+          echo "--- I am $me my HOME is $HOME ---"
           export CACHE_DIR="/home/runner/mutter-cache"
           export HOME=/home/builder
           

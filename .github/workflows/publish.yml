@@ -17,7 +17,7 @@ jobs:
       uses: actions/cache@v4.1.2
       with:
         path: /home/builder/mutter-cache
-        key: ${{ runner.os }}-mutter-git-${{ hashFiles('**/mutter-git/**/*') }}
+        key: ${{ runner.os }}-mutter-git-${{ hashFiles('**/mutter-cache/**/*') }}
         restore-keys: ${{ runner.os }}-mutter-git-
 
     - name: Publish AUR package

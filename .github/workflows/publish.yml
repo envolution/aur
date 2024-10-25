@@ -14,9 +14,9 @@ jobs:
 
     # Cache the pacman package cache
     - name: Cache pacman package cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4.1.2
       with:
-        path: /home/runner/.cache/pacman/pkg
+        path: /home/runner/.cache/pacman
         key: pacman-cache-${{ runner.os }}-${{ hashFiles('gnome-shell-git/PKGBUILD', 'mutter-git/PKGBUILD') }}
         restore-keys: |
           pacman-cache-${{ runner.os }}-
@@ -34,7 +34,7 @@ jobs:
     - name: Cache mutter-git build
       uses: actions/cache@v4.1.2
       with:
-        path: $HOME/mutter-cache
+        path: /home/builder/mutter-cache
         key: ${{ runner.os }}-mutter-git-${{ hashFiles('**/mutter-git/**/*') }}
 
     - name: Publish AUR package

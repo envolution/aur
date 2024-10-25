@@ -17,7 +17,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          runner/mutter-cache
+          /home/runner/mutter-cache
         key: ${{ runner.os }}-mutter-git-
         restore-keys: ${{ runner.os }}-mutter-git-
 
@@ -41,7 +41,7 @@ jobs:
           me=$(whoami)
           echo "--- I am $me my HOME is $HOME ---"
           ls -latr $HOME
-          export CACHE_DIR="/github/home/mutter-cache"
+          export CACHE_DIR="/home/runner/mutter-cache"
                     
           # Check if the cached package exists
           if [ -f "$CACHE_DIR/mutter-*.zst" ]; then

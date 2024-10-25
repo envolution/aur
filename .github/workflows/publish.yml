@@ -6,11 +6,42 @@ on:
 jobs:
   aur-publish:
     runs-on: ubuntu-latest
+    container: archlinux:base-devel
 
     steps:
-    # Checkout the repository
-    - name: Checkout repository
-      uses: actions/checkout@v4
+  
+    - uses: actions/checkout@v4
+    
+    - name: Get Date
+      id: get-date
+      run: |
+        echo "date=$(date -u "+%Y-%m")" >> $GITHUB_OUTPUT
+
+    - name: Cache pacman packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          /var/cache/pacman/pkg
+        key: ${{ runner.os }}-pacman-${{ steps.get-date.outputs.date }}
+        restore-keys: |
+          ${{ runner.os }}-pacman-
+
+    - name: Update system and install dependencies
+      run: |
+        # Initialize keyring
+        pacman-key --init
+        pacman-key --populate archlinux
+        
+        # Update package lists and system
+        pacman -Sy --noconfirm archlinux-keyring
+        pacman -Syu --noconfirm
+        
+        # Install your dependencies
+        pacman -S --noconfirm \
+          git \
+          base-devel \
+          cmake \
+          python        
 
     - name: Publish AUR package
       uses: envolution/aur-release-action@v6.4

@@ -30,6 +30,13 @@ jobs:
         restore-keys: |
           build-cache-${{ runner.os }}-
 
+    #gnome-shell-fit requires libmutterclutter16, so we have to build it - we cache it because it takes a while
+    - name: Cache mutter-git build
+      uses: actions/cache@v3
+      with:
+        path: $HOME/mutter-cache
+        key: ${{ runner.os }}-mutter-git-${{ hashFiles('**/mutter-git/**/*') }}
+
     - name: Publish AUR package
       uses: envolution/aur-release-action@v5.0
       with:

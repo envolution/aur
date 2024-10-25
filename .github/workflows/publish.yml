@@ -53,32 +53,26 @@ jobs:
           #!/bin/bash
           
           set -o errexit -o pipefail -o nounset
-          set -x  # Enable debugging
-
-          export CACHE_DIR="$HOME/mutter-cache"
+          
           export HOME=/home/builder
+          export CACHE_DIR="$HOME/mutter-cache"
 
           # Ensure the cache directory exists
           mkdir -p "$CACHE_DIR"
           
-          # Check for existing cache
-          if [[ -d "$CACHE_DIR" && "$(ls -A $CACHE_DIR)" ]]; then
-              echo "Restoring cached mutter-git..."
-              cp -r "$CACHE_DIR/"* .
+          # Check if the cached package exists
+          if [ -f "$CACHE_DIR/mutter-git.pkg.tar.zst" ]; then
+              echo "Cache hit for mutter-git. Installing from cache..."
+              sudo pacman -U --noconfirm "$CACHE_DIR/mutter-git.pkg.tar.zst"
           else
               echo "No cache found for mutter-git, building it..."
-              cd "$HOME" || exit 1  # Ensure you're in the HOME directory
-              git clone https://aur.archlinux.org/mutter-git.git
-              cd mutter-git || exit 1
-              makepkg --syncdeps --noconfirm --cleanbuild
-              makepkg --install --noconfirm
-              # Mark as done
-              touch .done
-              # Cache the built package
-              cp -r * "$CACHE_DIR/"
+              git clone https://aur.archlinux.org/mutter-git.git "$CACHE_DIR/mutter-git" 
+              cd "$CACHE_DIR/mutter-git" || exit 1
+              makepkg --syncdeps --noconfirm --cleanbuild --rmdeps --install
+              echo "Caching built package..."
+              mv *.pkg.tar.zst "$CACHE_DIR/"  # Move the built package to the cache
           fi
           
-          set +x  # Disable debugging
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
 
 

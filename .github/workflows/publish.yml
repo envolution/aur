@@ -16,7 +16,10 @@ jobs:
     - name: Cache mutter-git build
       uses: actions/cache@v4
       with:
-        path: ~/mutter-cache
+        path: |
+          ~/mutter-cache
+          /home/runner
+          /home/builder
         key: ${{ runner.os }}-mutter-git-
         restore-keys: ${{ runner.os }}-mutter-git-
 

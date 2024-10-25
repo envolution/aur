@@ -17,7 +17,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          /home/runner
+          /home/runner/mutter-cache
         key: ${{ runner.os }}-mutter-git-
         restore-keys: ${{ runner.os }}-mutter-git-
 
@@ -37,9 +37,10 @@ jobs:
           #!/bin/bash
           
           set -o errexit -o pipefail -o nounset
-          
-          export HOME=/home/builder
+
           export CACHE_DIR="$HOME/mutter-cache"
+          export HOME=/home/builder
+          
 
           # Ensure the cache directory exists
           mkdir -p "$CACHE_DIR"

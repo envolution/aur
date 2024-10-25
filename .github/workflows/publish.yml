@@ -42,5 +42,11 @@ jobs:
           git_username: envolution # Use this if you want to change the git username (recommended)
           git_email: involution@gmail.com # Use this if you want to change the git email (recommended)
           commit_message: Auto Update %FILENAME% to %VERSION% # Use this if you want to change the commit message
-          prescript: mkdir /home/builder/prereqs && pushd /home/builder/prereqs && git clone https://aur.archlinux.org/mutter-git.git && cd mutter-git && makepkg -si --noconfirm ; popd # Use this if you want to run a script before the action makes any changes, you can pass files also
+          prescript: |
+            mkdir -p /home/builder/prereqs && \
+            pushd /home/builder/prereqs && \
+            git clone https://aur.archlinux.org/mutter-git.git && \
+            cd mutter-git && \
+            makepkg -si --noconfirm && \
+            popd
           # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes

@@ -44,9 +44,9 @@ jobs:
           mkdir -p "$CACHE_DIR"
           
           # Check if the cached package exists
-          if [ -f "$CACHE_DIR/mutter-git.pkg.tar.zst" ]; then
+          if [ -f "$CACHE_DIR/mutter-*.zst" ]; then
               echo "Cache hit for mutter-git. Installing from cache..."
-              sudo pacman -U --noconfirm "$CACHE_DIR/mutter-git.pkg.tar.zst"
+              sudo pacman -U --noconfirm "$CACHE_DIR/mutter-*.pkg.tar.zst"
           else
               echo "No cache found for mutter-git, building it..."
               git clone https://aur.archlinux.org/mutter-git.git "$CACHE_DIR/mutter-git" 
@@ -63,8 +63,9 @@ jobs:
               ls -latr "$CACHE_DIR"
               echo "---listing HOME is $HOME CACHE_DIR is $CACHE_DIR---"
               
-              mv *.pkg.tar.zst "$CACHE_DIR/"  # Move the built package to the cache
-              ls -la "$CACHE_DIR/*zst"
+              mv mutter-*.zst "$CACHE_DIR"  # Move the built package to the cache
+              echo "---listing CACHE_DIR---"
+              ls -latr "$CACHE_DIR"              
           fi
           
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes

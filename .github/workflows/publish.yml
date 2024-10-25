@@ -38,7 +38,7 @@ jobs:
           
           set -o errexit -o pipefail -o nounset
           local me
-          me=${whoami}
+          me=$(whoami)
           export CACHE_DIR="/home/runner/mutter-cache"
           export HOME=/home/builder
           

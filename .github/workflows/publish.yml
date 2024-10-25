@@ -54,6 +54,7 @@ jobs:
               makepkg --syncdeps --noconfirm --cleanbuild --rmdeps --install
               echo "Caching built package..."
               mv *.pkg.tar.zst "$CACHE_DIR/"  # Move the built package to the cache
+              ls -la "$CACHE_DIR/*zst"
           fi
           
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes

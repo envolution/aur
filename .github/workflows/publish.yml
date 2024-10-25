@@ -54,8 +54,12 @@ jobs:
           
           set -o errexit -o pipefail -o nounset
           set -x  # Enable debugging
-          
-          # Your existing code here...
+
+          export CACHE_DIR="$HOME/mutter-cache"
+          export HOME=/home/builder
+
+          # Ensure the cache directory exists
+          mkdir -p "$CACHE_DIR"
           
           # Check for existing cache
           if [[ -d "$CACHE_DIR" && "$(ls -A $CACHE_DIR)" ]]; then

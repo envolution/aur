@@ -56,8 +56,10 @@ jobs:
       - name: Install paru
         run: |          
           cd /tmp
-          . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin)
-          wget $source_x86_64
+          (
+           . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin)
+           curl -O $source_x86_64
+          )
           sudo pacman -U --noconfirm paru-*.pkg.tar.zst
 
       - name: Install mutter-git

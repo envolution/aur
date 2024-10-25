@@ -14,9 +14,9 @@ jobs:
 
     #gnome-shell-fit requires libmutterclutter16, so we have to build it - we cache it because it takes a while
     - name: Cache mutter-git build
-      uses: actions/cache@v4.1.2
+      uses: actions/cache@v4
       with:
-        path: /home/builder/mutter-cache
+        path: ~/mutter-cache
         key: ${{ runner.os }}-mutter-git-
         restore-keys: ${{ runner.os }}-mutter-git-
 

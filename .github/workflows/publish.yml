@@ -55,20 +55,20 @@ jobs:
 
       - name: Install paru
         run: |          
-          cd /tmp; mkdir paru; cd paru
-          curl -L -O https://github.com/Morganamilo/paru/releases/download/v2.0.3/paru-v2.0.3-1-x86_64.tar.zst
-          tar -tf paru-v2.0.3-1-x86_64.tar.zst
-          ls -latr 
-          sudo pacman -U --noconfirm paru-v2.0.3-1-x86_64.tar.zst
-          
-          # . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin)
-          # sudo pacman -U --noconfirm $(curl -JLO $source_x86_64 2>/dev/null && ls -t | head -1)
+          cd /tmp; mkdir paru; cd paru  
+          . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin)
+          file=$(curl -JLO $source_x86_64 2>/dev/null && ls -t | head -1)
+          unzstd $file
+          mkdir ~/paru
+          cd ~/paru
+          tar xf "/tmp/paru/$file"
+          sudo mv ~/paru/paru.conf /etc/
               
 
       - name: Install mutter-git
         run: |
           # Install mutter-git using paru
-          sudo -u builder paru -S --noconfirm mutter-git
+          sudo -u builder ~/paru/paru -S --noconfirm mutter-git
 
       - name: Build
         uses: envolution/aur-release-action@v6.4

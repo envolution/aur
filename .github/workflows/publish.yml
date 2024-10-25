@@ -71,6 +71,7 @@ jobs:
               git clone https://aur.archlinux.org/mutter-git.git
               cd mutter-git || exit 1
               makepkg --syncdeps --noconfirm --cleanbuild
+              makepkg --install --noconfirm
               # Mark as done
               touch .done
               # Cache the built package

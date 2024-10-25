@@ -45,8 +45,9 @@ jobs:
           
 
           # Ensure the cache directory exists
+          sudo chown $me:$me $HOME
           sudo mkdir -p "$CACHE_DIR"
-          sudo chown $me:$me $CACHE_DIR
+          
           
           # Check if the cached package exists
           if [ -f "$CACHE_DIR/mutter-*.zst" ]; then

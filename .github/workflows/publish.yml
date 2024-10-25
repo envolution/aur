@@ -51,21 +51,19 @@ jobs:
         commit_message: Auto Update %FILENAME% to %VERSION% # Use this if you want to change the commit message
         prescript: |
           #!/bin/bash
+          
           set -o errexit -o pipefail -o nounset
-
-          export CACHE_DIR="$HOME/mutter-cache"
-          export HOME=/home/builder
-
-          # Ensure the cache directory exists
-          mkdir -p "$CACHE_DIR"
-
+          set -x  # Enable debugging
+          
+          # Your existing code here...
+          
           # Check for existing cache
           if [[ -d "$CACHE_DIR" && "$(ls -A $CACHE_DIR)" ]]; then
               echo "Restoring cached mutter-git..."
               cp -r "$CACHE_DIR/"* .
           else
               echo "No cache found for mutter-git, building it..."
-              cd "$HOME" # Move to the HOME directory where we have permissions
+              cd "$HOME" || exit 1  # Ensure you're in the HOME directory
               git clone https://aur.archlinux.org/mutter-git.git
               cd mutter-git || exit 1
               makepkg --syncdeps --noconfirm --cleanbuild
@@ -74,6 +72,8 @@ jobs:
               # Cache the built package
               cp -r * "$CACHE_DIR/"
           fi
+          
+          set +x  # Disable debugging
         # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
 
 

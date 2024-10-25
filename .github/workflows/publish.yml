@@ -1,121 +1,84 @@
-name: aur-publish
+name: Build with pacman and AUR cache
 
-on: 
-  workflow_dispatch:
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-  aur-publish:
+  build:
     runs-on: ubuntu-latest
     container: archlinux:base-devel
 
     steps:
-  
-    - uses: actions/checkout@v4
-    
-    - name: Get Date
-      id: get-date
-      run: |
-        echo "date=$(date -u "+%Y-%m")" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
 
-    - name: Cache pacman packages
-      uses: actions/cache@v4
-      with:
-        path: |
-          /var/cache/pacman/pkg
-        key: ${{ runner.os }}-pacman-${{ steps.get-date.outputs.date }}
-        restore-keys: |
-          ${{ runner.os }}-pacman-
+      - name: Get Date
+        id: get-date
+        run: |
+          echo "date=$(date -u "+%Y-%m")" >> $GITHUB_OUTPUT
 
-    - name: Update system and install dependencies
-      run: |
-        # Initialize keyring
-        pacman-key --init
-        pacman-key --populate archlinux
-        
-        # Update package lists and system
-        pacman -Sy --noconfirm archlinux-keyring
-        pacman -Syu --noconfirm
-        
-        # Install your dependencies
-        pacman -S --noconfirm \
-          git \
-          base-devel \
-          cmake \
-          python        
+      - name: Cache pacman and AUR packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            ~/.cache/paru
+            ~/.local/share/paru
+          key: ${{ runner.os }}-pacman-aur-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+            ${{ runner.os }}-pacman-aur-
 
-    - name: Publish AUR package
-      uses: envolution/aur-release-action@v6.4
-      with:
-        package_name: gnome-shell-git # Use this if the package name in AUR is different from the repository name
-        ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }} # The private SSH key to use to push the changes to the AUR
-        github_token: ${{ secrets.GITHUB_TOKEN }} # The GitHub token to use to update the PKGBUILD file and the AUR submodule
-        pkgbuild_path: gnome-shell-git/PKGBUILD # Use this if the PKGBUILD file is not in the root directory
-        update_pkgbuild: false # Use this if you want to update the PKGBUILD in the main repository
-        try_build_and_install: false # Use this if you want to try to build and install the package before publishing
-        git_username: envolution # Use this if you want to change the git username (recommended)
-        git_email: involution@gmail.com # Use this if you want to change the git email (recommended)
-        commit_message: Auto Update # Use this if you want to change the commit message
-        prescript: |
-          #!/bin/bash
+      - name: Setup non-root user for AUR
+        run: |
+          # Create build user
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          # Create necessary directories with correct permissions
+          install -d -m 755 /home/builder/.cache/paru
+          install -d -m 755 /home/builder/.local/share/paru
+          chown -R builder:builder /home/builder
+
+      - name: Update system and install dependencies
+        run: |
+          # Initialize keyring
+          pacman-key --init
+          pacman-key --populate archlinux
           
-          set -o errexit -o pipefail -o nounset
-          local me
-          me=$(whoami)
-          echo "--- I am $me my HOME is $HOME ---"
-          ls -latr $HOME
-          export CACHE_DIR="/home/runner/mutter-cache"
-                    
-          # Check if the cached package exists
-          if [ -f "$CACHE_DIR/mutter-*.zst" ]; then
-              echo "Cache hit for mutter-git. Installing from cache..."
-              sudo pacman -U --noconfirm "$CACHE_DIR/mutter-*.pkg.tar.zst"
-          else
-              # Ensure the cache directory exists
-              sudo mkdir -p "$CACHE_DIR"
-              sudo chown $me:$me $CACHE_DIR          
-              echo "No cache found for mutter-git, building it..."
-              git clone https://aur.archlinux.org/mutter-git.git "$CACHE_DIR/mutter-git" 
-              cd "$CACHE_DIR/mutter-git" || exit 1
-              # makepkg --syncdeps --noconfirm --cleanbuild --rmdeps --install
-              touch mutter-git-47.0+r127+gceed33b68-1-x86_64.pkg.tar.zst
-              touch mutter-docs-git-47.0+r127+gceed33b68-1-x86_64.pkg.tar.zst
-              touch mutter-git-debug-47.0+r127+gceed33b68-1-x86_64.pkg.tar.zst
-              echo "Caching built package..."
-              pwd
-              echo "---listing---"
-              ls -latr
-              echo "---///////---"
-              echo "---listing HOME---"
-              ls -latr "$HOME"
-              echo "---listing CACHE_DIR---"
-              ls -latr "$CACHE_DIR"
-              echo "---listing HOME is $HOME CACHE_DIR is $CACHE_DIR---"
-              
-              mv mutter-*.zst "$CACHE_DIR"  # Move the built package to the cache
-              echo "---listing CACHE_DIR---"
-              ls -latr "$CACHE_DIR"         
-          fi
+          # Update package lists and system
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
           
-        # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
+          # Install git for paru
+          pacman -S --noconfirm git
 
-    #gnome-shell-fit requires libmutterclutter16, so we have to build it - we cache it because it takes a while
-    - name: Cache mutter-git build
-      uses: actions/cache@v4
-      with:
-        path: |
-          /home/runner/mutter-cache
-        key: ${{ runner.os }}-mutter-git-
-        restore-keys: ${{ runner.os }}-mutter-git-
+      - name: Install paru
+        run: |
+          cd /tmp
+          git clone https://aur.archlinux.org/paru.git
+          chown -R builder:builder paru
+          cd paru
+          sudo -u builder makepkg -si --noconfirm
 
+      - name: Install mutter-git
+        run: |
+          # Install mutter-git using paru
+          sudo -u builder paru -S --noconfirm mutter-git
 
+      - name: Build
+        uses: envolution/aur-release-action@v6.4
 
+        with:
+          package_name: gnome-shell-git # Use this if the package name in AUR is different from the repository name
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }} # The private SSH key to use to push the changes to the AUR
+          github_token: ${{ secrets.GITHUB_TOKEN }} # The GitHub token to use to update the PKGBUILD file and the AUR submodule
+          pkgbuild_path: gnome-shell-git/PKGBUILD # Use this if the PKGBUILD file is not in the root directory
+          update_pkgbuild: false # Use this if you want to update the PKGBUILD in the main repository
+          try_build_and_install: false # Use this if you want to try to build and install the package before publishing
+          git_username: envolution # Use this if you want to change the git username (recommended)
+          git_email: involution@gmail.com # Use this if you want to change the git email (recommended)
+          commit_message: Auto Update # Use this if you want to change the commit message
+          # prescript: scripts/pre.sh # Use this to run a script before building
+          # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
 
-    # Success notification
-    - name: Success Notification
-      if: success()
-      run: echo "All packages have been published successfully."
-
-    # Failure notification
-    - name: Failure Notification
-      if: failure()
-      run: echo "Package publishing failed. Please check the logs for details."

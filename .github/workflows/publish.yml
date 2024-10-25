@@ -54,12 +54,11 @@ jobs:
           pacman -S --noconfirm git
 
       - name: Install paru
-        run: |
+        run: |          
           cd /tmp
-          git clone https://aur.archlinux.org/paru.git
-          chown -R builder:builder paru
-          cd paru
-          sudo -u builder makepkg -si --noconfirm
+          . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin
+          wget $source_x86_64
+          sudo pacman -U --noconfirm paru-*.pkg.tar.zst
 
       - name: Install mutter-git
         run: |

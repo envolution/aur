@@ -31,22 +31,22 @@ jobs:
           build-cache-${{ runner.os }}-
 
     - name: Publish AUR package
-        uses: envolution/aur-release-action@v4.9
-        with:
-          package_name: gnome-shell-git # Use this if the package name in AUR is different from the repository name
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }} # The private SSH key to use to push the changes to the AUR
-          github_token: ${{ secrets.GITHUB_TOKEN }} # The GitHub token to use to update the PKGBUILD file and the AUR submodule
-          pkgbuild_path: gnome-shell-git/PKGBUILD # Use this if the PKGBUILD file is not in the root directory
-          update_pkgbuild: true # Use this if you want to update the PKGBUILD in the main repository
-          try_build_and_install: true # Use this if you want to try to build and install the package before publishing
-          git_username: envolution # Use this if you want to change the git username (recommended)
-          git_email: involution@gmail.com # Use this if you want to change the git email (recommended)
-          commit_message: Auto Update %FILENAME% to %VERSION% # Use this if you want to change the commit message
-          prescript: |
-            mkdir -p /home/builder/prereqs && \
-            pushd /home/builder/prereqs && \
-            git clone https://aur.archlinux.org/mutter-git.git && \
-            cd mutter-git && \
-            makepkg -si --noconfirm && \
-            popd
-          # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes
+      uses: envolution/aur-release-action@v4.9
+      with:
+        package_name: gnome-shell-git # Use this if the package name in AUR is different from the repository name
+        ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }} # The private SSH key to use to push the changes to the AUR
+        github_token: ${{ secrets.GITHUB_TOKEN }} # The GitHub token to use to update the PKGBUILD file and the AUR submodule
+        pkgbuild_path: gnome-shell-git/PKGBUILD # Use this if the PKGBUILD file is not in the root directory
+        update_pkgbuild: true # Use this if you want to update the PKGBUILD in the main repository
+        try_build_and_install: true # Use this if you want to try to build and install the package before publishing
+        git_username: envolution # Use this if you want to change the git username (recommended)
+        git_email: involution@gmail.com # Use this if you want to change the git email (recommended)
+        commit_message: Auto Update %FILENAME% to %VERSION% # Use this if you want to change the commit message
+        prescript: |
+          mkdir -p /home/builder/prereqs && \
+          pushd /home/builder/prereqs && \
+          git clone https://aur.archlinux.org/mutter-git.git && \
+          cd mutter-git && \
+          makepkg -si --noconfirm && \
+          popd
+        # postscript: scripts/post.sh # Use this if you want to run a script after the action makes changes, and finishes

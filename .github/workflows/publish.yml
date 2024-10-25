@@ -57,7 +57,7 @@ jobs:
         run: |          
           cd /tmp; mkdir paru; cd paru
           curl -O https://github.com/Morganamilo/paru/releases/download/v2.0.3/paru-v2.0.3-1-x86_64.tar.zst
-          sudo pacman -U --noconfirm paru-v2.0.4-x86_64.tar.zst
+          sudo pacman -U --noconfirm paru-v2.0.3-1-x86_64.tar.zst
           
           # . <(curl https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=paru-bin)
           # sudo pacman -U --noconfirm $(curl -JLO $source_x86_64 2>/dev/null && ls -t | head -1)

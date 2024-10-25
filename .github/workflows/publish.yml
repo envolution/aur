@@ -51,7 +51,10 @@ jobs:
               echo "No cache found for mutter-git, building it..."
               git clone https://aur.archlinux.org/mutter-git.git "$CACHE_DIR/mutter-git" 
               cd "$CACHE_DIR/mutter-git" || exit 1
-              makepkg --syncdeps --noconfirm --cleanbuild --rmdeps --install
+              # makepkg --syncdeps --noconfirm --cleanbuild --rmdeps --install
+              touch mutter-git-47.0+r127+gceed33b68-1-x86_64.pkg.tar.zst
+              touch mutter-docs-git-47.0+r127+gceed33b68-1-x86_64.pkg.tar.zst
+              touch mutter-git-debug-47.0+r127+gceed33b68-1-x86_64.pkg.tar.zst
               echo "Caching built package..."
               pwd
               echo "---listing---"

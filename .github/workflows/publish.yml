@@ -12,30 +12,13 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Cache the pacman package cache
-    - name: Cache pacman package cache
-      uses: actions/cache@v4.1.2
-      with:
-        path: /home/runner/.cache/pacman
-        key: pacman-cache-${{ runner.os }}-${{ hashFiles('gnome-shell-git/PKGBUILD', 'mutter-git/PKGBUILD') }}
-        restore-keys: |
-          pacman-cache-${{ runner.os }}-
-
-    # Cache the build directory
-    - name: Cache AUR build directory
-      uses: actions/cache@v4.1.2
-      with:
-        path: /tmp/package
-        key: build-cache-${{ runner.os }}-${{ hashFiles('gnome-shell-git/PKGBUILD', 'mutter-git/PKGBUILD') }}
-        restore-keys: |
-          build-cache-${{ runner.os }}-
-
     #gnome-shell-fit requires libmutterclutter16, so we have to build it - we cache it because it takes a while
     - name: Cache mutter-git build
       uses: actions/cache@v4.1.2
       with:
         path: /home/builder/mutter-cache
         key: ${{ runner.os }}-mutter-git-${{ hashFiles('**/mutter-git/**/*') }}
+        restore-keys: ${{ runner.os }}-mutter-git-
 
     - name: Publish AUR package
       uses: envolution/aur-release-action@v5.7

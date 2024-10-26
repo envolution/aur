@@ -58,17 +58,22 @@ echo "Generating .SRCINFO..."
 makepkg --printsrcinfo > .SRCINFO
 
 # Stage tracked files that have changes
-git add -u
+git add PKGBUILD .SRCINFO
 
 # Check for changes and commit
 echo "Checking for changes to commit..."
-if git diff-index --cached --quiet HEAD --; then
-    echo "No changes detected. Skipping commit and push."
-else
-    echo "Changes detected. Committing and pushing changes..."
-    git fetch
+if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
+    echo "Initial commit, committing selected files..."
     git commit -m "${COMMIT_MESSAGE}"
-    git push origin master
+else
+    if git diff-index --cached --quiet HEAD --; then
+        echo "No changes detected. Skipping commit and push."
+    else
+        echo "Changes detected. Committing and pushing selected files..."
+        git fetch
+        git commit -m "${COMMIT_MESSAGE}"
+        git push origin master
+    fi
 fi
 
 # Authenticate using the GitHub token

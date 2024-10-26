@@ -112,11 +112,14 @@ jobs:
           echo "${{ env.PACKAGES }}" | while IFS=':' read -r package pkgbuild; do
             echo "==== Building package: $package ===="
             
-            # First install the package if it exists (for dependencies)
-            # sudo -u builder paru -S --noconfirm --needed "$package" || true
             # Get and install dependancies first, install only what's needed
-            # sudo paru -Si "$package" | awk -F'[:<=>]' '/^(Depends On|Make Deps)/ {print $2}' | xargs sudo paru -S --needed --norebuild
-            sudo -u builder bash -c "paru -Si \"$package\" | awk -F'[:<=>]' '/^(Depends On|Make Deps)/ {print \$2}' | xargs -r paru -S --needed --norebuild" || true 
+
+	    paru -Si gnome-shell-git | \
+	       awk -F'[:<=>]' '/^(Depends On|Make Deps)/{print $2}' | \
+	       tr -s ' ' '\n' | \
+	       grep -v '^$' | \
+	       sudo -u builder xargs paru -S --needed --norebuild            
+
             # Then build and publish
             sudo -u builder bash ./buildscript.sh "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
           done

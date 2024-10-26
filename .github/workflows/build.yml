@@ -102,6 +102,10 @@ jobs:
       - name: Test AUR keys 
         run: |
            sudo -u builder bash ./testaur.sh
+           
+      - name: genkey 
+        run: |
+           sudo -u builder bash ./genkey.sh
 
       - name: Build and publish packages
         run: |

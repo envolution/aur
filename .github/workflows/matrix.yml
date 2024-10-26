@@ -6,23 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  GIT_USERNAME: envolution
-  GIT_EMAIL: involution@gmail.com
-  PACKAGES: >-
-    [
-      {
-        "name": "mutter-git",
-        "pkgbuild": "mutter-git/PKGBUILD",
-        "deps": [""]
-      },
-      {
-        "name": "gnome-shell-git",
-        "pkgbuild": "gnome-shell-git/PKGBUILD",
-        "deps": ["mutter-git"]
-      }
-    ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,9 +15,19 @@ jobs:
     
     strategy:
       matrix:
-        package: ${{ fromJSON(env.PACKAGES) }}
+        include:
+          - package: "mutter-git"
+            pkgbuild: "mutter-git/PKGBUILD"
+            deps: ""
+          - package: "gnome-shell-git"
+            pkgbuild: "gnome-shell-git/PKGBUILD"
+            deps: "mutter-git"
       fail-fast: false
       max-parallel: 1
+
+    env:
+      GIT_USERNAME: envolution
+      GIT_EMAIL: involution@gmail.com
 
     steps:
       - uses: actions/checkout@v4
@@ -98,9 +91,9 @@ jobs:
           UseAsk' | sudo tee /etc/paru.conf
 
       - name: Install dependencies
-        if: matrix.package.deps != ''
+        if: matrix.deps != ''
         run: |
-          for dep in ${{ join(matrix.package.deps, ' ') }}; do
+          for dep in ${{ matrix.deps }}; do
             echo "Installing dependency: $dep"
             sudo -u builder paru -S --noconfirm --needed "$dep"
           done
@@ -125,6 +118,6 @@ jobs:
         run: |
           sudo -u builder bash ./scripts/build-package.sh
         env:
-          PACKAGE_NAME: ${{ matrix.package.name }}
-          PKGBUILD_PATH: ${{ matrix.package.pkgbuild }}
-          COMMIT_MESSAGE: "Auto Update ${{ matrix.package.name }}"
+          PACKAGE_NAME: ${{ matrix.package }}
+          PKGBUILD_PATH: ${{ matrix.pkgbuild }}
+          COMMIT_MESSAGE: "Auto Update ${{ matrix.package }}"

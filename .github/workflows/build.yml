@@ -108,5 +108,9 @@ jobs:
             sudo -u builder paru -S --noconfirm --needed "$package" || true
             
             # Then build and publish
+<<<<<<< HEAD
             sudo -u builder bash ./buildscript.sh "$package" "$pkgbuild" "Auto Update $package"
+=======
+            sudo -u builder bash /github/home/buildscript.sh "$package" "$pkgbuild" "Auto Update $package"
+>>>>>>> 37e68a95527eaa7bf6c86de82f5618f60890d14c
           done

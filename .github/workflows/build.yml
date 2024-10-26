@@ -118,5 +118,5 @@ jobs:
             sudo -u builder paru -Si "$package" | awk -F'[:<=>]' '/^(Depends On|Make Deps)/ {print $2}' | xargs paru -S --needed --norebuild || true
             
             # Then build and publish
-            sudo -u builder bash ./buildscript.sh "$package" "$pkgbuild" "Auto Update $package"
+            sudo -u builder bash ./buildscript.sh $GITHUB_WORKSPACE "$package" "$pkgbuild" "Auto Update $package"
           done

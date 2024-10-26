@@ -116,11 +116,11 @@ jobs:
             fi
             echo "==== Building package: $package ===="
             # Get and install dependencies first, install only what's needed
-            paru -Si gnome-shell-git \
+            paru -Si $package \
               | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
               | tr -s " " "\n" \
               | grep -v "^$" \
               | sudo -u builder xargs paru -S --needed --norebuild --noconfirm
             # Then build and publish
-            sudo -u builder bash ./buildscript.sh "$GITHUB_TOKEN" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
+            sudo -u builder bash ./buildscript.sh "${{ secrets.GITHUB_TOKEN }}" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
           done

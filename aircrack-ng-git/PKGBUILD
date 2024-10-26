@@ -37,7 +37,7 @@ source=("git+https://github.com/aircrack-ng/aircrack-ng.git")
 sha256sums=('SKIP')
 
 pkgver() {
-  cd $pkgbase
+  cd aircrack-ng
   git describe --tags | sed 's/[^-]*-g/r&/;s/-/+/g'
 }
 

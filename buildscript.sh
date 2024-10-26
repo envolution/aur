@@ -77,9 +77,9 @@ else
 fi
 
 # Authenticate using the GitHub token
-echo "${GITHUB_TOKEN}" | gh auth login --with-token
+#echo "${GITHUB_TOKEN}" | gh auth login --with-token
 
 # Create a new release
-gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "envolution/aur"
+#gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "envolution/aur"
 
 echo "==== Build and release process for ${PACKAGE_NAME} completed ===="

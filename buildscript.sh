@@ -70,17 +70,20 @@ else
     if git diff-index --cached --quiet HEAD --; then
         echo "No changes detected. Skipping commit and push."
     else
-        echo "Changes detected. Committing and pushing selected files..."
+    echo "Changes detected. Committing and pushing selected files..."
         git fetch
         git commit -m "${COMMIT_MESSAGE}"
         git push origin master
+
+        # Authenticate using the GitHub token
+        echo "=== Auth to GH ==="
+        echo "${GITHUB_TOKEN}" | gh auth login --with-token
+
+        # Create a new release
+        echo "=== Push compiled binary to releases ==="
+        gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "envolution/aur"
+
     fi
 fi
-
-# Authenticate using the GitHub token
-echo "${GITHUB_TOKEN}" | gh auth login --with-token
-
-# Create a new release
-gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "envolution/aur"
 
 echo "==== Build and release process for ${PACKAGE_NAME} completed ===="

@@ -107,19 +107,17 @@ jobs:
         run: |
            sudo -u builder bash ./testaur.sh
 
-       - name: Build and publish packages
-        run: |
-          echo "${{ env.PACKAGES }}" | while IFS=':' read -r package pkgbuild; do
-            echo "==== Building package: $package ===="
-            
-            # Get and install dependancies first, install only what's needed
-
+      - name: Build and publish packages
+	run: |
+	  echo "${{ env.PACKAGES }}" | while IFS=':' read -r package pkgbuild; do
+	    echo "==== Building package: $package ===="
+	    
+	    # Get and install dependencies first, install only what's needed
 	    paru -Si gnome-shell-git | \
-	       awk -F'[:<=>]' '/^(Depends On|Make Deps)/{print $2}' | \
-	       tr -s ' ' '\n' | \
-	       grep -v '^$' | \
-	       sudo -u builder xargs paru -S --needed --norebuild            
-
-            # Then build and publish
-            sudo -u builder bash ./buildscript.sh "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
-          done          
+	      awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" | \
+	      tr -s " " "\n" | \
+	      grep -v "^$" | \
+	      sudo -u builder xargs paru -S --needed --norebuild            
+	    # Then build and publish
+	    sudo -u builder bash ./buildscript.sh "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
+	  done

@@ -99,6 +99,10 @@ jobs:
           git config --global user.name "${{ env.GIT_USERNAME }}"
           git config --global user.email "${{ env.GIT_EMAIL }}"
 
+      - name: Test AUR keys 
+        run: |
+           sudo -u builder bash ./testaur.sh
+
       - name: Build and publish packages
         run: |
           echo "${{ env.PACKAGES }}" | while IFS=':' read -r package pkgbuild; do

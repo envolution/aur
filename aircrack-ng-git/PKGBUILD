@@ -12,7 +12,6 @@
 
 #Based on https://gitlab.archlinux.org/archlinux/packaging/packages/aircrack-ng/-/raw/main/PKGBUILD
 
-pkgbase=aircrack-ng
 pkgname=aircrack-ng-git
 _pkgver=1.7
 pkgver=${_pkgver//-/}
@@ -43,12 +42,12 @@ pkgver() {
 }
 
 prepare() {
-  cd $pkgbase
+  cd aircrack-ng
   autoreconf -fiv
 }
 
 build() {
-  cd $pkgbase
+  cd aircrack-ng
 
   ./configure \
     --prefix=/usr \
@@ -61,12 +60,12 @@ build() {
 }
 
 check() {
-  cd $pkgbase
+  cd aircrack-ng
   make check
 }
 
 package() {
-  cd $pkgbase
+  cd aircrack_ng
   make DESTDIR="$pkgdir" install
 }
 

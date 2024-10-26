@@ -106,8 +106,8 @@ jobs:
       - name: Test AUR keys 
         run: |
            sudo -u builder bash ./testaur.sh
-           
-      - name: Build and publish packages
+
+       - name: Build and publish packages
         run: |
           echo "${{ env.PACKAGES }}" | while IFS=':' read -r package pkgbuild; do
             echo "==== Building package: $package ===="
@@ -122,4 +122,4 @@ jobs:
 
             # Then build and publish
             sudo -u builder bash ./buildscript.sh "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
-          done
+          done          

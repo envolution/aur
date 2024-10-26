@@ -105,7 +105,7 @@ jobs:
            
       - name: genkey 
         run: |
-           sudo -u builder bash ./genkey.sh
+           sudo -u builder bash ./genkey.sh "${{ env.GIT_EMAIL }}" 
 
       - name: Build and publish packages
         run: |

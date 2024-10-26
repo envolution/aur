@@ -63,7 +63,7 @@ jobs:
           # Update system and install dependencies
           pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh
+          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh github-cli
 
       - name: Install paru
         run: |
@@ -120,5 +120,5 @@ jobs:
               | grep -v "^$" \
               | sudo -u builder xargs paru -S --needed --norebuild --noconfirm
             # Then build and publish
-            sudo -u builder bash ./buildscript.sh "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
+            sudo -u builder bash ./buildscript.sh "$GITHUB_TOKEN" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
           done

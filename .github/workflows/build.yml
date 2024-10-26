@@ -100,13 +100,13 @@ jobs:
           sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
           sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
 
-      - name: genkey
-        run: |
-          sudo -u builder bash ./genkey.sh "${{ env.GIT_EMAIL }}"
+      #- name: genkey
+      #  run: |
+      #    sudo -u builder bash ./genkey.sh "${{ env.GIT_EMAIL }}"
 
-      - name: Test AUR keys
-        run: |
-          sudo -u builder bash ./testaur.sh
+      #- name: Test AUR keys
+      #  run: |
+      #    sudo -u builder bash ./testaur.sh
 
       - name: Build and publish packages
         run: |
@@ -123,7 +123,7 @@ jobs:
               | grep -v "^$" \
               | sudo -u builder xargs paru -S --needed --norebuild --noconfirm || true
             # Then build and publish
-            sudo -u builder bash ./buildscript.sh "$GH_TOKEN" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
+            sudo -u builder bash ./buildscript.sh "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -24,14 +24,36 @@ if [ "${DEBUG:-}" == "true" ]; then
     set -x
 fi
 
-# Build the package
-cd "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}"
+# Create and move to a clean build directory
+BUILD_DIR="/tmp/build-${PACKAGE_NAME}"
+rm -rf "${BUILD_DIR}"
+mkdir -p "${BUILD_DIR}"
+cd "${BUILD_DIR}"
+
+# Clone AUR repository
+echo "Cloning AUR repository for ${PACKAGE_NAME}..."
+git clone "$AUR_REPO" .
+
+# Update PKGBUILD if needed
+if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}" ]; then
+    echo "Copying PKGBUILD from ${PKGBUILD_PATH}"
+    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}" ./PKGBUILD
+fi
+
+# Update source files
+echo "Updating package checksums..."
+updpkgsums
+
+# Build package
+echo "Building package..."
 makepkg -s --noconfirm
 
 # Install the package
+echo "Installing package..."
 sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
 
 # Generate .SRCINFO
+echo "Generating .SRCINFO..."
 makepkg --printsrcinfo > .SRCINFO
 
 # Stage tracked files that have changes
@@ -52,6 +74,6 @@ fi
 echo "${GITHUB_TOKEN}" | gh auth login --with-token
 
 # Create a new release
-gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}"
+gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "envolution/aur"
 
 echo "==== Build and release process for ${PACKAGE_NAME} completed ===="

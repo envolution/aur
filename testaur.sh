@@ -42,12 +42,13 @@ echo "AUR Diagnostics Script"
 check_ssh_key
 
 # Specify the AUR host (replace with the correct host if needed)
-AUR_HOST="aur@aur.archlinux.org"
+AUR_HOST="aur.archlinux.org"
+AUR_SSH="aur@aur.archlinux.org"
 
 # Check known_hosts
 check_known_hosts "$AUR_HOST"
 
 # Check SSH connection
-check_ssh_connection "$AUR_HOST"
+check_ssh_connection "$AUR_SSH"
 
 echo "Diagnostics complete."

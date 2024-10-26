@@ -85,7 +85,6 @@ jobs:
         run: |
           sudo -u builder mkdir -p /home/builder/.ssh
           sudo -u builder echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > /home/builder/.ssh/aur
-          chmod 600 /home/builder/.ssh/aur
           sudo -u builder ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
           sudo -u builder cat /home/builder/.ssh/known_hosts
           sudo -u builder cat >> /home/builder/.ssh/config << EOF

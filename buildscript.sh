@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Ensure the script receives exactly 4 arguments
-if [ "$#" -ne 5 ]; then
+if [ "$#" -ne 6 ]; then
     echo "Usage: $0 <GITHUB_TOKEN> <GITHUB_WORKSPACE> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"
     exit 1
 fi
@@ -10,12 +10,13 @@ fi
 
 
 # Define variables
-GITHUB_TOKEN="$1"
-echo "=== GITHUB TOKEN IS $1 ==="
-GITHUB_WORKSPACE="$2"
-PACKAGE_NAME="$3"
-PKGBUILD_PATH="$4"
-COMMIT_MESSAGE="$5"
+GITHUB_REPOSITORY="$1"
+GITHUB_TOKEN="$2"
+echo "=== GITHUB TOKEN IS $2 ==="
+GITHUB_WORKSPACE="$3"
+PACKAGE_NAME="$4"
+PKGBUILD_PATH="$5"
+COMMIT_MESSAGE="$6"
 RELEASE_TAG="v$(date +%Y%m%d%H%M%S)"
 RELEASE_NAME="Release $RELEASE_TAG"
 RELEASE_BODY="Automated release of ${PACKAGE_NAME}"
@@ -81,7 +82,7 @@ else
 
         # Create a new release
         echo "=== Push compiled binary to releases ==="
-        gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "envolution/aur"
+        gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
 
     fi
 fi

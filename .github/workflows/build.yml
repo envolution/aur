@@ -105,7 +105,7 @@ jobs:
             # First install the package if it exists (for dependencies)
             # sudo -u builder paru -S --noconfirm --needed "$package" || true
             # Get and install dependancies first, install only what's needed
-            sudo -u builder paru -Si "$package" | awk -F'[:<=>]' '/^(Depends On|Make Deps)/ {print $2}' || true
+            sudo -u builder paru -Si "$package" | awk -F'[:<=>]' '/^(Depends On|Make Deps)/ {print $2}' | xargs paru -S --needed --norebuild || true
             
             # Then build and publish
             sudo -u builder bash ./buildscript.sh "$package" "$pkgbuild" "Auto Update $package"

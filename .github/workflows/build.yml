@@ -123,5 +123,7 @@ jobs:
               | grep -v "^$" \
               | sudo -u builder xargs paru -S --needed --norebuild --noconfirm || true
             # Then build and publish
-            sudo -u builder bash ./buildscript.sh "${{ secrets.GITHUB_TOKEN }}" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
+            sudo -u builder bash ./buildscript.sh "$GH_TOKEN" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
           done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -11,6 +11,7 @@ fi
 
 # Define variables
 GITHUB_TOKEN="$1"
+echo "=== GITHUB TOKEN IS $1 ==="
 GITHUB_WORKSPACE="$2"
 PACKAGE_NAME="$3"
 PKGBUILD_PATH="$4"

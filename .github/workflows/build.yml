@@ -35,8 +35,7 @@ jobs:
         with:
           path: |
             /var/cache/pacman/pkg
-            ~/.cache/paru
-            ~/.local/share/paru
+            /home/builder/.cache/paru
           key: ${{ runner.os }}-pacman-aur-${{ steps.get-date.outputs.date }}
           restore-keys: |
             ${{ runner.os }}-pacman-aur-

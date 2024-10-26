@@ -48,7 +48,14 @@ makepkg --printsrcinfo > .SRCINFO
 # Commit and push changes
 echo "Committing and pushing changes..."
 git add PKGBUILD .SRCINFO
-git commit -m "${COMMIT_MESSAGE}"
-git push origin master
 
-echo "==== Successfully built and published ${PACKAGE_NAME} ===="
+git fetch
+if git diff --exit-code origin/main > /dev/null; then
+  echo "Local repo is up to date with remote."
+  echo "==== No changes required for ${PACKAGE_NAME}.  Skipping ===="
+else
+  echo "Local repo has changes compared to remote."
+  git commit -m "${COMMIT_MESSAGE}"
+  git push origin master
+  echo "==== Successfully built and published ${PACKAGE_NAME} ===="
+fi

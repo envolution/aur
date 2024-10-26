@@ -121,7 +121,7 @@ jobs:
               | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
               | tr -s " " "\n" \
               | grep -v "^$" \
-              | sudo -u builder xargs paru -S --needed --norebuild --noconfirm
+              | sudo -u builder xargs paru -S --needed --norebuild --noconfirm || true
             # Then build and publish
             sudo -u builder bash ./buildscript.sh "${{ secrets.GITHUB_TOKEN }}" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
           done

@@ -18,6 +18,7 @@ COMMIT_MESSAGE="$5"
 RELEASE_TAG="v$(date +%Y%m%d%H%M%S)"
 RELEASE_NAME="Release $RELEASE_TAG"
 RELEASE_BODY="Automated release of ${PACKAGE_NAME}"
+AUR_REPO="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
 
 # Enable debugging if DEBUG environment variable is set
 if [ "${DEBUG:-}" == "true" ]; then

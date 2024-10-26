@@ -18,6 +18,7 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
+        shotcut-git:shotcut-git/PKGBUILD
         gnome-shell-git:gnome-shell-git/PKGBUILD
         rot8-git:rot8-git/PKGBUILD
         aircrack-ng-git:aircrack-ng-git/PKGBUILD

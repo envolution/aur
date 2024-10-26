@@ -1,0 +1,130 @@
+name: Build with pacman and AUR cache
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GIT_USERNAME: envolution
+  GIT_EMAIL: involution@gmail.com
+  PACKAGES: >-
+    [
+      {
+        "name": "mutter-git",
+        "pkgbuild": "mutter-git/PKGBUILD",
+        "deps": [""]
+      },
+      {
+        "name": "gnome-shell-git",
+        "pkgbuild": "gnome-shell-git/PKGBUILD",
+        "deps": ["mutter-git"]
+      }
+    ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: 
+      image: archlinux:base-devel
+      options: --privileged
+    
+    strategy:
+      matrix:
+        package: ${{ fromJSON(env.PACKAGES) }}
+      fail-fast: false
+      max-parallel: 1
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Date
+        id: get-date
+        run: |
+          echo "date=$(date -u "+%Y-%m")" >> $GITHUB_OUTPUT
+
+      - name: Cache pacman and AUR packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/pacman/pkg
+            ~/.cache/paru
+            ~/.local/share/paru
+          key: ${{ runner.os }}-pacman-aur-${{ steps.get-date.outputs.date }}
+          restore-keys: |
+            ${{ runner.os }}-pacman-aur-
+
+      - name: Setup non-root user for AUR
+        run: |
+          # Create build user with sudo access
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chmod 440 /etc/sudoers.d/builder
+          
+          # Create build directories with proper permissions
+          install -d -m 755 /home/builder/.cache/paru
+          install -d -m 755 /home/builder/.local/share/paru
+          install -d -m 755 /home/builder/.gnupg
+          chown -R builder:builder /home/builder
+
+      - name: Initialize and update system
+        run: |
+          # Initialize keyring with proper permissions
+          mkdir -p /etc/pacman.d/gnupg
+          pacman-key --init
+          pacman-key --populate archlinux
+          
+          # Update system and install dependencies
+          pacman -Sy --noconfirm --needed archlinux-keyring
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed git base-devel
+
+      - name: Install paru
+        run: |
+          cd /tmp
+          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          cd paru-bin
+          sudo -u builder makepkg -si --noconfirm
+          
+          # Configure paru
+          echo '[options]
+          BatchInstall
+          BottomUp
+          RemoveMake
+          SudoLoop
+          UseAsk' | sudo tee /etc/paru.conf
+
+      - name: Install dependencies
+        if: matrix.package.deps != ''
+        run: |
+          for dep in ${{ join(matrix.package.deps, ' ') }}; do
+            echo "Installing dependency: $dep"
+            sudo -u builder paru -S --noconfirm --needed "$dep"
+          done
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          cat >> ~/.ssh/config << EOF
+          Host aur.archlinux.org
+              IdentityFile ~/.ssh/aur
+              User aur
+          EOF
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "${{ env.GIT_USERNAME }}"
+          git config --global user.email "${{ env.GIT_EMAIL }}"
+
+      - name: Build and publish package
+        run: |
+          sudo -u builder bash ./scripts/build-package.sh
+        env:
+          PACKAGE_NAME: ${{ matrix.package.name }}
+          PKGBUILD_PATH: ${{ matrix.package.pkgbuild }}
+          COMMIT_MESSAGE: "Auto Update ${{ matrix.package.name }}"

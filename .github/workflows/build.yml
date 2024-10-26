@@ -83,17 +83,17 @@ jobs:
 
       - name: Setup SSH key
         run: |
-          sudo -u builder mkdir -p ~/.ssh
-          sudo -u builder echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
-          sudo -u builder chmod 600 ~/.ssh/aur
-          sudo -u builder ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-          sudo -u builder cat ~/.ssh/known_hosts
-          sudo -u builder cat >> ~/.ssh/config << EOF
+          sudo -u builder mkdir -p /home/builder/.ssh
+          sudo -u builder echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > /home/builder/.ssh/aur
+          sudo -u builder chmod 600 /home/builder/.ssh/aur
+          sudo -u builder ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
+          sudo -u builder cat /home/builder/.ssh/known_hosts
+          sudo -u builder cat >> /home/builder/.ssh/config << EOF
           Host aur.archlinux.org
-                IdentityFile ~/.ssh/aur
+                IdentityFile /home/builder/.ssh/aur
                 User aur
           EOF
-          sudo -u builder cat ~/.ssh/aur
+          sudo -u builder cat /home/builder/.ssh/aur
 
 
       - name: Configure Git

@@ -2,9 +2,11 @@
 set -euo pipefail
 
 # Get arguments
-PACKAGE_NAME="$1"
-PKGBUILD_PATH="$2"
-COMMIT_MESSAGE="$3"
+GITHUB_WORKSPACE="$1"
+PACKAGE_NAME="$2"
+PKGBUILD_PATH="$3"
+COMMIT_MESSAGE="$4"
+
 
 AUR_REPO="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
 

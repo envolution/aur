@@ -92,7 +92,6 @@ jobs:
                 IdentityFile /home/builder/.ssh/aur
                 User aur
           EOF
-          sudo -u builder cat /home/builder/.ssh/aur
 
 
       - name: Configure Git

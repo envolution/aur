@@ -91,6 +91,8 @@ jobs:
               IdentityFile ~/.ssh/aur
               User aur
           EOF
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+
 
       - name: Configure Git
         run: |

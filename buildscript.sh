@@ -45,7 +45,9 @@ sudo pacman -U --noconfirm ${PACKAGE_NAME}*.pkg.tar.zst
 echo "Generating .SRCINFO..."
 makepkg --printsrcinfo > .SRCINFO
 
+
 # Commit and push changes
+
 #echo "Committing and pushing changes..."
 #git add PKGBUILD .SRCINFO
 

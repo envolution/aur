@@ -62,6 +62,7 @@ jobs:
           pacman-key --init
           pacman-key --populate archlinux
           echo -e "\n[extra]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+          cat /etc/pacman.conf
 
           # Update system and install dependencies
           pacman -Sy --noconfirm --needed archlinux-keyring

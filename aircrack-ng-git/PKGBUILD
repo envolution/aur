@@ -65,7 +65,7 @@ check() {
 }
 
 package() {
-  cd aircrack_ng
+  cd aircrack-ng
   make DESTDIR="$pkgdir" install
 }
 

@@ -23,6 +23,7 @@ prepare() {
 
 build() {
   cd shotcut
+  compile_version=$(echo $pkgver | sed 's/v\([0-9.]*\).*/\1/')
 
   # https://github.com/mltframework/shotcut/issues/1275
   export CXXFLAGS+=" -DSHOTCUT_NOUPGRADE"
@@ -32,8 +33,13 @@ build() {
     -GNinja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DSHOTCUT_VERSION=${pkgver}
+    -DSHOTCUT_VERSION=$compile_version
   cmake --build build --verbose
+}
+
+pkgver() {
+  cd shotcut
+  git describe --tags | sed 's/[^-]*-g/r&/;s/-/+/g'
 }
 
 package() {

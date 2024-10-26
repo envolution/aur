@@ -18,9 +18,7 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        mutter-git:mutter-git/PKGBUILD
         gnome-shell-git:gnome-shell-git/PKGBUILD
-        gnome-control-center-git:gnome-control-center-git/PKGBUILD
 
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +103,9 @@ jobs:
             echo "==== Building package: $package ===="
             
             # First install the package if it exists (for dependencies)
-            sudo -u builder paru -S --noconfirm --needed "$package" || true
+            # sudo -u builder paru -S --noconfirm --needed "$package" || true
+            # Get and install dependancies first, install only what's needed
+            sudo -u builder paru -Si "$package" | awk -F'[:<=>]' '/^(Depends On|Make Deps)/ {print $2}' || true
             
             # Then build and publish
             sudo -u builder bash ./buildscript.sh "$package" "$pkgbuild" "Auto Update $package"

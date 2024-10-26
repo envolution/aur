@@ -61,7 +61,7 @@ jobs:
           mkdir ~/paru
           cd ~/paru
           tar xf "/tmp/paru/$file"
-          sudo mv ~/paru/paru.conf /etc/
+          sudo install -Dm644 ~/paru/paru.conf /etc/
               
 
       - name: Install mutter-git

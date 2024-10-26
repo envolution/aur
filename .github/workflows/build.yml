@@ -19,6 +19,8 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         gnome-shell-git:gnome-shell-git/PKGBUILD
+        rot8:rot8/PKGBUILD
+        aircrack-ng-git:aircrack-ng-git/PKGBUILD
 
     steps:
       - uses: actions/checkout@v4

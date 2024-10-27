@@ -101,8 +101,8 @@ else
                 echo "== Package ${PACKAGE_NAME} installed successfully =="
                 # Create a new release
                 # Authenticate using the GitHub token
-                #echo "=== Auth to GH ==="
-                #echo "${GH_TOKEN}" | gh auth login --with-token
+                echo "=== Auth to GH ==="
+                echo "${GH_TOKEN}" | gh auth login --with-token
                 echo "=== Push compiled binary to releases ==="
                 gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
             else

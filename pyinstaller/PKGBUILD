@@ -49,6 +49,7 @@ prepare() {
 }
 
 build() {
+  ls
   cd "$pkgname-$pkgver"
   python -m build --wheel --no-isolation
 }

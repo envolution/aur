@@ -70,6 +70,12 @@ prepare() {
   [ -d work ] && mv work $_pkgname
   cd $_pkgname
 
+
+  echo "I'm in: $(pwd)"
+  ls
+  echo "---"
+  ls patches
+  echo "---"
   patch -p1 -i "$srcdir"/patches/os-prober-frugalware.diff
   patch -p1 -i "$srcdir"/patches/os-prober-mdraidfix.patch
   patch -p1 -i "$srcdir"/patches/os-prober-btrfsfix.patch

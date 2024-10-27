@@ -43,6 +43,13 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
     chmod 600 ./PKGBUILD
 fi
 
+# Collect patches if needed
+if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" ]; then
+    echo "Copying patches from ${PKGBUILD_PATH}"
+    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" .
+    chmod -R 700 patches
+fi
+
 # Check for a version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
     echo "Copying version file from ${PKGBUILD_PATH}"

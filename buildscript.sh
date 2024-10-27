@@ -53,11 +53,11 @@ fi
 
 
 # Update source files
-echo "Updating package checksums..."
+echo "== Updating package checksums =="
 updpkgsums
 
 # Generate .SRCINFO
-echo "Generating .SRCINFO..."
+echo "== Generating .SRCINFO =="
 makepkg --printsrcinfo > .SRCINFO
 
 # Stage tracked files that have changes

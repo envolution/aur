@@ -65,14 +65,14 @@ sha256sums=('abe6317d078c4e51e322e62036b6df4a698bfe80c5be110a08894841179810ee'
             '7092754efb20ec9b748b1c678bcf50b6d4f55ac0d8f01520f319a5d337136a79')
 
 prepare() {
-  
+
   #this may only be an issue in 1.83 version of the tar file
   [ -d work ] && mv work $_pkgname
   cd $_pkgname
 
-  patch -p0 -i "$srcdir"/patches/os-prober-frugalware.diff || true
-  patch -p1 -i "$srcdir"/patches/os-prober-mdraidfix.patch || true 
-  patch -p2 -i "$srcdir"/patches/os-prober-btrfsfix.patch || true
+  patch -p1 -i "$srcdir"/patches/os-prober-frugalware.diff
+  patch -p1 -i "$srcdir"/patches/os-prober-mdraidfix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-btrfsfix.patch
   patch -p1 -i "$srcdir"/patches/os-prober-bootpart-name-fix.patch
   patch -p1 -i "$srcdir"/patches/os-prober-mounted-partitions-fix.patch
   patch -p1 -i "$srcdir"/patches/os-prober-factor-out-logger.patch

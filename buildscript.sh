@@ -121,6 +121,7 @@ else
                 echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
                 FAILURE = 1
             fi 
+        fi
 
     fi
 fi

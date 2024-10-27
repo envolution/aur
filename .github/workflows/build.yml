@@ -18,12 +18,12 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        build:pyinstaller:pyinstaller/PKGBUILD
+        build:pyinstaller:pyinstaller
 
-      #  build:aircrack-ng-git:aircrack-ng-git/PKGBUILD
-      #  build:rot8-git:rot8-git/PKGBUILD
-      #  build:gnome-shell-git:gnome-shell-git/PKGBUILD
-      #  nobuild:shotcut-git:shotcut-git/PKGBUILD
+      #  build:aircrack-ng-git:aircrack-ng-git
+      #  build:rot8-git:rot8-git
+      #  build:gnome-shell-git:gnome-shell-git
+      #  nobuild:shotcut-git:shotcut-git
 
     steps:
       - uses: actions/checkout@v4

@@ -7,14 +7,10 @@ if [ "$#" -ne 7 ]; then
     exit 1
 fi
 
-if [ -z $GH_TOKEN ]; then
-    echo "!!! My git token is $GH_TOKEN !!!" | awk '{ for(i=length;i!=0;i--)x=x substr($0,i,1)}END{print x}'
-fi
-
 # Define variables
 GITHUB_REPOSITORY="$1"
 GITHUB_TOKEN="$2"
-echo "=== GITHUB TOKEN IS $2 ==="
+echo "=== GITHUB TOKEN IS $2 ===" | awk '{ for(i=length;i!=0;i--)x=x substr($0,i,1)}END{print x}'
 GITHUB_WORKSPACE="$3"
 BUILD=$4
 PACKAGE_NAME="$5"

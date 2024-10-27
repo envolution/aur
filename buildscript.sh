@@ -116,7 +116,8 @@ else
                 echo "=== Auth to GH ==="
                 echo "${GH_TOKEN}" | gh auth login --with-token
                 echo "=== Push compiled binary to releases ==="
-                gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
+                gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
+                    || echo "== Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
                 gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
             else
                 echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
@@ -130,6 +131,13 @@ else
             git push origin master
             if [ $? -eq 0 ]; then
                 echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
+                # We update our local PKGBUILD now since we've confirmed an update to remote AUR
+                gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD \
+                    -f message="Updated file" \
+                    -f content="$(base64 < PKGBUILD)" \
+                    --jq '.commit.sha' \
+                    -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD --jq '.sha')"
+                echo "== local PKGBUILD updated =="
             else
                 echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
                 FAILURE = 1

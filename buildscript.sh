@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Ensure the script receives exactly 4 arguments
-if [ "$#" -ne 6 ]; then
-    echo "Usage: $0 <GITHUB_TOKEN> <GITHUB_WORKSPACE> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"
+# Ensure the script receives exactly 7 arguments
+if [ "$#" -ne 7 ]; then
+    echo "Usage: $0 <GITHUB_REPO> <GITHUB_TOKEN> <GITHUB_WORKSPACE> <BUILD:0:1> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"
     exit 1
 fi
 
@@ -14,13 +14,15 @@ GITHUB_REPOSITORY="$1"
 GITHUB_TOKEN="$2"
 echo "=== GITHUB TOKEN IS $2 ==="
 GITHUB_WORKSPACE="$3"
-PACKAGE_NAME="$4"
-PKGBUILD_PATH="$5"
-COMMIT_MESSAGE="$6"
+BUILD=$4
+PACKAGE_NAME="$5"
+PKGBUILD_PATH="$6"
+COMMIT_MESSAGE="$7"
 RELEASE_TAG="v$(date +%Y%m%d%H%M%S)"
 RELEASE_NAME="Release $RELEASE_TAG"
 RELEASE_BODY="Automated release of ${PACKAGE_NAME}"
 AUR_REPO="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
+FAILURE=0
 
 # Enable debugging if DEBUG environment variable is set
 if [ "${DEBUG:-}" == "true" ]; then
@@ -47,14 +49,6 @@ fi
 echo "Updating package checksums..."
 updpkgsums
 
-# Build package
-echo "Building package..."
-makepkg -s --noconfirm
-
-# Install the package
-echo "Installing package..."
-sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
-
 # Generate .SRCINFO
 echo "Generating .SRCINFO..."
 makepkg --printsrcinfo > .SRCINFO
@@ -63,15 +57,55 @@ makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO
 
 # Check for changes and commit
-echo "Checking for changes to commit..."
+echo "== Checking for changes to commit =="
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
-    echo "Initial commit, committing selected files..."
+    echo "== Initial commit, committing selected files =="
     git commit -m "${COMMIT_MESSAGE}"
+
 else
+
     if git diff-index --cached --quiet HEAD --; then
-        echo "No changes detected. Skipping commit and push."
+        echo "== No changes detected. Skipping commit and push =="
     else
-    echo "Changes detected. Committing and pushing selected files..."
+
+        echo "== Changes detected. Committing and pushing selected files =="
+        if [ $BUILD ]; then
+            echo "== $package has been configured to be compiled and installed before pushing =="
+            #Install package dependancies
+            paru -Si $package \
+                | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
+                | tr -s " " "\n" \
+                | grep -v "^$" \
+                | xargs paru -S --needed --norebuild --noconfirm || true
+
+            if [ $? -eq 0 ]; then
+                echo "== Package dependencies installed successfully =="
+            else
+                echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
+                FAILURE=1
+            fi
+
+            # Build package
+            echo "Building package..."
+            makepkg -s --noconfirm
+            if [ $? -eq 0 ]; then
+                echo "== Package $package built successfully =="
+            else
+                echo "== FAIL makepkg build of $package failed (skipping commit) =="
+                FAILURE=1
+            fi            
+
+            # Install the package
+            echo "== Installing package =="
+            sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
+            if [ $? -eq 0 ]; then
+                echo "== Package $package installed successfully =="
+            else
+                echo "== FAIL install of $package failed (skipping commit) =="
+                FAILURE=1
+            fi            
+        fi
+
         git fetch
         git commit -m "${COMMIT_MESSAGE}"
         git push origin master
@@ -86,5 +120,9 @@ else
 
     fi
 fi
-
-echo "==== Build and release process for ${PACKAGE_NAME} completed ===="
+if [ $FAILURE -eq 0 ]; then
+    echo "==== $package processed without detected errors ===="
+else
+    echo "**** $package has had some errors while processing, check logs for more details ****"
+fi
+echo "==== Build and release process for ${PACKAGE_NAME} exiting ===="

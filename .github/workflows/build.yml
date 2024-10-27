@@ -19,9 +19,9 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         build:aircrack-ng-git:aircrack-ng-git/PKGBUILD
+        build:gnome-shell-git:gnome-shell-git/PKGBUILD
+        build:rot8-git:rot8-git/PKGBUILD
         nobuild:shotcut-git:shotcut-git/PKGBUILD
-      #build:gnome-shell-git:gnome-shell-git/PKGBUILD
-      #build:rot8-git:rot8-git/PKGBUILD
 
     steps:
       - uses: actions/checkout@v4
@@ -101,14 +101,6 @@ jobs:
           sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
           sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
 
-      #- name: genkey
-      #  run: |
-      #    sudo -u builder bash ./genkey.sh "${{ env.GIT_EMAIL }}"
-
-      #- name: Test AUR keys
-      #  run: |
-      #    sudo -u builder bash ./testaur.sh
-
       - name: Build and publish packages
         run: |
           echo "${{ env.PACKAGES }}" | while IFS=':' read -r build package pkgbuild; do
@@ -120,4 +112,4 @@ jobs:
             sudo -u builder bash ./buildscript.sh "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
           done
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

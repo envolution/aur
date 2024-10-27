@@ -54,10 +54,6 @@ build() {
   python -m build --wheel --no-isolation
 }
 
-pkgver() {
-    curl https://api.github.com/repos/pyinstaller/pyinstaller/releases/latest | grep -i "tag_name" | awk -F '"' '{print $4}' | cut -c2-
-}
-
 #check() {
 #  cd "$pkgname-$pkgver"
 

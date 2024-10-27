@@ -18,7 +18,8 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        build:slade-git:slade-git
+        build:zdoom:zdoom
+        nobuild:slade-git:slade-git
       #  build:slade:slade
       #  build:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib
       #  build:pyinstaller:pyinstaller

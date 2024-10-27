@@ -46,7 +46,7 @@ fi
 # Collect patches if needed
 if [ -d "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" ]; then
     echo "Copying patches from ${PKGBUILD_PATH}"
-    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" .
+    cp -r "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" .
     chmod -R 700 patches
 fi
 

@@ -51,12 +51,8 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
     NEW_VERSION=$(./_PKGBUILD_version.sh)
     echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
+    cat PKGBUILD
 fi
-
-cat PKGBUILD
-
-exit 1
-
 
 # Update source files
 echo "== Updating package checksums =="

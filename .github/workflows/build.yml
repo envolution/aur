@@ -121,4 +121,4 @@ jobs:
             sudo -u builder bash ./buildscript.sh "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
           done
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}

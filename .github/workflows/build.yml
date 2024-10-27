@@ -122,5 +122,3 @@ jobs:
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GIT_USERNAME: ${{ env.GIT_USERNAME }}
-          GIT_EMAIL: ${{ env.GIT_EMAIL }}

@@ -7,15 +7,6 @@ if [ "$#" -ne 7 ]; then
     exit 1
 fi
 
-if [ -z $GIT_USERNAME ]; then
-    echo "!!! My git id is $GIT_USERNAME !!!"
-fi
-
-if [ -z $GIT_EMAIL ]; then
-    echo "!!! My git email is $GIT_EMAIL !!!"
-
-fi
-
 if [ -z $GH_TOKEN ]; then
     echo "!!! My git token is $GH_TOKEN !!!" | awk '{ for(i=length;i!=0;i--)x=x substr($0,i,1)}END{print x}'
 fi

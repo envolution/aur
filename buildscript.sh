@@ -15,9 +15,9 @@ BUILD=$4
 PACKAGE_NAME="$5"
 PKGBUILD_PATH="$6"
 COMMIT_MESSAGE="$7"
-RELEASE_TAG="v$(date +%Y%m%d)"
-RELEASE_NAME="Arch Binary Packages built on $RELEASE_TAG"
-RELEASE_BODY="Automated x86_64 binary installers.  These are created only when changes to the associated git repos occur.  To install, run: sudo pacman -U PACKAGENAME.tar.zst"
+RELEASE_TAG="v$(date +%Y%m)"
+RELEASE_NAME="Release of packages compiled for ARCH x86_64 on $RELEASE_TAG"
+RELEASE_BODY="To install, run: sudo pacman -U PACKAGENAME.pkg.tar.zst"
 AUR_REPO="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
 FAILURE=0
 

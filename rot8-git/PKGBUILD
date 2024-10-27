@@ -39,4 +39,4 @@ package() {
   install -Dm644 "$srcdir/$_pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
 
-# vim:set ts=2 sw=2 et:
+# vim: ts=2 sw=2 et:

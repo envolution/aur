@@ -19,9 +19,10 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         shotcut-git:shotcut-git/PKGBUILD
-        gnome-shell-git:gnome-shell-git/PKGBUILD
-        rot8-git:rot8-git/PKGBUILD
-        aircrack-ng-git:aircrack-ng-git/PKGBUILD
+        
+      #gnome-shell-git:gnome-shell-git/PKGBUILD
+      #rot8-git:rot8-git/PKGBUILD
+      #aircrack-ng-git:aircrack-ng-git/PKGBUILD
 
     steps:
       - uses: actions/checkout@v4

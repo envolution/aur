@@ -18,11 +18,11 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        0:shotcut-git:shotcut-git/PKGBUILD
+        build:shotcut-git:shotcut-git/PKGBUILD
         
-      #1:gnome-shell-git:gnome-shell-git/PKGBUILD
-      #1:rot8-git:rot8-git/PKGBUILD
-      #1:aircrack-ng-git:aircrack-ng-git/PKGBUILD
+      #nobuild:gnome-shell-git:gnome-shell-git/PKGBUILD
+      #nobuild:rot8-git:rot8-git/PKGBUILD
+      #nobuild:aircrack-ng-git:aircrack-ng-git/PKGBUILD
 
     steps:
       - uses: actions/checkout@v4

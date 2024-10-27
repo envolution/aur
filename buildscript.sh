@@ -67,9 +67,8 @@ else
     if git diff-index --cached --quiet HEAD --; then
         echo "== No changes detected. Skipping commit and push =="
     else
-
         echo "== Changes detected. Committing and pushing selected files =="
-        if [ $BUILD ]; then
+        if [ $BUILD == "build" ]; then
             echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
             #Install package dependancies
             paru -Si $PACKAGE_NAME \

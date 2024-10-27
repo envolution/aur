@@ -70,9 +70,9 @@ else
 
         echo "== Changes detected. Committing and pushing selected files =="
         if [ $BUILD ]; then
-            echo "== $package has been configured to be compiled and installed before pushing =="
+            echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
             #Install package dependancies
-            paru -Si $package \
+            paru -Si $PACKAGE_NAME \
                 | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
                 | tr -s " " "\n" \
                 | grep -v "^$" \
@@ -89,9 +89,9 @@ else
             echo "Building package..."
             makepkg -s --noconfirm
             if [ $? -eq 0 ]; then
-                echo "== Package $package built successfully =="
+                echo "== Package ${PACKAGE_NAME} built successfully =="
             else
-                echo "== FAIL makepkg build of $package failed (skipping commit) =="
+                echo "== FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
                 FAILURE=1
             fi            
 
@@ -99,9 +99,9 @@ else
             echo "== Installing package =="
             sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
             if [ $? -eq 0 ]; then
-                echo "== Package $package installed successfully =="
+                echo "== Package ${PACKAGE_NAME} installed successfully =="
             else
-                echo "== FAIL install of $package failed (skipping commit) =="
+                echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
                 FAILURE=1
             fi            
         fi
@@ -121,8 +121,8 @@ else
     fi
 fi
 if [ $FAILURE -eq 0 ]; then
-    echo "==== $package processed without detected errors ===="
+    echo "==== ${PACKAGE_NAME} processed without detected errors ===="
 else
-    echo "**** $package has had some errors while processing, check logs for more details ****"
+    echo "**** ${PACKAGE_NAME} has had some errors while processing, check logs for more details ****"
 fi
 echo "==== Build and release process for ${PACKAGE_NAME} exiting ===="

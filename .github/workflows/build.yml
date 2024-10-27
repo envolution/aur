@@ -18,8 +18,8 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        build:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib
-
+        build:slade:slade
+      #  build:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib
       #  build:pyinstaller:pyinstaller
       #  build:aircrack-ng-git:aircrack-ng-git
       #  build:rot8-git:rot8-git

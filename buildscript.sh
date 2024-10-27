@@ -47,7 +47,7 @@ fi
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
     echo "Copying version file from ${PKGBUILD_PATH}"
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ./_PKGBUILD_version.sh
-    chmod 700 ./_PLGBUILD_version.sh
+    chmod 700 ./_PKGBUILD_version.sh
     NEW_VERSION=$(./_PKGBUILD_version.sh)
     echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" _PKGBUILD_version.sh

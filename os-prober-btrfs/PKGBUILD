@@ -65,7 +65,12 @@ sha256sums=('abe6317d078c4e51e322e62036b6df4a698bfe80c5be110a08894841179810ee'
             '7092754efb20ec9b748b1c678bcf50b6d4f55ac0d8f01520f319a5d337136a79')
 
 prepare() {
-  cd ${_pkgname}
+  
+  if [ -d $_pkgname ]; then
+    cd $_pkgname
+  else
+    cd work #this may only be an issue with v1.83 tar file
+  fi
 
   patch -p1 -i "$srcdir"/patches/os-prober-frugalware.diff
   patch -p1 -i "$srcdir"/patches/os-prober-mdraidfix.patch

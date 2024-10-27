@@ -67,19 +67,19 @@ sha256sums=('abe6317d078c4e51e322e62036b6df4a698bfe80c5be110a08894841179810ee'
 prepare() {
   cd ${_pkgname}
 
-  patch -p1 -i "$srcdir"/os-prober-frugalware.diff
-  patch -p1 -i "$srcdir"/os-prober-mdraidfix.patch
-  patch -p1 -i "$srcdir"/os-prober-btrfsfix.patch
-  patch -p1 -i "$srcdir"/os-prober-bootpart-name-fix.patch
-  patch -p1 -i "$srcdir"/os-prober-mounted-partitions-fix.patch
-  patch -p1 -i "$srcdir"/os-prober-factor-out-logger.patch
-  patch -p1 -i "$srcdir"/os-prober-factored-logger-efi-fix.patch
-  patch -p1 -i "$srcdir"/os-prober-umount-fix.patch
-  patch -p1 -i "$srcdir"/os-prober-grub2-parsefix.patch
-  patch -p1 -i "$srcdir"/os-prober-grub2-multiple-images.patch
-  patch -p1 -i "$srcdir"/os-prober-grepfix.patch
-  patch -p1 -i "$srcdir"/os-prober-gentoo-fix.patch
-  patch -p1 -i "$srcdir"/fix-blkid-path.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-frugalware.diff
+  patch -p1 -i "$srcdir"/patches/os-prober-mdraidfix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-btrfsfix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-bootpart-name-fix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-mounted-partitions-fix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-factor-out-logger.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-factored-logger-efi-fix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-umount-fix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-grub2-parsefix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-grub2-multiple-images.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-grepfix.patch
+  patch -p1 -i "$srcdir"/patches/os-prober-gentoo-fix.patch
+  patch -p1 -i "$srcdir"/patches/fix-blkid-path.patch
 
   # adjust lib dir to allow detection of 64-bit distros
   sed -i -e "s:/lib/ld\*\.so\*:/lib*/ld*.so*:g" os-probes/mounted/common/90linux-distro

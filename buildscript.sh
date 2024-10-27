@@ -10,7 +10,6 @@ fi
 # Define variables
 GITHUB_REPOSITORY="$1"
 GITHUB_TOKEN="$2"
-echo "=== GITHUB TOKEN IS $2 ===" | awk '{ for(i=length;i!=0;i--)x=x substr($0,i,1)}END{print x}'
 GITHUB_WORKSPACE="$3"
 BUILD=$4
 PACKAGE_NAME="$5"
@@ -65,9 +64,12 @@ else
     if git diff-index --cached --quiet HEAD --; then
         echo "== No changes detected. Skipping commit and push =="
     else
+
         echo "== Changes detected. Committing and pushing selected files =="
         if [ $BUILD == "build" ]; then
+
             echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
+
             #Install package dependancies
             paru -Si $PACKAGE_NAME \
                 | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
@@ -97,23 +99,28 @@ else
             sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
             if [ $? -eq 0 ]; then
                 echo "== Package ${PACKAGE_NAME} installed successfully =="
+                # Create a new release
+                # Authenticate using the GitHub token
+                #echo "=== Auth to GH ==="
+                #echo "${GITHUB_TOKEN}" | gh auth login --with-token
+                echo "=== Push compiled binary to releases ==="
+                gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
             else
                 echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
                 FAILURE=1
             fi            
         fi
 
-        git fetch
-        git commit -m "${COMMIT_MESSAGE}"
-        git push origin master
-
-        # Authenticate using the GitHub token
-        echo "=== Auth to GH ==="
-        echo "${GITHUB_TOKEN}" | gh auth login --with-token
-
-        # Create a new release
-        #echo "=== Push compiled binary to releases ==="
-        #gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
+        if [ $FAILURE = 0 ]; then
+            git fetch
+            git commit -m "${COMMIT_MESSAGE}"
+            git push origin master
+            if [ $? -eq 0 ]; then
+                echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
+            else
+                echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
+                FAILURE = 1
+            fi 
 
     fi
 fi

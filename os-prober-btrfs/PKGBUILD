@@ -68,8 +68,9 @@ prepare() {
   
   #this may only be an issue in 1.83 version of the tar file
   if [ -d work ]; then
-    mv work os-prober
+    mv work $_pkgname
   fi
+  cd $_pkgname
 
   patch -p1 -i "$srcdir"/patches/os-prober-frugalware.diff
   patch -p1 -i "$srcdir"/patches/os-prober-mdraidfix.patch

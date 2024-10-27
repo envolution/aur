@@ -18,11 +18,11 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        shotcut-git:shotcut-git/PKGBUILD
+        false:shotcut-git:shotcut-git/PKGBUILD
         
-      #gnome-shell-git:gnome-shell-git/PKGBUILD
-      #rot8-git:rot8-git/PKGBUILD
-      #aircrack-ng-git:aircrack-ng-git/PKGBUILD
+      #1:gnome-shell-git:gnome-shell-git/PKGBUILD
+      #1:rot8-git:rot8-git/PKGBUILD
+      #1:aircrack-ng-git:aircrack-ng-git/PKGBUILD
 
     steps:
       - uses: actions/checkout@v4
@@ -112,20 +112,13 @@ jobs:
 
       - name: Build and publish packages
         run: |
-          echo "${{ env.PACKAGES }}" | while IFS=':' read -r package pkgbuild; do
+          echo "${{ env.PACKAGES }}" | while IFS=':' read -r build package pkgbuild; do
             # Skip empty lines
             if [ -z "$package" ] || [ -z "$pkgbuild" ]; then
               continue
             fi
             echo "==== Building package: $package ===="
-            # Get and install dependencies first, install only what's needed
-            paru -Si $package \
-              | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
-              | tr -s " " "\n" \
-              | grep -v "^$" \
-              | sudo -u builder xargs paru -S --needed --norebuild --noconfirm || true
-            # Then build and publish
-            sudo -u builder bash ./buildscript.sh "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" "$package" "$pkgbuild" "Auto Update $package"
+            sudo -u builder bash ./buildscript.sh "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

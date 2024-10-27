@@ -18,7 +18,7 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        false:shotcut-git:shotcut-git/PKGBUILD
+        0:shotcut-git:shotcut-git/PKGBUILD
         
       #1:gnome-shell-git:gnome-shell-git/PKGBUILD
       #1:rot8-git:rot8-git/PKGBUILD

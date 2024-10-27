@@ -114,8 +114,8 @@ else
         echo "${GITHUB_TOKEN}" | gh auth login --with-token
 
         # Create a new release
-        echo "=== Push compiled binary to releases ==="
-        gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
+        #echo "=== Push compiled binary to releases ==="
+        #gh release create "${RELEASE_TAG}" ./${PACKAGE_NAME}*.pkg.tar.zst --title "${RELEASE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}"
 
     fi
 fi

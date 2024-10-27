@@ -92,7 +92,11 @@ prepare() {
 }
 
 build() {
-  cd ${_pkgname}
+  if [ -d $_pkgname ]; then
+    cd $_pkgname
+  else
+    cd work #this may only be an issue with v1.83 tar file
+  fi
   make newns
 }
 
@@ -102,7 +106,11 @@ package() {
   install -Dm644 grub-initrd-generation-fix.hook $pkgdir/usr/share/libalpm/hooks/grub-initrd-generation-fix.hook
   install -Dm755 grub-initrd-generation-fix $pkgdir/usr/share/libalpm/scripts/grub-initrd-generation-fix
 
-  cd "${_pkgname}"
+  if [ -d $_pkgname ]; then
+    cd $_pkgname
+  else
+    cd work #this may only be an issue with v1.83 tar file
+  fi
 
   install -Dm 755 os-prober linux-boot-prober -t "${pkgdir}/usr/bin"
   install -Dm 755 newns -t "${pkgdir}/usr/lib/os-prober"

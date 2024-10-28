@@ -18,7 +18,8 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        build:ttf-inconsolata-g:ttf-inconsolata-g
+        build:scilab-bin:scilab-bin
+      #  build:ttf-inconsolata-g:ttf-inconsolata-g
       #  build:xcircuit:xcircuit
       #  build:os-prober-btrfs:os-prober-btrfs
       #  build:python-progress:python-progress

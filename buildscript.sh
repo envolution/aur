@@ -42,8 +42,9 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" .
 fi
 
-SOURCES=$(bash -c 'source PKGBUILD; echo "${source[@]}"')
-IFS=$' ' read -r -a SOURCE_ARRAY <<< $SOURCES
+#get the source array directly from our PKGBUILD.  We want to get all of our sources from this.
+readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"')
+
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
     echo "== There is more than one source in PKGBUILD =="
     # Iterate over the array

@@ -83,7 +83,7 @@ jobs:
           # Update system and install dependencies
           pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh github-cli jq pacutils
+          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh github-cli jq perl
 
       - name: Install paru
         run: |
@@ -99,6 +99,9 @@ jobs:
           RemoveMake
           SudoLoop
           UseAsk' | sudo tee /etc/paru.conf
+
+          export PATH=$PATH:/usr/bin/core_perl
+          paru -S --noconfirm --needed pacutils-git
 
       - name: Setup SSH key
         run: |

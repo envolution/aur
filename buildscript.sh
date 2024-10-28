@@ -153,8 +153,8 @@ else
         # Install the package
         echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         ls
-        sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst
-        if [ $? -eq 0 ]; then
+        exitcode=$(sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst)
+        if [ $exitcode -eq 0 ]; then
             echo "== Package ${PACKAGE_NAME} installed successfully =="
             # Create a new release
             # Authenticate using the GitHub token

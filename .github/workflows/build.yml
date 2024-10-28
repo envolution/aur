@@ -19,17 +19,18 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         build:os-prober-btrfs:os-prober-btrfs
-      #  build:clamav-git:clamav-git
-      #  build:zdoom:zdoom
-      #  build:zdbsp:zdbsp
-      #  nobuild:slade-git:slade-git
-      #  build:slade:slade
-      #  build:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib
-      #  build:pyinstaller:pyinstaller
-      #  build:aircrack-ng-git:aircrack-ng-git
-      #  build:rot8-git:rot8-git
-      #  build:gnome-shell-git:gnome-shell-git
-      #  nobuild:shotcut-git:shotcut-git
+        build:python-progress:python-progress
+        build:clamav-git:clamav-git
+        build:zdoom:zdoom
+        build:zdbsp:zdbsp
+        nobuild:slade-git:slade-git
+        build:slade:slade
+        build:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib
+        build:pyinstaller:pyinstaller
+        build:aircrack-ng-git:aircrack-ng-git
+        build:rot8-git:rot8-git
+        build:gnome-shell-git:gnome-shell-git
+        nobuild:shotcut-git:shotcut-git
 
     steps:
       - uses: actions/checkout@v4

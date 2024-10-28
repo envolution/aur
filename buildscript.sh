@@ -193,6 +193,8 @@ else
 
         # If we get here, the script wasn't terminated
         echo "[DEBUG] Script completed normally at $(date)"
+        ls -latr `which goxel`
+        ls -latr /usr/bin/goxel
 
         #exitcode=$(sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst)
         if [ $exitcode -eq 0 ]; then

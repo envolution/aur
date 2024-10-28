@@ -121,7 +121,7 @@ else
 
             #Install package dependancies
             if [[ ${#DEPENDS[@]} -gt 0 ]]; then
-                paru -S --needed --norebuild --noconfirm ${SOURCES[@]}
+                paru -S --needed --norebuild --noconfirm ${DEPENDS[@]}
             fi
             if [ $? -eq 0 ]; then
                 echo "== Package dependencies installed successfully =="

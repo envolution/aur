@@ -1,0 +1,48 @@
+# Contributor: a821
+# Contributor: agp
+# Contributor: Johannes Löthberg <johannes@kyriasis.com>
+
+pkgname=pacutils-git
+pkgver=0.15.0
+pkgrel=3
+pkgdesc='Helper tools for libalpm'
+url='https://github.com/andrewgregory/pacutils'
+arch=('x86_64')
+license=('MIT')
+provides=('pacutils')
+conflicts=('pacutils')
+depends=(
+  'glibc'
+  'libarchive'
+  'pacman'
+  'perl'
+)
+makedepends=('git')
+
+source=("git+https://github.com/andrewgregory/pacutils.git")
+sha256sums=('SKIP')
+validpgpkeys=('0016846EDD8432261C62CB63DF3891463C352040')
+
+build() {
+  PATH=$PATH:/usr/bin/core_perl 
+  cd pacutils
+  make CFLAGS="$CFLAGS $LDFLAGS" SYSCONFDIR=/etc LOCALSTATEDIR=/var
+}
+
+check() {
+  cd pacutils
+  make check
+}
+
+pkgver() {
+    cd pacutils
+    git describe --tags | sed 's/^v//;s/-/.r/;s/-/./'
+}
+
+package() {
+  cd pacutils
+  make DESTDIR="$pkgdir" PREFIX=/usr install
+  install -Dm644 COPYING "$pkgdir"/usr/share/licenses/"$pkgname"/COPYING
+}
+
+# vim: set ft=PKGBUILD et sw=2:

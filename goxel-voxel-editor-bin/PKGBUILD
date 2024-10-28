@@ -1,5 +1,5 @@
 # Maintainer: envolution
-#
+
 pkgname='goxel-voxel-editor-bin'
 _pkgname='goxel'
 appname='goxel'

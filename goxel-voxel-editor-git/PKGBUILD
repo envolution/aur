@@ -1,4 +1,5 @@
-# Maintainer: Alexey Trifonov <otaku [at] rambler dot ru>
+# Maintainer: envolution
+# Contributor: Alexey Trifonov <otaku [at] rambler dot ru>
 # Contributor: Tesx <tesfabpel@gmail.com>
 pkgname=goxel-voxel-editor-git
 pkgver=0.15.1.r17.a7f498f4

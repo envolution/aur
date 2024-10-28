@@ -19,7 +19,7 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         build:clamav-git:clamav-git
-      #  build:os-prober-btrfs:os-prober-btrfs
+        build:os-prober-btrfs:os-prober-btrfs
       #  build:zdoom:zdoom
       #  build:zdbsp:zdbsp
       #  nobuild:slade-git:slade-git

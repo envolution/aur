@@ -120,6 +120,11 @@ check() {
   fi
 }
 
+pkgver() {
+  cd ${_pkgname}
+  git describe --tags | sed 's/[^-]*-g/r&/;s/-/+/g;s/^clamav+//g'
+}
+
 package() {
   depends+=(
     libsystemd.so

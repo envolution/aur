@@ -36,28 +36,21 @@ cd "${BUILD_DIR}"
 echo "Cloning AUR repository for ${PACKAGE_NAME}..."
 git clone "$AUR_REPO" .
 
-# Update PKGBUILD if needed
+# Get all of our files
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
-    echo "Copying PKGBUILD from ${PKGBUILD_PATH}"
-    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ./PKGBUILD
-    chmod 600 ./PKGBUILD
-fi
-
-# Collect patches if needed
-if [ -d "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" ]; then
-    echo "Copying patches from ${PKGBUILD_PATH}"
-    cp -r "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/patches" .
-    chmod -R 700 patches
+    echo "Copying PKGBUILD and others from ${PKGBUILD_PATH}"
+    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/*" .
+    chmod 644 *
 fi
 
 # Check for a version file
-if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
-    echo "Copying version file from ${PKGBUILD_PATH}"
-    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ./_PKGBUILD_version.sh
+if [ -f "./version.sh" ]; then
+    mv "version.sh" ./_PKGBUILD_version.sh
     chmod 700 ./_PKGBUILD_version.sh
     NEW_VERSION=$(./_PKGBUILD_version.sh)
     echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
+    rm _PKGBUILD_version.sh
     cat PKGBUILD
 fi
 
@@ -71,7 +64,7 @@ makepkg --printsrcinfo > .SRCINFO
 
 # Stage tracked files that have changes
 git add PKGBUILD .SRCINFO
-[ -f "patches/" ] && git add patches/ 
+[ -f "patches/" ] && git add patches/
 
 # Check for changes and commit
 echo "== Checking for changes to commit =="
@@ -112,7 +105,7 @@ else
             else
                 echo "== FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
                 FAILURE=1
-            fi            
+            fi
 
             # Install the package
             echo "== Installing package =="
@@ -130,7 +123,7 @@ else
             else
                 echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
                 FAILURE=1
-            fi            
+            fi
         fi
 
         if [ $FAILURE = 0 ]; then
@@ -149,7 +142,7 @@ else
             else
                 echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
                 FAILURE = 1
-            fi 
+            fi
         fi
 
     fi

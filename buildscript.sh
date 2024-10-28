@@ -121,7 +121,7 @@ else
 
             #Install package dependancies
             if [[ ${#DEPENDS[@]} -gt 0 ]]; then
-                paru -S --needed --norebuild --noconfirm ${DEPENDS[@]}
+                paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${DEPENDS[@]}
             fi
             if [ $? -eq 0 ]; then
                 echo "== Package dependencies installed successfully =="
@@ -130,7 +130,7 @@ else
                 FAILURE=1
             fi
             if [[ ${#MAKEDEPENDS[@]} -gt 0 ]]; then
-                paru -S --needed --norebuild --noconfirm ${MAKEDEPENDS[@]}
+                paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${MAKEDEPENDS[@]}
             fi
 ##                | xargs paru -S --needed --norebuild --noconfirm || true
 

@@ -55,6 +55,8 @@ fi
 
 #get the source array directly from our PKGBUILD.  We want to get all of our sources from this.
 readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"')
+readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"')
+readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"')
 
 TRACKED_FILES=("PKGBUILD" ".SRCINFO")
 
@@ -118,16 +120,24 @@ else
             echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
 
             #Install package dependancies
-            paru -Si $PACKAGE_NAME \
-                | awk -F"[:<=>]" "/^(Depends On|Make Deps)/{print \$2}" \
-                | tr -s " " "\n" \
-                | grep -v "^$" \
-                | xargs paru -S --needed --norebuild --noconfirm || true
-
+            if [[ ${#DEPENDS[@]} -gt 0 ]]; then
+                paru -S --needed --norebuild --noconfirm ${SOURCES[@]}
+            fi
             if [ $? -eq 0 ]; then
                 echo "== Package dependencies installed successfully =="
             else
                 echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
+                FAILURE=1
+            fi
+            if [[ ${#MAKEDEPENDS[@]} -gt 0 ]]; then
+                paru -S --needed --norebuild --noconfirm ${MAKEDEPENDS[@]}
+            fi
+##                | xargs paru -S --needed --norebuild --noconfirm || true
+
+            if [ $? -eq 0 ]; then
+                echo "== Package make dependencies installed successfully =="
+            else
+                echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
                 FAILURE=1
             fi
 

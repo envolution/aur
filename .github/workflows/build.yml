@@ -19,9 +19,8 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         build:goxel-voxel-editor-bin:goxel-voxel-editor-bin
-        build:goxel-voxel-editor:goxel-voxel-editor
-        build:goxel-voxel-editor-git:goxel-voxel-editor-git
-
+      #  build:goxel-voxel-editor:goxel-voxel-editor
+      #  build:goxel-voxel-editor-git:goxel-voxel-editor-git
       #  build:scilab-bin:scilab-bin
       #  build:ttf-inconsolata-g:ttf-inconsolata-g
       #  build:xcircuit:xcircuit
@@ -38,7 +37,6 @@ jobs:
       #  build:rot8-git:rot8-git
       #  build:gnome-shell-git:gnome-shell-git
       #  nobuild:shotcut-git:shotcut-git
-
     steps:
       - uses: actions/checkout@v4
         with:

@@ -13,6 +13,8 @@ url='https://joeyh.name/code/os-prober/'
 arch=('x86_64')
 license=('GPL-3.0-or-later')
 depends=('sh')
+provides=('os-prober')
+conflicts=('os-prober')
 source=(https://deb.debian.org/debian/pool/main/o/${_pkgname}/${_pkgname}_${pkgver}.tar.xz
         os-prober-frugalware.diff
         os-prober-mdraidfix.patch
@@ -101,4 +103,3 @@ package() {
   install -Dm 755 os-probes/mounted/powerpc/20macosx "${pkgdir}"/usr/lib/os-probes/mounted/20macosx
   install -dm 755 "${pkgdir}"/var/lib/os-prober
 }
-

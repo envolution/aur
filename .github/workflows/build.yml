@@ -18,7 +18,7 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        goxel-voxel-editor-git
+        build:goxel-voxel-editor-git:goxel-voxel-editor-git
 
       #  build:scilab-bin:scilab-bin
       #  build:ttf-inconsolata-g:ttf-inconsolata-g

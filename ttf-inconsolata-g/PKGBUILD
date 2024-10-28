@@ -9,7 +9,7 @@ arch=('any')
 url='http://www.fantascienza.net/leonardo/'
 license=('OFL-1.1')
 source=("https://github.com/envolution/inconsolata-g/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('43efc3fd33e5a8eb7befda984bf745eda844777326e1ae06fb074707e1aeb66a')
+sha256sums=('3affd875b720421d9755e548422c40d80d13ff3a2f215db30b4918fb922e718b')
 
 package(){
   cd inconsolata-g-${pkgver}

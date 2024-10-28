@@ -171,7 +171,8 @@ else
 
             echo "[DEBUG] Subshell started, about to run pacinstall"
             set -x  # Show exactly what commands are being executed
-
+            pacinstall --version
+            sudo pacinstall --version
             # Capture the exit code immediately in a separate subshell
             pacinstall_exit=0
             ( sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst ) || pacinstall_exit=$?

@@ -151,8 +151,8 @@ else
         fi
 
         # Install the package
-        echo "== Installing package (yes is used to atomatically remove conflicts) =="
-        yes Y | sudo pacman -U ./${PACKAGE_NAME}*.pkg.tar.zst
+        echo "== Installing package (yes is used to auomatically remove conflicts) =="
+        sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst
         if [ $? -eq 0 ]; then
             echo "== Package ${PACKAGE_NAME} installed successfully =="
             # Create a new release

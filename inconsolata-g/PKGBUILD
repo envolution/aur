@@ -1,0 +1,18 @@
+# Maintainer: envolution
+# Contributor: Ryan Delaney <ryan.patrick.delaney@protonmail.com>
+
+pkgname=ttf-inconsolata-g
+pkgver=20090213
+pkgrel=4
+pkgdesc="Monospace font for pretty code listings and for the terminal modified by Leonardo Maffi http://www.fantascienza.net/leonardo/)"
+arch=('any')
+url='http://www.fantascienza.net/leonardo/'
+license=('OFL-1.1')
+source=("https://github.com/envolution/inconsolata-g/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('43efc3fd33e5a8eb7befda984bf745eda844777326e1ae06fb074707e1aeb66a')
+
+package(){
+ install -Dm644 'inconsolata-g.ttf' "${pkgdir}/usr/local/share/fonts/otf/inconsolata-g/inconsolata-g.ttf"
+ install -Dm644 'inconsolata-g.ttf' "${pkgdir}/usr/local/share/fonts/ttf/inconsolata-g/inconsolata-g.otf"
+ install -Dm644 'license.txt' "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

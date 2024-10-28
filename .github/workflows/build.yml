@@ -77,7 +77,7 @@ jobs:
           # Update system and install dependencies
           pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh github-cli
+          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh github-cli jq
 
       - name: Install paru
         run: |

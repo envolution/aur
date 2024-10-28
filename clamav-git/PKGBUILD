@@ -62,7 +62,7 @@ conflicts=(
 )
 
 source=(
-  https://github.com/Cisco-Talos/clamav.git
+  git+https://github.com/Cisco-Talos/clamav.git
   clamav.logrotate
   clamav.tmpfiles
   clamav.sysusers

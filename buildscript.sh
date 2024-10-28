@@ -155,15 +155,38 @@ else
         ls
 
         tempfile=$(mktemp)
-        echo "255" > "$tempfile"  # Default to error code in case something goes wrong
+        echo "255" > "$tempfile"  # Default to error code
 
+        echo "[DEBUG] Starting execution at $(date)"
+        echo "[DEBUG] Temp file created at: $tempfile"
+
+        # Set up traps for the main script
+        trap '[DEBUG] Main script trap: EXIT signal caught at line $LINENO' EXIT
+        trap '[DEBUG] Main script trap: ERR signal caught at line $LINENO' ERR
+
+        # Run in subshell with its own debug traps
         (
+            trap '[DEBUG] Subshell trap: EXIT signal caught at line $LINENO' EXIT
+            trap '[DEBUG] Subshell trap: ERR signal caught at line $LINENO' ERR
+
+            echo "[DEBUG] Subshell started, about to run pacinstall"
+            set -x  # Show exactly what commands are being executed
             sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst
-            echo $? > "$tempfile"
+            pacinstall_exit=$?
+            set +x
+            echo "[DEBUG] Pacinstall completed with exit code: $pacinstall_exit"
+            echo $pacinstall_exit > "$tempfile"
+            echo "[DEBUG] Exit code written to temp file"
         )
 
+        echo "[DEBUG] After subshell - if you don't see this, the script was terminated"
         exitcode=$(<"$tempfile")
+        echo "[DEBUG] Retrieved exit code from file: $exitcode"
         rm "$tempfile"
+        echo "[DEBUG] Temp file cleaned up"
+
+        # If we get here, the script wasn't terminated
+        echo "[DEBUG] Script completed normally at $(date)"
 
         #exitcode=$(sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst)
         if [ $exitcode -eq 0 ]; then

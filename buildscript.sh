@@ -58,6 +58,11 @@ readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"'
 readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"')
 readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"')
 
+[[ -n ${SOURCES} ]] && log_array "SOURCES" "${SOURCES[@]}" || echo "!!!== No sources in PKGBUILD, this is probably not intended =="
+[[ -n ${DEPENDS} ]] && log_array "DEPENDS" "${DEPENDS[@]}" || echo "== No depends in PKGBUILD =="
+[[ -n ${MAKEDEPENDS} ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" || echo "== No make depends in PKGBUILD =="
+
+
 TRACKED_FILES=("PKGBUILD" ".SRCINFO")
 
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
@@ -119,22 +124,16 @@ else
 
             echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
 
-            #Install package dependancies
-            if [[ ${#DEPENDS[@]} -gt 0 ]]; then
-                paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${DEPENDS[@]}
-            fi
-            if [ $? -eq 0 ]; then
+            #Install package dependancies if they exist
+            if [[ -n ${DEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${DEPENDS[@]}; then
                 echo "== Package dependencies installed successfully =="
             else
                 echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
                 FAILURE=1
             fi
-            if [[ ${#MAKEDEPENDS[@]} -gt 0 ]]; then
-                paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${MAKEDEPENDS[@]}
-            fi
-##                | xargs paru -S --needed --norebuild --noconfirm || true
-
-            if [ $? -eq 0 ]; then
+            
+            #Install package make dependancies if they exist
+            if [[ -n ${MAKEDEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${MAKEDEPENDS[@]}; then
                 echo "== Package make dependencies installed successfully =="
             else
                 echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="

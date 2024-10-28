@@ -13,7 +13,7 @@ groups=()
 makedepends=(scons pkg-config)
 depends=(glfw gtk3)
 source=(
-	"https://github.com/guillaumechereau/goxel/archive/refs/tags/${pkgver}.tar.gz"
+	"https://github.com/guillaumechereau/goxel/archive/refs/tags/v${pkgver}.tar.gz"
     voxel.desktop
 )
 sha256sums=(

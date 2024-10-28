@@ -31,6 +31,7 @@ RELEASE_NAME="Release of packages compiled for ARCH x86_64 on $RELEASE_TAG"
 RELEASE_BODY="To install, run: sudo pacman -U PACKAGENAME.pkg.tar.zst"
 AUR_REPO="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
 FAILURE=0
+INITIAL=0
 
 # Enable debugging if DEBUG environment variable is set
 if [ "${DEBUG:-}" == "true" ]; then
@@ -113,9 +114,10 @@ if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
     echo "== Initial commit, committing selected files =="
     git commit -m "${COMMIT_MESSAGE}"
     git push
+    INITIAL=1
 fi
 
-if git diff-index --cached --quiet HEAD --; then
+if git diff-index --cached --quiet HEAD -- && [ $INITIAL -ne 1 ]; then
     echo "== No changes detected. Skipping commit and push =="
 else
 

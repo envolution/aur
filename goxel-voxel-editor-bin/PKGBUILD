@@ -14,7 +14,7 @@ license=('GPL3')
 depends=(glfw gtk3)
 options=(!strip !debug)
 _appimage="${_pkgname}-${pkgver}.AppImage"
-source_x86_64=("${_appimage}::https://github.com/guillaumechereau/goxel/releases/download/${pkgver}/goxel-${pkgver}.AppImage")
+source_x86_64=("${_appimage}::https://github.com/guillaumechereau/goxel/releases/download/v${pkgver}/goxel-${pkgver}.AppImage")
 noextract=("${_appimage}")
 sha256sums_x86_64=('e7202bada472358d532e680649eff566c8ab9b4f77c3eeadbd726be3ec6256d6')
 
@@ -52,3 +52,5 @@ package() {
     #install -dm755 "${pkgdir}/usr/share/licenses/${pkgname}/"
     #ln -s "/opt/$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname"
 }
+
+# vim: ts=2 sw=2 et:

@@ -112,92 +112,92 @@ git add "${TRACKED_FILES[@]}"
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
     echo "== Initial commit, committing selected files =="
     git commit -m "${COMMIT_MESSAGE}"
+    git push
+fi
 
+if git diff-index --cached --quiet HEAD --; then
+    echo "== No changes detected. Skipping commit and push =="
 else
 
-    if git diff-index --cached --quiet HEAD --; then
-        echo "== No changes detected. Skipping commit and push =="
-    else
+    echo "== Changes detected. Committing and pushing selected files =="
+    if [ $BUILD == "build" ]; then
 
-        echo "== Changes detected. Committing and pushing selected files =="
-        if [ $BUILD == "build" ]; then
+        echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
 
-            echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
-
-            #Install package dependancies if they exist
-            if [[ -n ${DEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${DEPENDS[@]}; then
-                echo "== Package dependencies installed successfully =="
-            else
-                echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
-            fi
-            
-            #Install package make dependancies if they exist
-            if [[ -n ${MAKEDEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${MAKEDEPENDS[@]}; then
-                echo "== Package make dependencies installed successfully =="
-            else
-                echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
-            fi
-
-            # Build package
-            echo "Building package..."
-            makepkg -s --noconfirm
-            if [ $? -eq 0 ]; then
-                echo "== Package ${PACKAGE_NAME} built successfully =="
-            else
-                echo "== FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
-                FAILURE=1
-            fi
-
-            # Install the package
-            echo "== Installing package =="
-            sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
-            if [ $? -eq 0 ]; then
-                echo "== Package ${PACKAGE_NAME} installed successfully =="
-                # Create a new release
-                # Authenticate using the GitHub token
-                echo "=== Auth to GH ==="
-                echo "${GH_TOKEN}" | gh auth login --with-token
-                echo "=== Push compiled binary to releases ==="
-                gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
-                    || echo "== Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
-                gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
-            else
-                echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
-                FAILURE=1
-            fi
+        #Install package dependancies if they exist
+        if [[ -n ${DEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${DEPENDS[@]}; then
+            echo "== Package dependencies installed successfully =="
+        else
+            echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
         fi
 
-        if [ $FAILURE = 0 ]; then
-            echo '----'
-            ls -latr
-            echo '----'
-
-            git fetch
-            # Stage tracked files that have changes
-            echo "== ATTEMPTING TO TRACK CHANGES FOR FILES =="
-            log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
-            git add "${TRACKED_FILES[@]}"
-            #git add PKGBUILD .SRCINFO
-
-            git commit -m "${COMMIT_MESSAGE}"
-            git push origin master
-            if [ $? -eq 0 ]; then
-                echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
-                # We update our local PKGBUILD now since we've confirmed an update to remote AUR
-                gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD \
-                    -f message="Updated file" \
-                    -f content="$(base64 < PKGBUILD)" \
-                    --jq '.commit.sha' \
-                    -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD --jq '.sha')"
-                echo "== local PKGBUILD updated =="
-            else
-                echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
-                FAILURE = 1
-            fi
+        #Install package make dependancies if they exist
+        if [[ -n ${MAKEDEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${MAKEDEPENDS[@]}; then
+            echo "== Package make dependencies installed successfully =="
+        else
+            echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
         fi
 
+        # Build package
+        echo "Building package..."
+        makepkg -s --noconfirm
+        if [ $? -eq 0 ]; then
+            echo "== Package ${PACKAGE_NAME} built successfully =="
+        else
+            echo "== FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
+            FAILURE=1
+        fi
+
+        # Install the package
+        echo "== Installing package =="
+        sudo pacman -U --noconfirm ./${PACKAGE_NAME}*.pkg.tar.zst
+        if [ $? -eq 0 ]; then
+            echo "== Package ${PACKAGE_NAME} installed successfully =="
+            # Create a new release
+            # Authenticate using the GitHub token
+            echo "=== Auth to GH ==="
+            echo "${GH_TOKEN}" | gh auth login --with-token
+            echo "=== Push compiled binary to releases ==="
+            gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
+                || echo "== Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
+            gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
+        else
+            echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
+            FAILURE=1
+        fi
     fi
+
+    if [ $FAILURE = 0 ]; then
+        echo '----'
+        ls -latr
+        echo '----'
+
+        git fetch
+        # Stage tracked files that have changes
+        echo "== ATTEMPTING TO TRACK CHANGES FOR FILES =="
+        log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
+        git add "${TRACKED_FILES[@]}"
+        #git add PKGBUILD .SRCINFO
+
+        git commit -m "${COMMIT_MESSAGE}"
+        git push origin master
+        if [ $? -eq 0 ]; then
+            echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
+            # We update our local PKGBUILD now since we've confirmed an update to remote AUR
+            gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD \
+                -f message="Updated file" \
+                -f content="$(base64 < PKGBUILD)" \
+                --jq '.commit.sha' \
+                -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD --jq '.sha')"
+            echo "== local PKGBUILD updated =="
+        else
+            echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
+            FAILURE = 1
+        fi
+    fi
+
 fi
+
 if [ $FAILURE -eq 0 ]; then
     echo "==== ${PACKAGE_NAME} processed without detected errors ===="
 else

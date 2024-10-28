@@ -98,6 +98,10 @@ makepkg --printsrcinfo > .SRCINFO
 
 # Check for changes and commit
 echo "== Checking for changes to commit =="
+echo "== staging current files to compare against remote for changes =="
+log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
+git add "${TRACKED_FILES[@]}"
+
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
     echo "== Initial commit, committing selected files =="
     git commit -m "${COMMIT_MESSAGE}"

@@ -39,8 +39,26 @@ git clone "$AUR_REPO" .
 # Get all of our files
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
     echo "Copying PKGBUILD and others from ${PKGBUILD_PATH}"
-    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/*" .
-    chmod 644 *
+    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" .
+fi
+
+SOURCES=$(bash -c 'source PKGBUILD; echo "${source[@]}"')
+IFS=$' ' read -r -a SOURCE_ARRAY <<< $SOURCES
+if [[ ${#SOURCES[@]} -gt 1 ]]; then
+    echo "== There is more than one source in PKGBUILD =="
+    # Iterate over the array
+    for item in "${SOURCE_ARRAY[@]}"; do
+        if [[ "$item" != *[/:]* ]]; then
+        echo "\"$item\" identified possible file"
+            if [ -f ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} ]; then
+                cp ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} .
+            fi
+        else
+            echo "${item} is an invalid file (probably a url)"
+        fi
+    done
+else
+    echo "== PKGBUILD source array looks like just one item =="
 fi
 
 # Check for a version file

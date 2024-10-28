@@ -7,6 +7,17 @@ if [ "$#" -ne 7 ]; then
     exit 1
 fi
 
+log_array() {
+    local array_name="$1"
+    shift
+    local array=("$@")
+
+    echo "Logging array: $array_name"
+    for index in "${!array[@]}"; do
+        echo "[$index]: ${array[$index]}"
+    done
+}
+
 # Define variables
 GITHUB_REPOSITORY="$1"
 GH_TOKEN="$2"
@@ -45,6 +56,8 @@ fi
 #get the source array directly from our PKGBUILD.  We want to get all of our sources from this.
 readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"')
 
+TRACKED_FILES=("PKGBUILD" ".SRCINFO")
+
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
     echo "== There is more than one source in PKGBUILD =="
     # Iterate over the array and copy our source files one at a time.  Avoid URLs
@@ -52,7 +65,8 @@ if [[ ${#SOURCES[@]} -gt 1 ]]; then
         if [[ "$item" != *[/:]* ]]; then
         echo "\"$item\" identified possible file"
             if [ -f ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} ]; then
-                cp ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} .
+                cp ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} . && \
+                    TRACKED_FILES+=($item) #add this file for git push
             fi
         else
             echo "${item} is an invalid file (probably a url)"
@@ -81,8 +95,6 @@ updpkgsums
 echo "== Generating .SRCINFO =="
 makepkg --printsrcinfo > .SRCINFO
 
-# Stage tracked files that have changes
-git add PKGBUILD .SRCINFO
 
 # Check for changes and commit
 echo "== Checking for changes to commit =="
@@ -148,7 +160,14 @@ else
             echo '----'
             ls -latr
             echo '----'
+
             git fetch
+            # Stage tracked files that have changes
+            echo "== ATTEMPTING TO TRACK CHANGES FOR FILES =="
+            log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
+            git add "${TRACKED_FILES[@]}"
+            #git add PKGBUILD .SRCINFO
+
             git commit -m "${COMMIT_MESSAGE}"
             git push origin master
             if [ $? -eq 0 ]; then

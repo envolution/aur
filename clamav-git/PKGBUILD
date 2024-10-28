@@ -7,7 +7,7 @@
 # Contributor: Gaetan Bisson <bisson@archlinux.org>
 
 pkgname=clamav-git
-_pkgname=clamav
+_pkgname=clamav.git
 pkgver=1.4.1
 pkgrel=1
 pkgdesc='Anti-virus toolkit for Unix - Git latest'

@@ -171,13 +171,19 @@ else
 
             echo "[DEBUG] Subshell started, about to run pacinstall"
             set -x  # Show exactly what commands are being executed
-            sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst
-            pacinstall_exit=$?
+
+            # Capture the exit code immediately in a separate subshell
+            pacinstall_exit=0
+            ( sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst ) || pacinstall_exit=$?
+
             set +x
+            echo "[DEBUG] After pacinstall command"
             echo "[DEBUG] Pacinstall completed with exit code: $pacinstall_exit"
             echo $pacinstall_exit > "$tempfile"
             echo "[DEBUG] Exit code written to temp file"
-        )
+        ) || {
+            echo "[DEBUG] Subshell failed with code $?"
+        }
 
         echo "[DEBUG] After subshell - if you don't see this, the script was terminated"
         exitcode=$(<"$tempfile")

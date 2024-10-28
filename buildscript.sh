@@ -83,7 +83,6 @@ makepkg --printsrcinfo > .SRCINFO
 
 # Stage tracked files that have changes
 git add PKGBUILD .SRCINFO
-[ -f "patches/" ] && git add patches/
 
 # Check for changes and commit
 echo "== Checking for changes to commit =="
@@ -146,6 +145,9 @@ else
         fi
 
         if [ $FAILURE = 0 ]; then
+            echo '----'
+            ls -latr
+            echo '----'
             git fetch
             git commit -m "${COMMIT_MESSAGE}"
             git push origin master

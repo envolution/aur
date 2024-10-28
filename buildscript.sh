@@ -129,7 +129,6 @@ else
                 echo "== Package dependencies installed successfully =="
             else
                 echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
-                FAILURE=1
             fi
             
             #Install package make dependancies if they exist
@@ -137,7 +136,6 @@ else
                 echo "== Package make dependencies installed successfully =="
             else
                 echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
-                FAILURE=1
             fi
 
             # Build package

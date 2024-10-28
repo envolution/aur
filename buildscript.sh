@@ -153,7 +153,19 @@ else
         # Install the package
         echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         ls
-        exitcode=$(sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst)
+
+        tempfile=$(mktemp)
+        echo "255" > "$tempfile"  # Default to error code in case something goes wrong
+
+        (
+            sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst
+            echo $? > "$tempfile"
+        )
+
+        exitcode=$(<"$tempfile")
+        rm "$tempfile"
+
+        #exitcode=$(sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst)
         if [ $exitcode -eq 0 ]; then
             echo "== Package ${PACKAGE_NAME} installed successfully =="
             # Create a new release

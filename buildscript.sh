@@ -48,7 +48,7 @@ readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"'
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
     echo "== There is more than one source in PKGBUILD =="
     # Iterate over the array
-    for item in "${SOURCE_ARRAY[@]}"; do
+    for item in "${SOURCES[@]}"; do
         if [[ "$item" != *[/:]* ]]; then
         echo "\"$item\" identified possible file"
             if [ -f ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} ]; then

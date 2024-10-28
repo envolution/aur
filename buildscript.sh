@@ -36,7 +36,7 @@ cd "${BUILD_DIR}"
 echo "Cloning AUR repository for ${PACKAGE_NAME}..."
 git clone "$AUR_REPO" .
 
-# Get all of our files
+# Collect PKGBUILD from our repo
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
     echo "Copying PKGBUILD and others from ${PKGBUILD_PATH}"
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" .
@@ -47,7 +47,7 @@ readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"'
 
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
     echo "== There is more than one source in PKGBUILD =="
-    # Iterate over the array
+    # Iterate over the array and copy our source files one at a time.  Avoid URLs
     for item in "${SOURCES[@]}"; do
         if [[ "$item" != *[/:]* ]]; then
         echo "\"$item\" identified possible file"

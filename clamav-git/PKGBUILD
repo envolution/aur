@@ -7,7 +7,7 @@
 # Contributor: Gaetan Bisson <bisson@archlinux.org>
 
 pkgname=clamav-git
-_pkgname=clamav
+_pkgname=clamav.git
 pkgver=1.4.1
 pkgrel=1
 pkgdesc='Anti-virus toolkit for Unix - Git latest'
@@ -76,8 +76,6 @@ validpgpkeys=(
 )
 
 prepare() {
-  [ -d "${_pkgname}.git" ] && mv "${_pkgname}.git" ${_pkgname}
-  ls -latr
   cd ${_pkgname}
   ls -latr
   sed -E 's|^(Example)$|#\1|' -i etc/{clamd,freshclam,clamav-milter}.conf.sample

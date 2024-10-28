@@ -76,6 +76,7 @@ validpgpkeys=(
 )
 
 prepare() {
+  ls
   cd ${_pkgname}
   sed -E 's|^(Example)$|#\1|' -i etc/{clamd,freshclam,clamav-milter}.conf.sample
   sed -E 's|#(User) .+|\1 clamav|' -i etc/{clamd,freshclam,clamav-milter}.conf.sample

@@ -175,7 +175,7 @@ else
             sudo pacinstall --version
             # Capture the exit code immediately in a separate subshell
             pacinstall_exit=0
-            ( sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst ) || pacinstall_exit=$?
+            ( sudo pacinstall --noconfirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst ) || pacinstall_exit=$?
 
             set +x
             echo "[DEBUG] After pacinstall command"

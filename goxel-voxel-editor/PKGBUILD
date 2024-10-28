@@ -1,6 +1,4 @@
 # Maintainer: envolution
-# Contributor: Alexey Trifonov <otaku [at] rambler dot ru>
-# Contributor: Tesx <tesfabpel@gmail.com>
 
 pkgname='goxel-voxel-editor'
 pkgver=0.15.1

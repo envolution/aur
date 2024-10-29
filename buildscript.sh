@@ -213,7 +213,7 @@ else
                     if [[ -f "$file" ]]; then
                         # Check if the file exists in the remote repository
                         echo "[debug] [debug] - 1 - Still ok "
-                        sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null)
+                        sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null) || true
                         echo "[debug] [debug] - 2 - Still ok "
                         if [[ -n "$sha" ]]; then
                             echo "[debug] [debug] - 3 - Still ok "

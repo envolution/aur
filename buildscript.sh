@@ -58,11 +58,13 @@ fi
 readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"')
 readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"')
 readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"')
+readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"')
 
 [[ -n ${SOURCES} ]] && log_array "SOURCES" "${SOURCES[@]}" || echo "!!!== No sources in PKGBUILD, this is probably not intended =="
 [[ -n ${DEPENDS} ]] && log_array "DEPENDS" "${DEPENDS[@]}" || echo "== No depends in PKGBUILD =="
 [[ -n ${MAKEDEPENDS} ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" || echo "== No make depends in PKGBUILD =="
-
+[[ -n ${PGPKEYS} ]] && log_array "PGPKEYS" "${PGPKEYS[@]}" || echo "== No make depends in PKGBUILD =="
+[[ -n ${PGPKEYS} ]] && gpg --receive-keys ${PGPKEYS[@]} && echo "== Adopted package PGP keys ==" || echo "== Had a problem importing PGP keys from PKGFILE =="
 
 TRACKED_FILES=("PKGBUILD" ".SRCINFO")
 

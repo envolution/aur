@@ -63,10 +63,10 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
 fi
 
 #get the source array directly from our PKGBUILD.  We want to get all of our sources from this.
-readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"')
-readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"')
-readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"')
-readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"')
+readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"' | grep .)
+readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"' | grep .)
+readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"' | grep .)
+readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"' | grep .)
 
 [[ ${#SOURCES[@]} -gt 0 ]] && log_array "SOURCES" "${SOURCES[@]}" \
     || echo "[debug] !!!== No sources in PKGBUILD, this is probably not intended =="

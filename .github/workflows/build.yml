@@ -80,6 +80,8 @@ jobs:
           mkdir -p /etc/pacman.d/gnupg
           pacman-key --init
           pacman-key --populate archlinux
+          echo "[multilib]" >> /etc/pacman.conf
+          echo "/etc/pacman.d/mirrorlist" >> /etc/pacman.conf
           cat /etc/pacman.conf
 
           # Update system and install dependencies

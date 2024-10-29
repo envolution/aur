@@ -26,8 +26,6 @@ BUILD=$4
 PACKAGE_NAME="$5"
 PKGBUILD_PATH="$6"
 COMMIT_MESSAGE="$7"
-RELEASE_TAG="v$(date +%Y%m)"
-RELEASE_NAME="Release of packages compiled for ARCH x86_64 on $RELEASE_TAG"
 RELEASE_BODY="To install, run: sudo pacman -U PACKAGENAME.pkg.tar.zst"
 AUR_REPO="ssh://aur@aur.archlinux.org/${PACKAGE_NAME}.git"
 FAILURE=0
@@ -44,8 +42,8 @@ echo "${GH_TOKEN}" | gh auth login --with-token
 if gh auth status &>/dev/null; then
     echo "GitHub CLI is authenticated"
 else
-    exit 1
     echo "===!!! GitHub CLI is not authenticated !!!==="
+    exit 1
 fi
 
 # Create and move to a clean build directory
@@ -70,11 +68,17 @@ readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"
 readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"')
 readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"')
 
-[[ -n ${SOURCES} ]] && log_array "SOURCES" "${SOURCES[@]}" || echo "!!!== No sources in PKGBUILD, this is probably not intended =="
-[[ -n ${DEPENDS} ]] && log_array "DEPENDS" "${DEPENDS[@]}" || echo "== No depends in PKGBUILD =="
-[[ -n ${MAKEDEPENDS} ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" || echo "== No make depends in PKGBUILD =="
-[[ -n ${PGPKEYS} ]] && log_array "PGPKEYS" "${PGPKEYS[@]}" || echo "== No make depends in PKGBUILD =="
-[[ -n ${PGPKEYS} ]] && gpg --receive-keys ${PGPKEYS[@]} && echo "== Adopted package PGP keys ==" || echo "== Had a problem importing PGP keys from PKGFILE =="
+[[ ${#SOURCES[@]} -gt 0 ]] && log_array "SOURCES" "${SOURCES[@]}" \
+    || echo "!!!== No sources in PKGBUILD, this is probably not intended =="
+[[ ${#DEPENDS[@]} -gt 0 ]] && log_array "DEPENDS" "${DEPENDS[@]}" \
+    || echo "== No depends in PKGBUILD =="
+[[ ${#MAKEDEPENDS[@]} -gt 0 ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" \
+    || echo "== No make depends in PKGBUILD =="
+[[ ${#PGPKEYS[@]} -gt 0 ]] && log_array "PGPKEYS" "${PGPKEYS[@]}" \
+    || echo "== No make depends in PKGBUILD =="
+[[ ${#PGPKEYS[@]} -gt 0 ]] && gpg --receive-keys "${PGPKEYS[@]}" \
+    && echo "== Adopted package PGP keys ==" \
+    || echo "== Had a problem importing PGP keys from PKGFILE =="
 
 TRACKED_FILES=("PKGBUILD" ".SRCINFO")
 
@@ -84,9 +88,9 @@ if [[ ${#SOURCES[@]} -gt 1 ]]; then
     for item in "${SOURCES[@]}"; do
         if [[ "$item" != *[/:]* ]]; then
         echo "\"$item\" identified possible file"
-            if [ -f ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} ]; then
-                cp ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item} . && \
-                    TRACKED_FILES+=($item) #add this file for git push
+            if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" ]; then
+                cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" . && \
+                    TRACKED_FILES+=("${item}") #add this file for git push
             fi
         else
             echo "${item} is an invalid file (probably a url)"
@@ -98,9 +102,9 @@ fi
 
 # Check for a version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
-    NEW_VERSION=$(${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh)
+    NEW_VERSION=$("${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
     [[ -z $NEW_VERSION ]] && \
-        echo "!! $${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
+        echo "!! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
         && exit 1
     echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
@@ -139,14 +143,14 @@ else
         echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
 
         #Install package dependancies if they exist
-        if [[ -n ${DEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${DEPENDS[@]}; then
+        if [[ ${#DEPENDS[@]} -gt 0 ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" "${DEPENDS[@]}"; then
             echo "== Package dependencies installed successfully =="
         else
             echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
         fi
 
         #Install package make dependancies if they exist
-        if [[ -n ${MAKEDEPENDS} ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" ${MAKEDEPENDS[@]}; then
+        if [[ ${#MAKEDEPENDS[@]} -gt 0 ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" "${MAKEDEPENDS[@]}"; then
             echo "== Package make dependencies installed successfully =="
         else
             echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
@@ -166,11 +170,11 @@ else
         echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         ls
 
-        [[ -f ${PACKAGE_NAME}*debug*pkg.tar.zst ]] && sudo rm ${PACKAGE_NAME}*debug*pkg.tar.zst || true
-        sudo pacman --noconfirm -U ${PACKAGE_NAME}*.pkg.tar.zst
+        [[ -f "${PACKAGE_NAME}*debug*pkg.tar.zst" ]] && sudo rm -f "${PACKAGE_NAME}*debug*pkg.tar.zst" || true
+        sudo pacman --noconfirm -U "${PACKAGE_NAME}*.pkg.tar.zst"
         if [ $? -eq 0 ]; then
             echo "== Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
-            sudo pacman --noconfirm -R $(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)
+            sudo pacman --noconfirm -R "$(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)"
             # Create a new release
             echo "=== Push compiled binary to releases ==="
             gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
@@ -201,22 +205,22 @@ else
             if [ $? -eq 0 ]; then
                 echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
                 # We update our local PKGBUILD now since we've confirmed an update to remote AUR
-                for file in ${TRACKED_FILES[@]}; do
+                for file in "${TRACKED_FILES[@]}"; do
                     if [[ -f "$file" ]]; then
                         # Check if the file exists in the remote repository
-                        sha=$(gh api /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha' 2>/dev/null)
+                        sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha'" 2>/dev/null)
                         if [[ -n "$sha" ]]; then
                             # File exists, update it
-                            gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
+                            gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
                                 -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
-                                -f content="$(base64 < ${file})" \
+                                -f content="$(base64 < "${file}")" \
                                 --jq '.commit.sha' \
                                 -f sha="$sha"
                         else
                             # File does not exist, create it
-                            gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
+                            gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
                                 -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
-                                -f content="$(base64 < ${file})" \
+                                -f content="$(base64 < "${file}")" \
                                 --jq '.commit.sha'
                         fi
                         if [[ $? -eq 0 ]]; then
@@ -232,7 +236,7 @@ else
                 echo "== local PKGBUILD updated =="
             else
                 echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
-                FAILURE = 1
+                FAILURE=1
             fi
         fi
 

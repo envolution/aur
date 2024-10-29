@@ -76,7 +76,7 @@ readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys
     || echo "[debug] == No make depends in PKGBUILD =="
 [[ ${#PGPKEYS[@]} -gt 0 ]] && gpg --receive-keys "${PGPKEYS[@]}" \
     && echo "[debug] == Adopted package PGP keys ==" \
-    || echo "[debug] == Had a problem importing PGP keys from PKGFILE =="
+    || echo "[debug] == No PGP keys in PKGBUILD =="
 
 TRACKED_FILES=("PKGBUILD" ".SRCINFO")
 

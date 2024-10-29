@@ -141,7 +141,7 @@ jobs:
               echo "$package FAILED"
               echo "$package FAILED" >> $GITHUB_STEP_SUMMARY
             fi
-            echo "::endgroup::""
+            echo "::endgroup::"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

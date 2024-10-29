@@ -16,7 +16,7 @@ options=(!strip !debug)
 _appimage="${_pkgname}-${pkgver}.AppImage"
 source_x86_64=("${_appimage}::https://github.com/guillaumechereau/goxel/releases/download/v${pkgver}/goxel-${pkgver}.AppImage")
 noextract=("${_appimage}")
-sha256sums_x86_64=('e7202bada472358d532e680649eff566c8ab9b4f77c3eeadbd726be3ec6256d6')
+sha256sums_x86_64=('1dbbdb4f0870f2f7722448c22c7a586090aa6ad20b06c574ddde801b669b3f62')
 
 prepare() {
     chmod +x "${_appimage}"

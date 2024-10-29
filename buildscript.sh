@@ -74,8 +74,6 @@ readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys
     || echo "[debug] == No depends in PKGBUILD =="
 [[ ${#MAKEDEPENDS[@]} -gt 0 ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" \
     || echo "[debug] == No make depends in PKGBUILD =="
-[[ ${#PGPKEYS[@]} -gt 0 ]] && log_array "PGPKEYS" "${PGPKEYS[@]}" \
-    || echo "[debug] == No make depends in PKGBUILD =="
 [[ ${#PGPKEYS[@]} -gt 0 ]] && gpg --receive-keys "${PGPKEYS[@]}" \
     && echo "[debug] == Adopted package PGP keys ==" \
     || echo "[debug] == Had a problem importing PGP keys from PKGFILE =="
@@ -102,7 +100,7 @@ fi
 
 # Check for a version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
-    NEW_VERSION=$("${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
+    NEW_VERSION=$(bash "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
     [[ -z $NEW_VERSION ]] && \
         echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
         && exit 1

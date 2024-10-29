@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Ensure the script receives exactly 7 arguments
 if [ "$#" -ne 7 ]; then
-    echo "Usage: $0 <GITHUB_REPO> <GITHUB_TOKEN> <GITHUB_WORKSPACE> <BUILD:0:1> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"
+    echo "[debug] Usage: $0 <GITHUB_REPO> <GITHUB_TOKEN> <GITHUB_WORKSPACE> <BUILD:0:1> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"
     exit 1
 fi
 
@@ -12,9 +12,9 @@ log_array() {
     shift
     local array=("$@")
 
-    echo "Logging array: $array_name"
+    echo "[debug] Logging array: $array_name"
     for index in "${!array[@]}"; do
-        echo "[$index]: ${array[$index]}"
+        echo "[debug] [$index]: ${array[$index]}"
     done
 }
 
@@ -37,12 +37,12 @@ if [ "${DEBUG:-}" == "true" ]; then
 fi
 
 # Authenticate using the GitHub token
-echo "=== Auth to GH ==="
+echo "[debug] === Auth to GH ==="
 echo "${GH_TOKEN}" | gh auth login --with-token
 if gh auth status &>/dev/null; then
-    echo "GitHub CLI is authenticated"
+    echo "[debug] GitHub CLI is authenticated"
 else
-    echo "===!!! GitHub CLI is not authenticated !!!==="
+    echo "[debug] ===!!! GitHub CLI is not authenticated !!!==="
     exit 1
 fi
 
@@ -53,12 +53,12 @@ mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
 # Clone AUR repository
-echo "Cloning AUR repository for ${PACKAGE_NAME}..."
+echo "[debug] Cloning AUR repository for ${PACKAGE_NAME}..."
 git clone "$AUR_REPO" .
 
 # Collect PKGBUILD from our repo
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
-    echo "Copying PKGBUILD and others from ${PKGBUILD_PATH}"
+    echo "[debug] Copying PKGBUILD and others from ${PKGBUILD_PATH}"
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" .
 fi
 
@@ -69,119 +69,119 @@ readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepe
 readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"')
 
 [[ ${#SOURCES[@]} -gt 0 ]] && log_array "SOURCES" "${SOURCES[@]}" \
-    || echo "!!!== No sources in PKGBUILD, this is probably not intended =="
+    || echo "[debug] !!!== No sources in PKGBUILD, this is probably not intended =="
 [[ ${#DEPENDS[@]} -gt 0 ]] && log_array "DEPENDS" "${DEPENDS[@]}" \
-    || echo "== No depends in PKGBUILD =="
+    || echo "[debug] == No depends in PKGBUILD =="
 [[ ${#MAKEDEPENDS[@]} -gt 0 ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" \
-    || echo "== No make depends in PKGBUILD =="
+    || echo "[debug] == No make depends in PKGBUILD =="
 [[ ${#PGPKEYS[@]} -gt 0 ]] && log_array "PGPKEYS" "${PGPKEYS[@]}" \
-    || echo "== No make depends in PKGBUILD =="
+    || echo "[debug] == No make depends in PKGBUILD =="
 [[ ${#PGPKEYS[@]} -gt 0 ]] && gpg --receive-keys "${PGPKEYS[@]}" \
-    && echo "== Adopted package PGP keys ==" \
-    || echo "== Had a problem importing PGP keys from PKGFILE =="
+    && echo "[debug] == Adopted package PGP keys ==" \
+    || echo "[debug] == Had a problem importing PGP keys from PKGFILE =="
 
 TRACKED_FILES=("PKGBUILD" ".SRCINFO")
 
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
-    echo "== There is more than one source in PKGBUILD =="
+    echo "[debug] == There is more than one source in PKGBUILD =="
     # Iterate over the array and copy our source files one at a time.  Avoid URLs
     for item in "${SOURCES[@]}"; do
         if [[ "$item" != *[/:]* ]]; then
-        echo "\"$item\" identified possible file"
+        echo "[debug] \"$item\" identified possible file"
             if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" ]; then
                 cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" . && \
                     TRACKED_FILES+=("${item}") #add this file for git push
             fi
         else
-            echo "${item} is an invalid file (probably a url)"
+            echo "[debug] ${item} is an invalid file (probably a url)"
         fi
     done
 else
-    echo "== PKGBUILD source array looks like just one item =="
+    echo "[debug] == PKGBUILD source array looks like just one item =="
 fi
 
 # Check for a version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
     NEW_VERSION=$("${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
     [[ -z $NEW_VERSION ]] && \
-        echo "!! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
+        echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
         && exit 1
-    echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
+    echo "[debug] == Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
     cat PKGBUILD
 fi
 
 # Update source files
-echo "== Updating package checksums =="
+echo "[debug] == Updating package checksums =="
 updpkgsums
 
 # Generate .SRCINFO
-echo "== Generating .SRCINFO =="
+echo "[debug] == Generating .SRCINFO =="
 makepkg --printsrcinfo > .SRCINFO
 
 
 # Check for changes and commit
-echo "== Checking for changes to commit =="
-echo "== staging current files to compare against remote for changes =="
+echo "[debug] == Checking for changes to commit =="
+echo "[debug] == staging current files to compare against remote for changes =="
 log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
 git add "${TRACKED_FILES[@]}"
 
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
-    echo "== Initial commit, committing selected files =="
+    echo "[debug] == Initial commit, committing selected files =="
     git commit -m "${COMMIT_MESSAGE}"
     git push
     INITIAL=1
 fi
 
 if git diff-index --cached --quiet HEAD -- && [ $INITIAL -ne 1 ] && [[ ${PACKAGE_NAME} != *-git ]]; then
-    echo "== No changes detected. Skipping commit and push =="
+    echo "[debug] == No changes detected. Skipping commit and push =="
 else
 
-    echo "== Changes detected. Committing and pushing selected files =="
+    echo "[debug] == Changes detected. Committing and pushing selected files =="
     if [ $BUILD == "build" ]; then
 
-        echo "== ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
+        echo "[debug] == ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
 
         #Install package dependancies if they exist
         if [[ ${#DEPENDS[@]} -gt 0 ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" "${DEPENDS[@]}"; then
-            echo "== Package dependencies installed successfully =="
+            echo "[debug] == Package dependencies installed successfully =="
         else
-            echo "== FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
+            echo "[debug] == FAIL Package dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
         fi
 
         #Install package make dependancies if they exist
         if [[ ${#MAKEDEPENDS[@]} -gt 0 ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" "${MAKEDEPENDS[@]}"; then
-            echo "== Package make dependencies installed successfully =="
+            echo "[debug] == Package make dependencies installed successfully =="
         else
-            echo "== FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
+            echo "[debug] == FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
         fi
 
         # Build package
-        echo "Building package..."
+        echo "[debug] Building package..."
         makepkg -s --noconfirm
         if [ $? -eq 0 ]; then
-            echo "== Package ${PACKAGE_NAME} built successfully =="
+            echo "[debug] == Package ${PACKAGE_NAME} built successfully =="
         else
-            echo "== FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
+            echo "[debug] == FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
             FAILURE=1
         fi
 
         # Install the package
-        echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
+        echo "[debug] == Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         sudo rm -f "${PACKAGE_NAME}"*debug*pkg.tar.zst || true
         ls -latr
 
         sudo pacman --noconfirm -U "${PACKAGE_NAME}"*.pkg.tar.zst
         if [ $? -eq 0 ]; then
-            echo "== Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
+            echo "[debug] == Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
             sudo pacman --noconfirm -R "$(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)"
             # Create a new release
-            echo "=== Push compiled binary to releases ==="
+            echo "[debug] === Push compiled binary to releases ==="
             gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
-                || echo "== Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
+                || echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
             gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
         else
-            echo "== FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
+            echo "[debug] == FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
             FAILURE=1
         fi
     fi
@@ -193,30 +193,30 @@ else
 
         git fetch
         # Stage tracked files that have changes
-        echo "== ATTEMPTING TO TRACK CHANGES FOR FILES =="
+        echo "[debug] == ATTEMPTING TO TRACK CHANGES FOR FILES =="
         log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
         git add "${TRACKED_FILES[@]}"
 
         if [[ -z $(git status --porcelain) ]]; then
-            echo "== AUR and LOCAL already synced for ${PACKAGE_NAME} =="
+            echo "[debug] == AUR and LOCAL already synced for ${PACKAGE_NAME} =="
         else
-            echo "== DIFF for ${PACKAGE_NAME} =="
+            echo "[debug] == DIFF for ${PACKAGE_NAME} =="
             git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)"
-            echo "=============================="
+            echo "[debug] =============================="
             git commit -m "${COMMIT_MESSAGE}"
             git push origin master
             if [ $? -eq 0 ]; then
-                echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
+                echo "[debug] == ${PACKAGE_NAME} submitted to AUR successfully =="
                 # We update our local PKGBUILD now since we've confirmed an update to remote AUR
                 for file in "${TRACKED_FILES[@]}"; do
-                    echo "[debug] - LOOPING $file - Still ok "
+                    echo "[debug] [debug] - LOOPING $file - Still ok "
                     if [[ -f "$file" ]]; then
                         # Check if the file exists in the remote repository
-                        echo "[debug] - 1 - Still ok "
-                        sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha'" 2>/dev/null)
-                        echo "[debug] - 2 - Still ok "
+                        echo "[debug] [debug] - 1 - Still ok "
+                        sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null)
+                        echo "[debug] [debug] - 2 - Still ok "
                         if [[ -n "$sha" ]]; then
-                            echo "[debug] - 3 - Still ok "
+                            echo "[debug] [debug] - 3 - Still ok "
                             # File exists, update it
                             gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
                                 -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
@@ -225,25 +225,25 @@ else
                                 -f sha="$sha"
                         else
                             # File does not exist, create it
-                            echo "[debug] - 4 - Still ok "
+                            echo "[debug] [debug] - 4 - Still ok "
                             gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
                                 -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
                                 -f content="$(base64 < "${file}")" \
                                 --jq '.commit.sha'
                         fi
                         if [[ $? -eq 0 ]]; then
-                            echo "==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
+                            echo "[debug] ==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
                         else
-                            echo "!! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
+                            echo "[debug] !! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
                         fi
 
                     else
-                        echo "!! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
+                        echo "[debug] !! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
                     fi
                 done
-                echo "== local PKGBUILD updated =="
+                echo "[debug] == local PKGBUILD updated =="
             else
-                echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
+                echo "[debug] == FAILED ${PACKAGE_NAME} submission to AUR =="
                 FAILURE=1
             fi
         fi
@@ -253,8 +253,8 @@ else
 fi
 
 if [ $FAILURE -eq 0 ]; then
-    echo "==== ${PACKAGE_NAME} processed without detected errors ===="
+    echo "[debug] ==== ${PACKAGE_NAME} processed without detected errors ===="
 else
-    echo "**** ${PACKAGE_NAME} has had some errors while processing, check logs for more details ****"
+    echo "[debug] **** ${PACKAGE_NAME} has had some errors while processing, check logs for more details ****"
 fi
-echo "==== Build and release process for ${PACKAGE_NAME} exiting ===="
+echo "[debug] ==== Build and release process for ${PACKAGE_NAME} exiting ===="

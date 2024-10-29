@@ -17,7 +17,7 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        build:rot8-git:rot8-git
+        build:gnome-shell-git:gnome-shell-git
       #  build:hyperrogue:hyperrogue
       #  build:wpunix:wpunix
       #  build:x2goclient:x2goclient

@@ -200,6 +200,9 @@ else
         if [[ -z $(git status --porcelain) ]]; then
             echo "== AUR and LOCAL already synced for ${PACKAGE_NAME} =="
         else
+            echo "== DIFF for ${PACKAGE_NAME} =="
+            git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)"
+            echo "=============================="
             git commit -m "${COMMIT_MESSAGE}"
             git push origin master
             if [ $? -eq 0 ]; then

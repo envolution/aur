@@ -18,7 +18,8 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        build:ruby-rmagick:ruby-rmagick
+        build:kdeconnect-git:kdeconnect-git
+      #  build:ruby-rmagick:ruby-rmagick
       #  build:goxel-voxel-editor-bin:goxel-voxel-editor-bin
       #  build:goxel-voxel-editor:goxel-voxel-editor
       #  build:goxel-voxel-editor-git:goxel-voxel-editor-git

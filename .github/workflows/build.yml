@@ -98,7 +98,7 @@ jobs:
           SudoLoop
           UseAsk' | sudo tee /etc/paru.conf
 
-          sudo -u builder PATH=$PATH:/usr/bin/core_perl paru -S --noconfirm --needed pacutils-git
+        #  sudo -u builder PATH=$PATH:/usr/bin/core_perl paru -S --noconfirm --needed pacutils-git
 
       - name: Setup SSH key
         run: |

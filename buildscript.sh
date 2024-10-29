@@ -154,7 +154,7 @@ else
         echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         ls
 
-        sudo pacman --noconfirm -U ${PACKAGE_NAME}*.pkg.tar.zst)
+        sudo pacman --noconfirm -U ${PACKAGE_NAME}*.pkg.tar.zst
         if [ $exitcode -eq 0 ]; then
             echo "== Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
             sudo pacman --noconfirm -R (expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)

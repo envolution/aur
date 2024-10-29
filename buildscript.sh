@@ -192,35 +192,39 @@ else
         echo "== ATTEMPTING TO TRACK CHANGES FOR FILES =="
         log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
         git add "${TRACKED_FILES[@]}"
-        #git add PKGBUILD .SRCINFO
 
-        git commit -m "${COMMIT_MESSAGE}"
-        git push origin master
-        if [ $? -eq 0 ]; then
-            echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
-            # We update our local PKGBUILD now since we've confirmed an update to remote AUR
-            for file in ${TRACKED_FILES[@]}; do
-                if [[ -f "$file" ]]; then
-                    gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
-                        -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
-                        -f content="$(base64 < ${file})" \
-                        --jq '.commit.sha' \
-                        -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha')"
-                    if [[ $? -eq 0 ]]; then
-                        echo "==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
-                    else
-                        echo "!! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
-                    fi
-
-                else
-                    echo "!! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
-                fi
-            done
-            echo "== local PKGBUILD updated =="
+        if [[ -z $(git status --porcelain) ]]; then
+            echo "== AUR and LOCAL already synced for ${PACKAGE_NAME} =="
         else
-            echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
-            FAILURE = 1
+            git commit -m "${COMMIT_MESSAGE}"
+            git push origin master
+            if [ $? -eq 0 ]; then
+                echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
+                # We update our local PKGBUILD now since we've confirmed an update to remote AUR
+                for file in ${TRACKED_FILES[@]}; do
+                    if [[ -f "$file" ]]; then
+                        gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
+                            -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
+                            -f content="$(base64 < ${file})" \
+                            --jq '.commit.sha' \
+                            -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha')"
+                        if [[ $? -eq 0 ]]; then
+                            echo "==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
+                        else
+                            echo "!! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
+                        fi
+
+                    else
+                        echo "!! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
+                    fi
+                done
+                echo "== local PKGBUILD updated =="
+            else
+                echo "== FAILED ${PACKAGE_NAME} submission to AUR =="
+                FAILURE = 1
+            fi
         fi
+
     fi
 
 fi

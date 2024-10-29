@@ -199,7 +199,7 @@ else
         if [ $? -eq 0 ]; then
             echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
             # We update our local PKGBUILD now since we've confirmed an update to remote AUR
-            for file in "{TRACKED_FILES[@]}"; do
+            for file in ${TRACKED_FILES[@]}; do
                 if [[ -f "$file" ]]; then
                     gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
                         -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \

@@ -201,7 +201,16 @@ else
             echo "[debug] == AUR and LOCAL already synced for ${PACKAGE_NAME} =="
         else
             echo "[debug] == DIFF for ${PACKAGE_NAME} =="
-            git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)"
+            {
+                git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)" 2>&1
+            } || {
+                error_code=$?
+                echo "[debug] Error: Command failed with exit code $error_code" >&2
+                echo "[debug] Current branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')" >&2
+                echo "[debug] Remote branch exists: $(git ls-remote --heads origin $(git rev-parse --abbrev-ref HEAD 2>/dev/null) 2>/dev/null || echo 'no')" >&2
+                return $error_code
+            }            
+            #git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)"
             echo "[debug] =============================="
             git commit -m "${COMMIT_MESSAGE}"
             git push origin master

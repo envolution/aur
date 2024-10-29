@@ -129,7 +129,7 @@ if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
     INITIAL=1
 fi
 
-if git diff-index --cached --quiet HEAD -- && [ $INITIAL -ne 1 ]; then
+if git diff-index --cached --quiet HEAD -- && [ $INITIAL -ne 1 ] && [[ ${PACKAGE_NAME} != *-git ]]; then
     echo "== No changes detected. Skipping commit and push =="
 else
 

@@ -13,7 +13,7 @@ source=("hyperrogue-$pkgver.tgz::https://github.com/zenorogue/hyperrogue/archive
 sha256sums=('9dedd41086bda14a33eb718c37f5930c1c7136958f6164df7ed299f8acb74fee')
 
 build() {
-    cd "$srcdir/$pkgname-$pkgver"
+    cd "$srcdir/$pkgname-${pkgver:1}"
     export CXXFLAGS=-I/usr/include/SDL
     export EXTRA_CXXFLAGS="-DHYPERFONTPATH='\"/usr/share/fonts/TTF/\"'"
     export HYPERROGUE_USE_GLEW=1
@@ -24,7 +24,7 @@ build() {
 package() {
     install -d "${pkgdir}"/usr/{bin,share/{${pkgname}/sounds,${pkgname}/music,applications}}
 
-    cd "${srcdir}/${pkgname}-${pkgver}"
+    cd "${srcdir}/${pkgname}-${pkgver:1}"
     install -Dm755 hyperrogue "${pkgdir}/usr/bin/${pkgname}"
     install -Dm644 sounds/* "${pkgdir}/usr/share/${pkgname}/sounds"
     install -Dm644 music/* "${pkgdir}/usr/share/${pkgname}/music"

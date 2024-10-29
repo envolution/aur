@@ -19,8 +19,8 @@ jobs:
       # Define build order and package details
       PACKAGES: |
         build:goxel-voxel-editor-bin:goxel-voxel-editor-bin
-      #  build:goxel-voxel-editor:goxel-voxel-editor
-      #  build:goxel-voxel-editor-git:goxel-voxel-editor-git
+        build:goxel-voxel-editor:goxel-voxel-editor
+        build:goxel-voxel-editor-git:goxel-voxel-editor-git
       #  build:scilab-bin:scilab-bin
       #  build:ttf-inconsolata-g:ttf-inconsolata-g
       #  build:xcircuit:xcircuit

@@ -154,52 +154,10 @@ else
         echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         ls
 
-        tempfile=$(mktemp)
-        echo "255" > "$tempfile"  # Default to error code
-
-        echo "[DEBUG] Starting execution at $(date)"
-        echo "[DEBUG] Temp file created at: $tempfile"
-
-        # Set up traps for the main script
-        trap '[DEBUG] Main script trap: EXIT signal caught at line $LINENO' EXIT
-        trap '[DEBUG] Main script trap: ERR signal caught at line $LINENO' ERR
-
-        # Run in subshell with its own debug traps
-        (
-            trap '[DEBUG] Subshell trap: EXIT signal caught at line $LINENO' EXIT
-            trap '[DEBUG] Subshell trap: ERR signal caught at line $LINENO' ERR
-
-            echo "[DEBUG] Subshell started, about to run pacinstall"
-            set -x  # Show exactly what commands are being executed
-            pacinstall --version
-            sudo pacinstall --version
-            # Capture the exit code immediately in a separate subshell
-            pacinstall_exit=0
-            ( sudo pacinstall --noconfirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst ) || pacinstall_exit=$?
-
-            set +x
-            echo "[DEBUG] After pacinstall command"
-            echo "[DEBUG] Pacinstall completed with exit code: $pacinstall_exit"
-            echo $pacinstall_exit > "$tempfile"
-            echo "[DEBUG] Exit code written to temp file"
-        ) || {
-            echo "[DEBUG] Subshell failed with code $?"
-        }
-
-        echo "[DEBUG] After subshell - if you don't see this, the script was terminated"
-        exitcode=$(<"$tempfile")
-        echo "[DEBUG] Retrieved exit code from file: $exitcode"
-        rm "$tempfile"
-        echo "[DEBUG] Temp file cleaned up"
-
-        # If we get here, the script wasn't terminated
-        echo "[DEBUG] Script completed normally at $(date)"
-        ls -latr `which goxel`
-        ls -latr /usr/bin/goxel
-
-        #exitcode=$(sudo pacinstall --no-confirm --resolve-conflicts=all --file ${PACKAGE_NAME}*.pkg.tar.zst)
+        sudo pacman --noconfirm -U ${PACKAGE_NAME}*.pkg.tar.zst)
         if [ $exitcode -eq 0 ]; then
-            echo "== Package ${PACKAGE_NAME} installed successfully =="
+            echo "== Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
+            sudo pacman --noconfirm -R (expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)
             # Create a new release
             # Authenticate using the GitHub token
             echo "=== Auth to GH ==="

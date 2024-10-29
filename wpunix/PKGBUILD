@@ -29,13 +29,11 @@ source=("${pkgname}::git+https://github.com/taviso/wpunix.git"
 noextract=(
     'COREL_WPUNIX_1.iso'
 )
-md5sums=(
-    'SKIP'
-    '036d10f279aecc61704b214e7bd58a6d'
-    '914d5d1a67a5a38971a0ff39fbbf6a42'
-    'fc800085ce2c253660886a10efc1aed1'
-    'c06660a90d039890407036de3fd50ece'
-    )
+md5sums=('SKIP'
+         '036d10f279aecc61704b214e7bd58a6d'
+         '914d5d1a67a5a38971a0ff39fbbf6a42'
+         'fc800085ce2c253660886a10efc1aed1'
+         'c06660a90d039890407036de3fd50ece')
 validpgpkeys=()
 
 prepare() {

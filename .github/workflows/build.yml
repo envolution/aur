@@ -84,7 +84,8 @@ jobs:
           # Update system and install dependencies
           pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed git base-devel pacman-contrib openssh github-cli jq expac ruby-rdoc ruby-pkg-config
+          pacman -S --noconfirm --needed git base-devel pacman-contrib \
+          openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg
 
       - name: Install paru
         run: |

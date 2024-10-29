@@ -203,11 +203,22 @@ else
                 # We update our local PKGBUILD now since we've confirmed an update to remote AUR
                 for file in ${TRACKED_FILES[@]}; do
                     if [[ -f "$file" ]]; then
-                        gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
-                            -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
-                            -f content="$(base64 < ${file})" \
-                            --jq '.commit.sha' \
-                            -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha')"
+                        # Check if the file exists in the remote repository
+                        sha=$(gh api /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha' 2>/dev/null)
+                        if [[ -n "$sha" ]]; then
+                            # File exists, update it
+                            gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
+                                -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
+                                -f content="$(base64 < ${file})" \
+                                --jq '.commit.sha' \
+                                -f sha="$sha"
+                        else
+                            # File does not exist, create it
+                            gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
+                                -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
+                                -f content="$(base64 < ${file})" \
+                                --jq '.commit.sha'
+                        fi
                         if [[ $? -eq 0 ]]; then
                             echo "==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
                         else

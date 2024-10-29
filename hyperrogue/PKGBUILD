@@ -1,8 +1,8 @@
 # Contributor: Kyle Keen <keenerd@gmail.com>
 
 pkgname=hyperrogue
-pkgver=v13.0v
-pkgrel=1
+pkgver=v13.0r
+pkgrel=2
 pkgdesc="You are a lone outsider in a strange, non-Euclidean hyperbolic world"
 arch=('i686' 'x86_64')
 url="http://www.roguetemple.com/z/hyper.php"

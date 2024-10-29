@@ -87,8 +87,8 @@ else
 fi
 
 # Check for a version file
-if [ -f "./version.sh" ]; then
-    mv "version.sh" ./_PKGBUILD_version.sh
+if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
+    mv "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ./_PKGBUILD_version.sh
     chmod 700 ./_PKGBUILD_version.sh
     NEW_VERSION=$(./_PKGBUILD_version.sh)
     echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="

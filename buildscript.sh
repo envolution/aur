@@ -202,7 +202,7 @@ else
         else
             echo "[debug] == DIFF for ${PACKAGE_NAME} =="
             {
-                git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)" 2>&1
+                git diff --name-status "origin/$(git rev-parse --abbrev-ref HEAD)"
             } || {
                 error_code=$?
                 echo "[debug] Error: Command failed with exit code $error_code" >&2

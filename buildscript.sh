@@ -38,6 +38,16 @@ if [ "${DEBUG:-}" == "true" ]; then
     set -x
 fi
 
+# Authenticate using the GitHub token
+echo "=== Auth to GH ==="
+echo "${GH_TOKEN}" | gh auth login --with-token
+if gh auth status &>/dev/null; then
+    echo "GitHub CLI is authenticated"
+else
+    exit 1
+    echo "===!!! GitHub CLI is not authenticated !!!==="
+fi
+
 # Create and move to a clean build directory
 BUILD_DIR="/tmp/build-${PACKAGE_NAME}"
 rm -rf "${BUILD_DIR}"
@@ -88,12 +98,12 @@ fi
 
 # Check for a version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
-    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ./_PKGBUILD_version.sh
-    chmod 700 ./_PKGBUILD_version.sh
-    NEW_VERSION=$(./_PKGBUILD_version.sh)
+    NEW_VERSION=$(${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh)
+    [[ -z $NEW_VERSION ]] && \
+        echo "!! $${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
+        && exit 1
     echo "== Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
-    rm _PKGBUILD_version.sh
     cat PKGBUILD
 fi
 
@@ -162,9 +172,6 @@ else
             echo "== Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
             sudo pacman --noconfirm -R $(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)
             # Create a new release
-            # Authenticate using the GitHub token
-            echo "=== Auth to GH ==="
-            echo "${GH_TOKEN}" | gh auth login --with-token
             echo "=== Push compiled binary to releases ==="
             gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
                 || echo "== Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
@@ -192,11 +199,23 @@ else
         if [ $? -eq 0 ]; then
             echo "== ${PACKAGE_NAME} submitted to AUR successfully =="
             # We update our local PKGBUILD now since we've confirmed an update to remote AUR
-            gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD \
-                -f message="Updated file" \
-                -f content="$(base64 < PKGBUILD)" \
-                --jq '.commit.sha' \
-                -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/PKGBUILD --jq '.sha')"
+            for file in "{TRACKED_FILES[@]}"; do
+                if [[ -f "$file" ]]; then
+                    gh api -X PUT /repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} \
+                        -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
+                        -f content="$(base64 < ${file})" \
+                        --jq '.commit.sha' \
+                        -f sha="$(gh api repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file} --jq '.sha')"
+                    if [[ $? -eq 0 ]]; then
+                        echo "==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
+                    else
+                        echo "!! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
+                    fi
+
+                else
+                    echo "!! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
+                fi
+            done
             echo "== local PKGBUILD updated =="
         else
             echo "== FAILED ${PACKAGE_NAME} submission to AUR =="

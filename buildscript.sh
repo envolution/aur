@@ -154,6 +154,7 @@ else
         echo "== Installing package '${PACKAGE_NAME}' and attempting to auto resolve any conflicts =="
         ls
 
+        [[ -f ${PACKAGE_NAME}*debug*pkg.tar.zst ]] && sudo rm ${PACKAGE_NAME}*debug*pkg.tar.zst || true
         sudo pacman --noconfirm -U ${PACKAGE_NAME}*.pkg.tar.zst
         if [ $? -eq 0 ]; then
             echo "== Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="

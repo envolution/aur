@@ -17,8 +17,8 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        test:xcircuit:xcircuit
         test:openfortivpn-git:openfortivpn-git
+        test:xcircuit:xcircuit
       #  build:canorus:canorus
       #  build:os-prober-btrfs:os-prober-btrfs
       #  build:python-progress:python-progress

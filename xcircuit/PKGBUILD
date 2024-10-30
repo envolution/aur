@@ -5,7 +5,7 @@
 
 pkgname=xcircuit
 pkgver=3.10.30
-pkgrel=3
+pkgrel=4
 pkgdesc="A program for drawing publishable-quality electrical circuit schematic diagrams"
 arch=('x86_64')
 url="http://opencircuitdesign.com/xcircuit"
@@ -48,9 +48,9 @@ package() {
   cd "$pkgname-$pkgver"
   make DESTDIR="$pkgdir" install
   mkdir -p "$pkgdir/usr/share/man/man1"
-  mv "$pkgdir/usr/lib/xcircuit-${_pkgver}/man/"* "$pkgdir/usr/share/man/man1/"
-  rm -rf "$pkgdir/usr/lib/xcircuit-${_pkgver}/man/"
+  find "$pkgdir/usr/lib/xcircuit-${_pkgver}/man/" -type -f -exec mv {} "$pkgdir/usr/share/man/man1/" \;
+  rm -r "$pkgdir/usr/lib/xcircuit-${_pkgver}/man"
   chrpath -d "$pkgdir/usr/lib/xcircuit-${_pkgver}/xcircexec"
-  convert +set date:create +set date:modify ../xcicon_sm.gif xcircuit.png
+  magick +set date:create +set date:modify ../xcicon_sm.gif xcircuit.png
   install -Dm0644 xcircuit.png "$pkgdir/usr/share/icons/xcircuit.png"
 }

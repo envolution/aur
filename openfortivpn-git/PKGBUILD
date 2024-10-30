@@ -35,7 +35,7 @@ prepare() {
 
 pkgver() {
   cd openfortivpn
-  git describe --tags | sed 's/^v//'
+  git describe --tags | sed 's/-/+/g'
 }
 
 build() {

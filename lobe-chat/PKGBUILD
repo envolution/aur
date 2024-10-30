@@ -33,7 +33,7 @@ build() {
     pnpm run build:docker
 
     # delete map file
-    find .next/standalone -type f -iname "*.map" | xargs rm -rf
+    #find .next/standalone -type f -iname "*.map" | xargs rm -rf
 
     # fix path
     grep -rl "${srcdir}/${pkgname}-${pkgver}" .next | xargs -I {} sed -i "s|${srcdir}/${pkgname}-${pkgver}|/usr/share/${pkgname}|g" "{}"

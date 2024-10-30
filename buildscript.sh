@@ -131,12 +131,12 @@ if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
     INITIAL=1
 fi
 
-if git diff-index --cached --quiet HEAD -- && [ $INITIAL -ne 1 ] && [[ ${PACKAGE_NAME} != *-git ]]; then
+if git diff-index --cached --quiet HEAD -- && [ $INITIAL -ne 1 ] && [[ ${PACKAGE_NAME} != *-git ]] && [ "$BUILD" != "test" ]; then
     echo "[debug] == No changes detected. Skipping commit and push =="
 else
 
     echo "[debug] == Changes detected. Committing and pushing selected files =="
-    if [ $BUILD == "build" ]; then
+    if [ "$BUILD" == "build" ] || [ "$BUILD" == "test" ]; then
 
         echo "[debug] == ${PACKAGE_NAME} has been configured to be compiled and installed before pushing =="
 
@@ -174,10 +174,12 @@ else
             echo "[debug] == Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
             sudo pacman --noconfirm -R "$(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)"
             # Create a new release
-            echo "[debug] === Push compiled binary to releases ==="
-            gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
-                || echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
-            gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
+            if [ "$BUILD" != "test" ]; then
+                echo "[debug] === Push compiled binary to releases ==="
+                gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
+                    || echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
+                gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
+            fi
         else
             echo "[debug] == FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
             FAILURE=1

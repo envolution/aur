@@ -185,9 +185,6 @@ else
     fi
 
     if [ $FAILURE = 0 ]; then
-        echo '----'
-        ls -latr
-        echo '----'
 
         git fetch
         # Stage tracked files that have changes
@@ -195,51 +192,55 @@ else
         log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
         git add "${TRACKED_FILES[@]}"
 
-        if [[ -z $(git status --porcelain --untracked-files=no) ]]; then
+        if [[ -z $(git status --porcelain --untracked-files=no) ]] && [ "$BUILD" != "test" ]; then
             echo "[debug] == AUR and LOCAL already synced for ${PACKAGE_NAME} =="
         else
-            git commit -m "${COMMIT_MESSAGE}"
-            git push origin master
-            if [ $? -eq 0 ]; then
-                echo "[debug] == ${PACKAGE_NAME} submitted to AUR successfully =="
-                # We update our local PKGBUILD now since we've confirmed an update to remote AUR
-                for file in "${TRACKED_FILES[@]}"; do
-                    echo "[debug] [debug] - LOOPING $file - Still ok "
-                    if [[ -f "$file" ]]; then
-                        # Check if the file exists in the remote repository
-                        echo "[debug] [debug] - 1 - Still ok "
-                        sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null) || true
-                        echo "[debug] [debug] - 2 - Still ok "
-                        if [[ -n "$sha" ]]; then
-                            echo "[debug] [debug] - 3 - Still ok "
-                            # File exists, update it
-                            gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
-                                -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
-                                -f content="$(base64 < "${file}")" \
-                                --jq '.commit.sha' \
-                                -f sha="$sha"
-                        else
-                            # File does not exist, create it
-                            echo "[debug] [debug] - 4 - Still ok "
-                            gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
-                                -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
-                                -f content="$(base64 < "${file}")" \
-                                --jq '.commit.sha'
-                        fi
-                        if [[ $? -eq 0 ]]; then
-                            echo "[debug] ==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
-                        else
-                            echo "[debug] !! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
-                        fi
+            if [ "$BUILD" != "test" ]; then
+                git commit -m "${COMMIT_MESSAGE}"
+                git push origin master
+                if [ $? -eq 0 ]; then
+                    echo "[debug] == ${PACKAGE_NAME} submitted to AUR successfully =="
+                    # We update our local PKGBUILD now since we've confirmed an update to remote AUR
+                    for file in "${TRACKED_FILES[@]}"; do
+                        echo "[debug] [debug] - LOOPING $file - Still ok "
+                        if [[ -f "$file" ]]; then
+                            # Check if the file exists in the remote repository
+                            echo "[debug] [debug] - 1 - Still ok "
+                            sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null) || true
+                            echo "[debug] [debug] - 2 - Still ok "
+                            if [[ -n "$sha" ]]; then
+                                echo "[debug] [debug] - 3 - Still ok "
+                                # File exists, update it
+                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
+                                    -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
+                                    -f content="$(base64 < "${file}")" \
+                                    --jq '.commit.sha' \
+                                    -f sha="$sha"
+                            else
+                                # File does not exist, create it
+                                echo "[debug] [debug] - 4 - Still ok "
+                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
+                                    -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
+                                    -f content="$(base64 < "${file}")" \
+                                    --jq '.commit.sha'
+                            fi
+                            if [[ $? -eq 0 ]]; then
+                                echo "[debug] ==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
+                            else
+                                echo "[debug] !! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
+                            fi
 
-                    else
-                        echo "[debug] !! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
-                    fi
-                done
-                echo "[debug] == local PKGBUILD updated =="
+                        else
+                            echo "[debug] !! ${file} is in our tracked files but doesn't appear to be a file (something is wrong mate) !!"
+                        fi
+                    done
+                    echo "[debug] == local PKGBUILD updated =="
+                else
+                    echo "[debug] == FAILED ${PACKAGE_NAME} submission to AUR =="
+                    FAILURE=1
+                fi
             else
-                echo "[debug] == FAILED ${PACKAGE_NAME} submission to AUR =="
-                FAILURE=1
+                echo "[debug] == Test for $PACKAGE_NAME concluded =="
             fi
         fi
 

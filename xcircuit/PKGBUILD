@@ -43,14 +43,11 @@ build() {
 
 package() {
   _pkgver=${pkgver%.*}
-  echo "${_pkgver} is _pkgver, ${srcdir} is srcdir, ${pkgdir} is pkgdir"
-  cd "$srcdir"
   install -Dm0644 xcircuit.desktop "$pkgdir/usr/share/applications/xcircuit.desktop"
   cd "$pkgname-$pkgver"
-  make DESTDIR="$pkgdir" install
+  make DESTDIR="${pkgdir}" install
   mkdir -p "$pkgdir/usr/share/man/man1"
   pwd
-  ls -latr "$pkgdir/usr/lib/xcircuit-${_pkgver}/man/"
   find "$pkgdir/usr/lib/xcircuit-${_pkgver}/man/" -type f -exec mv {} "$pkgdir/usr/share/man/man1/" \;
   rm -r "$pkgdir/usr/lib/xcircuit-${_pkgver}/man"
   chrpath -d "$pkgdir/usr/lib/xcircuit-${_pkgver}/xcircexec"

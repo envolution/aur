@@ -17,7 +17,8 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        test:lobe-chat:lobe-chat
+        nobuild:shotcut-git:shotcut-git
+      #  test:lobe-chat:lobe-chat
       #  build:python-instructor:python-instructor
       #  build:openfortivpn-git:openfortivpn-git
       #  test:xcircuit:xcircuit
@@ -32,7 +33,6 @@ jobs:
       #  build:pyinstaller-hooks-contrib:pyinstaller-hooks-contrib
       #  build:pyinstaller:pyinstaller
       #  build:aircrack-ng-git:aircrack-ng-git
-      #  nobuild:shotcut-git:shotcut-git
       #  build:openscad-nopscadlib-git:openscad-nopscadlib-git
       #  build:gnome-shell-git:gnome-shell-git
       #  build:hyperrogue:hyperrogue

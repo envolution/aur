@@ -7,7 +7,7 @@ pkgdesc="An open-source, modern-design LLMs/AI chat framework"
 arch=("x86_64" "aarch64")
 url="https://github.com/lobehub/${pkgname}"
 license=('Apache-2.0')
-depends=("nodejs-lts-iron")
+depends=("nodejs" "nvm")
 makedepends=("npm" "pnpm")
 optdepends=("ollama: ollama backend")
 backup=("etc/default/${pkgname}")
@@ -30,6 +30,8 @@ build() {
 
     # build web
     cd "${pkgname}-${pkgver}"
+    nvm install
+    nvm use
     pnpm install --cache "${srcdir}/npm-cache"
     npm run build:docker
 
@@ -51,9 +53,6 @@ package() {
 
     cd "${pkgname}-${pkgver}"
     install -Dm644 README*.md           -t "${pkgdir}/usr/share/doc/${pkgname}"
-
-    cp -r --preserve=mode .next/server "${pkgdir}/usr/share/${pkgname}"
-    cp -r --preserve=mode .next/types "${pkgdir}/usr/share/${pkgname}"
 
     cp -r --preserve=mode .next/standalone "${pkgdir}/usr/share/${pkgname}"
     cp -r --preserve=mode .next/static     "${pkgdir}/usr/share/${pkgname}/.next/static"

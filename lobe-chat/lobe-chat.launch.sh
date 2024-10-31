@@ -5,5 +5,5 @@ source /usr/share/nvm/init-nvm.sh || [[ $? != 1 ]]
 cd ${LOBE_DIR}
 nvm install
 nvm use 
-node standalone/server.js
+node server.js
 

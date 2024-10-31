@@ -30,6 +30,7 @@ build() {
 
     # build web
     cd "${pkgname}-${pkgver}"
+    source /usr/share/nvm/init-nvm.sh
     nvm install
     nvm use
     pnpm install --cache "${srcdir}/npm-cache"

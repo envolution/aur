@@ -16,6 +16,9 @@ jobs:
       GIT_USERNAME: envolution
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
+      # build = only publish if the package builds successfully
+      # nobuild = publish without testing package
+      # test = build and test the package, don't publish
       PACKAGES: |
         nobuild:lobe-chat:lobe-chat
       #  build:shotcut-git:shotcut-git

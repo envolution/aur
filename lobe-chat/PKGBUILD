@@ -27,10 +27,11 @@ build() {
     export NEXT_TELEMETRY_DISABLED=1
     export NODE_OPTIONS='--max-old-space-size=8192'
     export PUPPETEER_SKIP_DOWNLOAD="true"
+    export NVM_DIR="${pkgdir}/usr/share/${pkgname}/.nvm"
+    source /usr/share/nvm/init-nvm.sh
 
     # build web
     cd "${pkgname}-${pkgver}"
-    source /usr/share/nvm/init-nvm.sh
     nvm install
     nvm use
     pnpm install --cache "${srcdir}/npm-cache"

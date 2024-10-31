@@ -17,7 +17,7 @@ jobs:
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
       PACKAGES: |
-        test:lobe-chat:lobe-chat
+        nobuild:lobe-chat:lobe-chat
       #  build:shotcut-git:shotcut-git
       #  build:python-instructor:python-instructor
       #  build:openfortivpn-git:openfortivpn-git

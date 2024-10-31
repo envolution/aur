@@ -25,6 +25,7 @@ sha256sums=('ae791009c85547dee267af18d8532606348e2ebe735333c30fecd151b7f190ac'
 build() {
     export COREPACK_ENABLE_STRICT=0
     export NEXT_TELEMETRY_DISABLED=1
+    export NODE_OPTIONS='--max-old-space-size=8192'
     export PUPPETEER_SKIP_DOWNLOAD="true"
 
     # build web

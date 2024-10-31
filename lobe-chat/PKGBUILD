@@ -3,7 +3,7 @@
 
 pkgname=lobe-chat
 pkgver=1.26.17
-pkgrel=1
+pkgrel=2
 pkgdesc="An open-source, modern-design LLMs/AI chat framework"
 arch=("x86_64" "aarch64")
 url="https://github.com/lobehub/${pkgname}"

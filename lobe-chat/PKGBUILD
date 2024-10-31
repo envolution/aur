@@ -22,18 +22,24 @@ sha256sums=('ae791009c85547dee267af18d8532606348e2ebe735333c30fecd151b7f190ac'
             'b370a660e91eacd7fee44691ff8de4446f4c8f36634a2d96a2f982b5fea9a0a6'
             '2e5323c4dc10d815cf3ffcee0fb9fa33dba5c95b2c28055e4c5b4f551bdc5049')
 
+_ensure_local_nvm() {
+    export NVM_DIR="${srcdir}/.nvm"
+    source /usr/share/nvm/init-nvm.sh || [[ $? != 1 ]]
+    nvm install
+    nvm use
+    echo "in _ensure nvm dir = ${NVM_DIR}"
+}
+
 build() {
     export COREPACK_ENABLE_STRICT=0
     export NEXT_TELEMETRY_DISABLED=1
     export NODE_OPTIONS='--max-old-space-size=8192'
     export PUPPETEER_SKIP_DOWNLOAD="true"
-    export NVM_DIR="${pkgdir}/usr/share/${pkgname}/.nvm"
-    source /usr/share/nvm/init-nvm.sh
 
     # build web
     cd "${pkgname}-${pkgver}"
-    nvm install
-    nvm use
+    _ensure_local_nvm
+    echo "in build() nvm dir = ${NVM_DIR}"
     pnpm install --cache "${srcdir}/npm-cache"
     npm run build:docker
 
@@ -53,13 +59,18 @@ package() {
     install -Dm644 "${pkgname}.sysusers"   "${pkgdir}/usr/lib/sysusers.d/${pkgname}.conf"
     install -Dm644 "${pkgname}.tmpfiles"   "${pkgdir}/usr/lib/tmpfiles.d/${pkgname}.conf"
 
+
+    mkdir -p "${pkgdir}/usr/share/${pkgname}/.nvm"
+    cp -r --preserve=mode .nvm             "${pkgdir}/usr/share/${pkgname}/"
+
     cd "${pkgname}-${pkgver}"
-    install -Dm644 README*.md           -t "${pkgdir}/usr/share/doc/${pkgname}"
+    install -Dm644 README*.md           -t "${pkgdir}/usr/share/doc/${pkgname}/"
+    install -Dm644 .nvmrc               -t "${pkgdir}/usr/share/${pkgname}/"
 
-    cp -r --preserve=mode .next/standalone "${pkgdir}/usr/share/${pkgname}"
-    cp -r --preserve=mode .next/static     "${pkgdir}/usr/share/${pkgname}/.next/static"
-    cp -r --preserve=mode public           "${pkgdir}/usr/share/${pkgname}/public"
+    cp -r --preserve=mode .next/standalone "${pkgdir}/usr/share/${pkgname}/"
+    cp -r --preserve=mode .next/static     "${pkgdir}/usr/share/${pkgname}/"
+    cp -r --preserve=mode public           "${pkgdir}/usr/share/${pkgname}/"
 
-    mkdir -p "${pkgdir}/usr/share/${pkgname}/.next/cache"
+    mkdir -p "${pkgdir}/usr/share/${pkgname}/.next"
     ln -s "/var/lib/${pkgname}/cache"      "${pkgdir}/usr/share/${pkgname}/.next/cache"
 }

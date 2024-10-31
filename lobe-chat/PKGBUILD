@@ -13,11 +13,13 @@ makedepends=("npm" "pnpm")
 optdepends=("ollama: ollama backend")
 backup=("etc/default/${pkgname}")
 source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
+        "${pkgname}-launch.sh"
         "${pkgname}.env"
         "${pkgname}.service"
         "${pkgname}.sysusers"
         "${pkgname}.tmpfiles")
 sha256sums=('d1bb26be4d88e22be1337252059948ddfb1bc6a54bff00fe37aa1aebab8b299c'
+            '43143b06b5418e718fafa404999f6f1266a8f11c7427d93b81a23a2a0b348595'
             '43143b06b5418e718fafa404999f6f1266a8f11c7427d93b81a23a2a0b348595'
             '7a6e39b716ebdc2df882b82301a8eb92f5b8ec625ad7a2ba3d4dae7a9f04f55b'
             'b370a660e91eacd7fee44691ff8de4446f4c8f36634a2d96a2f982b5fea9a0a6'

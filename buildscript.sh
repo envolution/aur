@@ -104,7 +104,7 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
     [[ -z $NEW_VERSION ]] && \
         echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
         && exit 1
-    echo "[debug] == Detected ${NEW_VERSION} from upstream, PKGBUILD updating... =="
+    echo "[debug] == UPDATE DETECTED ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
     cat PKGBUILD
 fi

@@ -16,7 +16,7 @@ source_x86_64=("${_appimage}::https://releases.lmstudio.ai/linux/x86/${pkgver}/b
 noextract=("${_appimage}")
 sha256sums_x86_64=('e7202bada472358d532e680649eff566c8ab9b4f77c3eeadbd726be3ec6256d6')
 appname="lm-studio"
-provides=('lmstudio')
+provides=('lmstudio' 'lmstudio-appimage')
 conflicts=('lmstudio' 'lmstudio-appimage')
 
 prepare() {

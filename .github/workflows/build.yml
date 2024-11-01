@@ -20,7 +20,8 @@ jobs:
       # nobuild = publish without testing package
       # test = build and test the package, don't publish
       PACKAGES: |
-        nobuild:lobe-chat:lobe-chat
+        build:lmstudio-beta:lmstudio-beta
+      #  build:lobe-chat:lobe-chat
       #  build:shotcut-git:shotcut-git
       #  build:python-instructor:python-instructor
       #  build:openfortivpn-git:openfortivpn-git

@@ -61,6 +61,11 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
     echo "[debug] Copying PKGBUILD and others from ${PKGBUILD_PATH}"
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" .
 fi
+# Collect .nvchecker.toml from our repo
+if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
+    echo "[debug] Copying .nvchecker.toml and others from ${PKGBUILD_PATH}"
+    cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" .
+fi
 
 #get the source array directly from our PKGBUILD.  We want to get all of our sources from this.
 readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"' | grep .)
@@ -88,8 +93,7 @@ if [[ ${#SOURCES[@]} -gt 1 ]]; then
         echo "[debug] \"$item\" identified possible file"
             if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" ]; then
                 cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" . && \
-                    TRACKED_FILES+=("${item}") #add this file for git push \
-                    || echo "[debug] Error copying ${item} to $(pwd)"
+                    TRACKED_FILES+=("${item}") #add this file for git push 
             fi
         else
             echo "[debug] ${item} is an invalid file (probably a url)"

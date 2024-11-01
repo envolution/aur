@@ -20,7 +20,7 @@ jobs:
       # nobuild = publish without testing package
       # test = build and test the package, don't publish
       PACKAGES: |
-        build:briquolo:briquolo
+        nobuild:briquolo:briquolo
       #  build:shotcut-git:shotcut-git
       #  test:lobe-chat:lobe-chat
       #  build:lmstudio-beta:lmstudio-beta

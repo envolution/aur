@@ -16,10 +16,16 @@ jobs:
       GIT_USERNAME: envolution
       GIT_EMAIL: involution@gmail.com
       # Define build order and package details
+      # build = only publish if the package builds successfully
+      # nobuild = publish without testing package
+      # test = build and test the package, don't publish
       PACKAGES: |
         build:briquolo:briquolo
       #  build:shotcut-git:shotcut-git
       #  test:lobe-chat:lobe-chat
+        build:shotcut-git:shotcut-git
+      #  build:lmstudio-beta:lmstudio-beta
+      #  build:lobe-chat:lobe-chat
       #  build:python-instructor:python-instructor
       #  build:openfortivpn-git:openfortivpn-git
       #  test:xcircuit:xcircuit

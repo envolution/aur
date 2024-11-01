@@ -88,7 +88,8 @@ if [[ ${#SOURCES[@]} -gt 1 ]]; then
         echo "[debug] \"$item\" identified possible file"
             if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" ]; then
                 cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/${item}" . && \
-                    TRACKED_FILES+=("${item}") #add this file for git push
+                    TRACKED_FILES+=("${item}") #add this file for git push \
+                    || echo "[debug] Error copying ${item} to $(pwd)"
             fi
         else
             echo "[debug] ${item} is an invalid file (probably a url)"

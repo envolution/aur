@@ -23,7 +23,6 @@ jobs:
         build:briquolo:briquolo
       #  build:shotcut-git:shotcut-git
       #  test:lobe-chat:lobe-chat
-        build:shotcut-git:shotcut-git
       #  build:lmstudio-beta:lmstudio-beta
       #  build:lobe-chat:lobe-chat
       #  build:python-instructor:python-instructor

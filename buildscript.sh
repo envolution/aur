@@ -78,7 +78,7 @@ readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys
     && echo "[debug] == Adopted package PGP keys ==" \
     || echo "[debug] == No PGP keys in PKGBUILD =="
 
-TRACKED_FILES=("PKGBUILD" ".SRCINFO")
+TRACKED_FILES=("PKGBUILD" ".SRCINFO" ".nvchecker.toml")
 
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
     echo "[debug] == There is more than one source in PKGBUILD =="

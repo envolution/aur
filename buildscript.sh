@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -euo pipefail
 
 # Ensure the script receives exactly 7 arguments

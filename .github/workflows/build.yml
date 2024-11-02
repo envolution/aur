@@ -20,7 +20,8 @@ jobs:
       # nobuild = publish without testing package
       # test = build and test the package, don't publish
       PACKAGES: |
-        build:memos-git:memos-git
+        build:memos:memos
+        nobuild:memos-git:memos-git
       #  build:superflu-riteurnz:superflu-riteurnz
       #  build:artisan-roaster-scope:artisan-roaster-scope
       #  nobuild:briquolo:briquolo

@@ -58,28 +58,30 @@ jobs:
 
                 if ! [[ "$ROOT" =~ ^(maintain|nomaintain)$ ]]; then
                   echo "⚠️ Invalid root directory: $ROOT - Must be 'maintain' or 'nomaintain'"
-                  exit 0
+                  SKIP=1
                 fi
                 if ! [[ "$CATEGORY" =~ ^(build|nobuild|test)$ ]]; then
                   echo "⚠️ Invalid category: $CATEGORY - Must be 'build' 'nobuild' or 'test'"
-                  exit 0
+                  SKIP=1
                 fi
                 if ! [ -n "$PACKAGE" ]; then
                   echo "⚠️ Invalid package: $PACKAGE - Must not be empty"
-                  exit 0
+                  SKIP=1
                 fi
                 
-                # Create a JSON object for this path
-                PATH_OBJ=$(jq -n \
-                  --arg root "$ROOT" \
-                  --arg category "$CATEGORY" \
-                  --arg package "$PACKAGE" \
-                  '{root: $root, category: $category, package: $package}')
-                
-                # Add to array if not already present
-                jq --argjson obj "$PATH_OBJ" \
-                  '. += [$obj] | unique' \
-                  "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+                if ! [-z $SKIP ]; then
+                  # Create a JSON object for this path
+                  PATH_OBJ=$(jq -n \
+                    --arg root "$ROOT" \
+                    --arg category "$CATEGORY" \
+                    --arg package "$PACKAGE" \
+                    '{root: $root, category: $category, package: $package}')
+                  
+                  # Add to array if not already present
+                  jq --argjson obj "$PATH_OBJ" \
+                    '. += [$obj] | unique' \
+                    "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+                fi
               fi
             done <<< "$CHANGED_FILES"
             

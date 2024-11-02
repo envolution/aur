@@ -13,9 +13,7 @@ source=(
 	"https://github.com/artisan-roaster-scope/artisan/releases/download/v${pkgver}/artisan-linux-${pkgver}.AppImage"
 )
 
-sha256sums=(
-	'7b768d3473c68672528b65b76b7df2e22167846ba9413d9dca9c0dad17879465'
-)
+sha256sums=('a2168bddf64c97708e35fffcea2222810cdd6841934a84a9644a423d0f970387')
 
 options+=(!strip !debug) 
 

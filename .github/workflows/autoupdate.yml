@@ -37,40 +37,53 @@ jobs:
           # Create a temporary file to store package info
           TEMP_FILE=$(mktemp)
           echo "[]" > "$TEMP_FILE"
-          
-          # Process each changed file and collect unique package paths
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            
-            # Split the path into components
-            IFS='/' read -ra PARTS <<< "$file"
-            
-            # Check if we have at least 3 components (root/category/package)
-            if [ ${#PARTS[@]} -ge 3 ]; then
-              ROOT="${PARTS[0]}"
-              CATEGORY="${PARTS[1]}"
-              PACKAGE="${PARTS[2]}"
+
+          # Initialize empty JSON array if there are no changes
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No changes detected"
+            PACKAGES="[]"
+          else
+            # Process each changed file and collect unique package paths
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
               
-              # Add to JSON array if not already present
-              jq --arg root "$ROOT" \
-                 --arg category "$CATEGORY" \
-                 --arg package "$PACKAGE" \
-                 '. += [{root: $root, category: $category, package: $package}] | unique' \
-                 "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
-            fi
-          done <<< "$CHANGED_FILES"
-          
-          # Store the complete package list for later steps
-          # PACKAGES=$(cat "$TEMP_FILE")
-          # echo "packages=${PACKAGES}" >> $GITHUB_OUTPUT
-          # Store the complete package list for later steps, properly escaped for GitHub Actions
-          PACKAGES=$(cat "$TEMP_FILE" | jq -c | sed 's/"/\\"/g')
-          echo "packages<<EOF" >> $GITHUB_OUTPUT
-          echo "$PACKAGES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT 
+              # Split the path into components
+              IFS='/' read -ra PARTS <<< "$file"
+              
+              # Check if we have at least 3 components (root/category/package)
+              if [ ${#PARTS[@]} -ge 3 ]; then
+                ROOT="${PARTS[0]}"
+                CATEGORY="${PARTS[1]}"
+                PACKAGE="${PARTS[2]}"
+                
+                # Create a JSON object for this path
+                PATH_OBJ=$(jq -n \
+                  --arg root "$ROOT" \
+                  --arg category "$CATEGORY" \
+                  --arg package "$PACKAGE" \
+                  '{root: $root, category: $category, package: $package}')
+                
+                # Add to array if not already present
+                jq --argjson obj "$PATH_OBJ" \
+                  '. += [$obj] | unique' \
+                  "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+              fi
+            done <<< "$CHANGED_FILES"
+            
+            PACKAGES=$(cat "$TEMP_FILE")
+          fi
+
+          # Clean up temp file
+          rm -f "$TEMP_FILE"
+
           # Debug output
           echo "Found changes in the following packages:"
-          echo "$PACKAGES" | jq -r '.[] | "- \(.root)/\(.category)/\(.package)"'
+          echo "$PACKAGES" | jq -r '.[] | "- \(.root)/\(.category)/\(.package)"' || echo "No valid packages found"
+
+          # Store the output using EOF delimiter to handle special characters
+          echo "packages<<EOF" >> $GITHUB_OUTPUT
+          echo "$PACKAGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           # Process each package sequentially
           echo "$PACKAGES" | jq -c '.[]' | while read -r pkg; do

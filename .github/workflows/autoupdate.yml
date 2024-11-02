@@ -81,7 +81,7 @@ jobs:
             echo "Processing: $ROOT/$CATEGORY/$PACKAGE"
             
             # Example processing logic based on path components
-            if [ "$ROOT" = "Maintain" ]; then
+            if [ "$ROOT" = "maintain" ]; then
               case "$CATEGORY" in
                 "build")
                   echo "📦 Building maintained package: $PACKAGE"
@@ -99,9 +99,11 @@ jobs:
                   # Add your test commands here
                   ;;
               esac
-            elif [ "$ROOT" = "Nomaintain" ]; then
+            elif [ "$ROOT" = "nomaintain" ]; then
               echo "ℹ️ Processing unmaintained package: $PACKAGE"
               # Add your nomaintain processing logic here
+            else
+              echo "[debug] Did not detect any package changes needing action."
             fi
             
             echo "---"

@@ -27,8 +27,12 @@ jobs:
       - name: Identify and process changed packages
         id: process-changes
         run: |
-          # Get the list of changed files
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          # Get the list of changed files, handling both regular pushes and first commits
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }})
+          else
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          fi
           
           # Create a temporary file to store package info
           TEMP_FILE=$(mktemp)

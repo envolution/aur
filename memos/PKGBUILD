@@ -38,7 +38,7 @@ _ensure_local_nvm() {
 build() {
     export COREPACK_ENABLE_STRICT=0
     export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-    cd $pkgname/web
+    cd "${pkgname}-${pkgver}/web"
     # Build frontend
     echo "lts/iron" > .nvmrc
     _ensure_local_nvm
@@ -47,12 +47,12 @@ build() {
     pnpm build
 
     # Set up backend build environment
-    mkdir -p "$srcdir/$pkgname/backend_build_dir/server/router/frontend/dist/"
-    rm -rf "${srcdir}/${pkgname}/server/router/frontend/dist"
-    cp -r "$srcdir/$pkgname/web/dist" "$srcdir/$_pkgname/server/router/frontend/"
+    mkdir -p "${srcdir}/${pkgname}-${pkgver}/backend_build_dir/server/router/frontend/dist/"
+    rm -rf "${srcdir}/${pkgname}-${pkgver}/server/router/frontend/dist"
+    cp -r "${srcdir}/${pkgname}-${pkgver}/web/dist" "${srcdir}/${pkgname}-${pkgver}/server/router/frontend/"
 
     # Compile the backend Go binary
-    CGO_ENABLED=0 go build -o "$srcdir/${pkgname}.bin" "$srcdir/$_pkgname/bin/memos/main.go"
+    CGO_ENABLED=0 go build -o "${srcdir}/${pkgname}.bin" "${srcdir}/${pkgname}-${pkgver}/bin/memos/main.go"
 }
 package () {
   install -vDm644 systemd.service "$pkgdir/usr/lib/systemd/system/${pkgname}.service"
@@ -60,9 +60,7 @@ package () {
   install -vDm644 tmpfiles.conf   "$pkgdir/usr/lib/tmpfiles.d/${pkgname}.conf"
   install -vDm644 memos.conf      "$pkgdir/etc/memos.conf"
 
-  pwd
-  ls -latr
-  install -Dm755  "memos.bin"            "$pkgdir/usr/bin/memos"
-  install -Dm0644 "${pkgname}/LICENSE" "$pkgdir/usr/share/licenses/${_pkgname}/LICENSE"
+  install -Dm755  "memos.bin"                    "$pkgdir/usr/bin/memos"
+  install -Dm0644 "${pkgname}-${pkgver}/LICENSE" "$pkgdir/usr/share/licenses/${pkgname}/LICENSE"
 }
 

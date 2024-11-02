@@ -57,9 +57,13 @@ jobs:
           done <<< "$CHANGED_FILES"
           
           # Store the complete package list for later steps
-          PACKAGES=$(cat "$TEMP_FILE")
-          echo "packages=${PACKAGES}" >> $GITHUB_OUTPUT
-          
+          # PACKAGES=$(cat "$TEMP_FILE")
+          # echo "packages=${PACKAGES}" >> $GITHUB_OUTPUT
+          # Store the complete package list for later steps, properly escaped for GitHub Actions
+          PACKAGES=$(cat "$TEMP_FILE" | jq -c | sed 's/"/\\"/g')
+          echo "packages<<EOF" >> $GITHUB_OUTPUT
+          echo "$PACKAGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT 
           # Debug output
           echo "Found changes in the following packages:"
           echo "$PACKAGES" | jq -r '.[] | "- \(.root)/\(.category)/\(.package)"'

@@ -58,3 +58,5 @@ package() {
 # Force usage of correct desktop entry
   install -Dm644 "$srcdir/$pkgname.desktop" "$pkgdir"/usr/share/applications/$pkgname.desktop
 }
+
+# vim: ts=2 sw=2 et:

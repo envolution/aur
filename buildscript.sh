@@ -56,15 +56,19 @@ cd "${BUILD_DIR}"
 echo "[debug] Cloning AUR repository for ${PACKAGE_NAME}..."
 git clone "$AUR_REPO" .
 
+TRACKED_FILES=()
+
 # Collect PKGBUILD from our repo
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" ]; then
     echo "[debug] Copying PKGBUILD and others from ${PKGBUILD_PATH}"
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/PKGBUILD" .
+    TRACKED_FILES+=("PKGBUILD")
 fi
 # Collect .nvchecker.toml from our repo
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
     echo "[debug] Copying .nvchecker.toml and others from ${PKGBUILD_PATH}"
     cp "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" .
+    TRACKED_FILES+=(".nvchecker.toml")
 fi
 
 #get the source array directly from our PKGBUILD.  We want to get all of our sources from this.
@@ -83,7 +87,6 @@ readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys
     && echo "[debug] == Adopted package PGP keys ==" \
     || echo "[debug] == No PGP keys in PKGBUILD =="
 
-TRACKED_FILES=("PKGBUILD" ".SRCINFO" ".nvchecker.toml")
 
 if [[ ${#SOURCES[@]} -gt 1 ]]; then
     echo "[debug] == There is more than one source in PKGBUILD =="
@@ -121,6 +124,7 @@ updpkgsums
 # Generate .SRCINFO
 echo "[debug] == Generating .SRCINFO =="
 makepkg --printsrcinfo > .SRCINFO
+TRACKED_FILES+=(".SRCINFO")
 
 
 # Check for changes and commit

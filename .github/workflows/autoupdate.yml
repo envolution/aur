@@ -1,0 +1,56 @@
+name: Detect Directory Changes
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  get-changed-dirs:
+    runs-on: ubuntu-latest
+    outputs:
+      directories: ${{ steps.get-dirs.outputs.directories }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed directories
+        id: get-dirs
+        run: |
+          # Get the list of changed files between the current commit and its parent
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          
+          # Extract unique directory names, excluding files in root
+          DIRECTORIES=$(echo "$CHANGED_FILES" | grep "/" | cut -d'/' -f1 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          
+          # Set the output
+          echo "directories=$DIRECTORIES" >> $GITHUB_OUTPUT
+          
+          # Debug output
+          echo "Changed directories: $DIRECTORIES"
+
+  use-directories:
+    needs: get-changed-dirs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Use directory array
+        run: |
+          # Parse the JSON array
+          DIRS='${{ needs.get-changed-dirs.outputs.directories }}'
+          
+          # Loop through each directory
+          echo "Changed directories:"
+          echo $DIRS | jq -c '.[]' | while read dir; do
+            # Remove quotes from directory name
+            dir=$(echo $dir | tr -d '"')
+            echo "Processing directory: $dir"
+            
+            # Add your custom logic here for each directory
+            # For example:
+            # if [ "$dir" = "frontend" ]; then
+            #   echo "Running frontend tests..."
+            # fi
+          done

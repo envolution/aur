@@ -13,7 +13,7 @@ license=('GPL3')
 depends=('libyaml' 'sdl2_image' 'sdl2_ttf' 'sdl2_mixer' 'hicolor-icon-theme')
 options=(!strip !debug)
 source=(https://asso.framasoft.org/dolo/h/7raZBvcqNq0)
-sha256sums=('7000e2703cb5dcea05eb5837f6da618074aede058de9310aee0bd7ad7be2c77d')
+sha256sums=('db7b805037e07c41dfea7066b0dc47ef9baf0ba5123122680202495fb5a84aa7')
 
 package() {
     cd "${srcdir}/superfluous-returnz-1.6.0-d13-public/"

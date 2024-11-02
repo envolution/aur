@@ -1,4 +1,4 @@
-name: Detect Directory Changes
+name: Process Package Changes
 
 on:
   push:
@@ -6,51 +6,117 @@ on:
       - '**'
 
 jobs:
-  get-changed-dirs:
+  process-packages:
     runs-on: ubuntu-latest
-    outputs:
-      directories: ${{ steps.get-dirs.outputs.directories }}
     
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Get changed directories
-        id: get-dirs
+
+      # Add your container setup and caching here
+      - name: Set up container cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/container
+          key: ${{ runner.os }}-container-${{ hashFiles('**/cache-key-files') }}
+          restore-keys: |
+            ${{ runner.os }}-container-
+
+      - name: Identify and process changed packages
+        id: process-changes
         run: |
-          # Get the list of changed files between the current commit and its parent
+          # Get the list of changed files
           CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           
-          # Extract unique directory names, excluding files in root
-          DIRECTORIES=$(echo "$CHANGED_FILES" | grep "/" | cut -d'/' -f1 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          # Create a temporary file to store package info
+          TEMP_FILE=$(mktemp)
+          echo "[]" > "$TEMP_FILE"
           
-          # Set the output
-          echo "directories=$DIRECTORIES" >> $GITHUB_OUTPUT
+          # Process each changed file and collect unique package paths
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            
+            # Split the path into components
+            IFS='/' read -ra PARTS <<< "$file"
+            
+            # Check if we have at least 3 components (root/category/package)
+            if [ ${#PARTS[@]} -ge 3 ]; then
+              ROOT="${PARTS[0]}"
+              CATEGORY="${PARTS[1]}"
+              PACKAGE="${PARTS[2]}"
+              
+              # Add to JSON array if not already present
+              jq --arg root "$ROOT" \
+                 --arg category "$CATEGORY" \
+                 --arg package "$PACKAGE" \
+                 '. += [{root: $root, category: $category, package: $package}] | unique' \
+                 "$TEMP_FILE" > "${TEMP_FILE}.tmp" && mv "${TEMP_FILE}.tmp" "$TEMP_FILE"
+            fi
+          done <<< "$CHANGED_FILES"
+          
+          # Store the complete package list for later steps
+          PACKAGES=$(cat "$TEMP_FILE")
+          echo "packages=${PACKAGES}" >> $GITHUB_OUTPUT
           
           # Debug output
-          echo "Changed directories: $DIRECTORIES"
-
-  use-directories:
-    needs: get-changed-dirs
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Use directory array
-        run: |
-          # Parse the JSON array
-          DIRS='${{ needs.get-changed-dirs.outputs.directories }}'
+          echo "Found changes in the following packages:"
+          echo "$PACKAGES" | jq -r '.[] | "- \(.root)/\(.category)/\(.package)"'
           
-          # Loop through each directory
-          echo "Changed directories:"
-          echo $DIRS | jq -c '.[]' | while read dir; do
-            # Remove quotes from directory name
-            dir=$(echo $dir | tr -d '"')
-            echo "Processing directory: $dir"
+          # Process each package sequentially
+          echo "$PACKAGES" | jq -c '.[]' | while read -r pkg; do
+            ROOT=$(echo "$pkg" | jq -r '.root')
+            CATEGORY=$(echo "$pkg" | jq -r '.category')
+            PACKAGE=$(echo "$pkg" | jq -r '.package')
             
-            # Add your custom logic here for each directory
-            # For example:
-            # if [ "$dir" = "frontend" ]; then
-            #   echo "Running frontend tests..."
-            # fi
+            echo "Processing: $ROOT/$CATEGORY/$PACKAGE"
+            
+            # Example processing logic based on path components
+            if [ "$ROOT" = "Maintain" ]; then
+              case "$CATEGORY" in
+                "build")
+                  echo "📦 Building maintained package: $PACKAGE"
+                  # Add your build commands here
+                  # Example:
+                  # cd "$ROOT/$CATEGORY/$PACKAGE"
+                  # makepkg -s --noconfirm
+                  ;;
+                "nobuild")
+                  echo "📋 Processing no-build package: $PACKAGE"
+                  # Add your nobuild processing here
+                  ;;
+                "test")
+                  echo "🧪 Running tests for package: $PACKAGE"
+                  # Add your test commands here
+                  ;;
+              esac
+            elif [ "$ROOT" = "Nomaintain" ]; then
+              echo "ℹ️ Processing unmaintained package: $PACKAGE"
+              # Add your nomaintain processing logic here
+            fi
+            
+            echo "---"
           done
+
+      # Example of a subsequent step that needs package information
+      - name: Additional processing
+        if: success()
+        run: |
+          # Access the package information from previous step
+          PACKAGES='${{ steps.process-changes.outputs.packages }}'
+          
+          # Example: Count packages by category
+          echo "Package statistics:"
+          echo "$PACKAGES" | jq -r '.[] | .category' | sort | uniq -c
+          
+          # Example: Process only build packages
+          echo "Build packages:"
+          echo "$PACKAGES" | jq -r '.[] | select(.category=="build") | .package'
+          
+          # You can add more specific processing here while maintaining
+          # access to the cached container
+
+      # Add more steps as needed, all using the same cached container
+      # Each step can access the package information through:
+      # ${{ steps.process-changes.outputs.packages }}

@@ -55,6 +55,19 @@ jobs:
                 ROOT="${PARTS[0]}"
                 CATEGORY="${PARTS[1]}"
                 PACKAGE="${PARTS[2]}"
+
+                if ! [[ "$ROOT" =~ ^(maintain|nomaintain)$ ]]; then
+                  echo "⚠️ Invalid root directory: $ROOT - Must be 'maintain' or 'nomaintain'"
+                  exit 0
+                fi
+                if ! [[ "$CATEGORY" =~ ^(build|nobuild|test)$ ]]; then
+                  echo "⚠️ Invalid category: $CATEGORY - Must be 'build' 'nobuild' or 'test'"
+                  exit 0
+                fi
+                if ! [ -n "$PACKAGE" ]; then
+                  echo "⚠️ Invalid package: $PACKAGE - Must not be empty"
+                  exit 0
+                fi
                 
                 # Create a JSON object for this path
                 PATH_OBJ=$(jq -n \

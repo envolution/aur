@@ -110,9 +110,10 @@ jobs:
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           cd $GITHUB_WORKSPACE
-          find .
+          find . -type d -name 'briquolo'
+          echo "did that work?"
           for _path in ${UPDATES[@]}; do
-            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 5 -type d -name "@{_path}"))
+            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 1 -type d -name "@{_path}"))
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
               exit 1

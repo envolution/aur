@@ -12,6 +12,8 @@ jobs:
       options: --privileged
     env:
         AUR_MAINTAINER_NAME: envolution
+        GIT_USERNAME: envolution
+        GIT_EMAIL: involution@gmail.com
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,6 +62,23 @@ jobs:
           SudoLoop
           UseAsk' | sudo tee /etc/paru.conf          
 
+      - name: Setup SSH key
+        run: |
+          sudo -u builder mkdir -p /home/builder/.ssh
+          sudo -u builder echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > /home/builder/.ssh/aur
+          sudo -u builder ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
+          sudo -u builder cat /home/builder/.ssh/known_hosts
+          sudo -u builder cat >> /home/builder/.ssh/config << EOF
+          Host aur.archlinux.org
+                IdentityFile /home/builder/.ssh/aur
+                User aur
+          EOF
+
+      - name: Configure Git
+        run: |
+          sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
+          sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"          
+
 
       - name: Run task
         run: |
@@ -91,6 +110,23 @@ jobs:
           nvchecker -c new.toml  --logger json > newver.json
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
+
+          for _path in ${UPDATES[@]}; do
+            subdirs=($(find . -maxdepth 2 -type d -name "@{_path}"))
+            if [ ${#subdirs[@]} -ne 1 ]; then
+              echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
+              exit 1
+            fi
+            IFS='/' read -r -a _package <<< "${_path:1}"
+            maintain=${_package[0]}
+            build=   ${_package[1]}
+            package= ${_package[2]}
+            pkgbuild=${maintain}/${build}
+
+            sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh |\
+              "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
+
+          done          
           
           # Example task execution
           echo "Task executed at: $(date)"

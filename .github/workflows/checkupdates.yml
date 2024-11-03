@@ -74,7 +74,7 @@ jobs:
           mkdir -p ~/nvchecker
           cd ~/nvchecker
           curl https://aur.archlinux.org/rpc/v5/search/envolution?by=maintainer | jq '{version: 2, data: (.results | map({(.Name): {version: .Version}}) | add)}' > oldver.json
-          FILES=$(find . -name ".nvchecker.toml")
+          FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
           echo '[__config__]' > new.toml
           echo -e "oldver='oldver.json'" >> new.toml
           echo -e "newver='newver.json'\n" >> new.toml

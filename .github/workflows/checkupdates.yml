@@ -113,21 +113,19 @@ jobs:
           find . -type d -name 'briquolo'
           for foundpath in ${UPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
-            echo "did that work?"
-            echo "path: ${foundpath} subdirs...:"
-            printf '%s\n' "${subdirs[@]}"
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."
               exit 1
             fi
             IFS='/' read -r -a _package <<< "${foundpath:1}"
+            echo "[debug] Packages that will attempt to update:"
             printf '%s\n' "${UPDATES[@]}"
-            exit 1
             maintain=${_package[0]}
             build=   ${_package[1]}
             package= ${_package[2]}
             pkgbuild=${maintain}/${build}
-
+            echo "Maintain: $maintain build: $build package: $package pkgbuild: pkgbuild"
+            exit 1
             sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh |\
               "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
 

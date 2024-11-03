@@ -20,8 +20,9 @@ jobs:
       # nobuild = publish without testing package
       # test = build and test the package, don't publish
       PACKAGES: |
-        build:memos:memos
-        nobuild:memos-git:memos-git
+        build:hyperrogue:hyperrogue
+      #  build:memos:memos
+      #  nobuild:memos-git:memos-git
       #  build:superflu-riteurnz:superflu-riteurnz
       #  build:artisan-roaster-scope:artisan-roaster-scope
       #  nobuild:briquolo:briquolo
@@ -45,7 +46,6 @@ jobs:
       #  build:aircrack-ng-git:aircrack-ng-git
       #  build:openscad-nopscadlib-git:openscad-nopscadlib-git
       #  build:gnome-shell-git:gnome-shell-git
-      #  build:hyperrogue:hyperrogue
       #  build:wpunix:wpunix
       #  build:x2goclient:x2goclient
       #  build:kdeconnect-git:kdeconnect-git

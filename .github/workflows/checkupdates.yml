@@ -117,8 +117,8 @@ jobs:
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."
               exit 1
             fi
-            echo "Foundpath pre split: ${foundpath} without . = ${foundpath:1}"
-            IFS='/' read -r -a _package <<< "${foundpath:1}"
+            echo "subdirs pre split: ${subdirs} without . = ${subdirs:1}"
+            IFS='/' read -r -a _package <<< "${subdirs[0]:1}"
             echo "[debug] Packages that will attempt to update:"
             printf '%s\n' "${UPDATES[@]}"
             maintain=${_package[0]}

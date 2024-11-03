@@ -112,8 +112,8 @@ jobs:
           cd $GITHUB_WORKSPACE
           find . -type d -name 'briquolo'
           for foundpath in ${UPDATES[@]}; do
-            echo "did that work?"
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
+            echo "did that work?"
             echo "$path: ${foundpath} subdirs...:"
             printf '%s\n' "${subdirs[@]}"
             if [ ${#subdirs[@]} -ne 1 ]; then

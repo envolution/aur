@@ -20,7 +20,7 @@ jobs:
       # nobuild = publish without testing package
       # test = build and test the package, don't publish
       PACKAGES: |
-        build:hyperrogue:hyperrogue
+      #  build:hyperrogue:hyperrogue
       #  build:memos:memos
       #  nobuild:memos-git:memos-git
       #  build:superflu-riteurnz:superflu-riteurnz

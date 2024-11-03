@@ -33,7 +33,19 @@ jobs:
           else
             CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           fi
-          
+          verify_unique() {
+            shopt -s nullglob
+            # Locate all subdirectories with name '$1'
+            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 2 -type d -name "${1}"))
+
+            # Check if there is only one such directory
+            if [ ${#subdirs[@]} -ne 1 ]; then
+              echo "There are ${#subdirs[@]} subdirectories named 'qwijibo', expected exactly 1." >&2
+              return 1
+            fi
+
+            echo "${subdirs[0]}"
+          } 
           # Create a temporary file to store package info
           TEMP_FILE=$(mktemp)
           echo "[]" > "$TEMP_FILE"
@@ -56,16 +68,23 @@ jobs:
                 CATEGORY="${PARTS[1]}"
                 PACKAGE="${PARTS[2]}"
 
+                if ! [ -n "$PACKAGE" ]; then
+                  echo "⚠️ Invalid package: $PACKAGE - Must not be empty"
+                  SKIP=1
+                fi
+                
+                LOCATION=$(verify_unique($PACKAGE))
+                if [ $? -ne 0 ]; then
+                  echo "⚠️ Package $PACKAGE is not unique in the github workdirs, check it's not in multiple places"
+                  SKIP=1
+                fi
+
                 if ! [[ "$ROOT" =~ ^(maintain|nomaintain)$ ]]; then
                   echo "⚠️ Invalid root directory: $ROOT - Must be 'maintain' or 'nomaintain'"
                   SKIP=1
                 fi
                 if ! [[ "$CATEGORY" =~ ^(build|nobuild|test)$ ]]; then
                   echo "⚠️ Invalid category: $CATEGORY - Must be 'build' 'nobuild' or 'test'"
-                  SKIP=1
-                fi
-                if ! [ -n "$PACKAGE" ]; then
-                  echo "⚠️ Invalid package: $PACKAGE - Must not be empty"
                   SKIP=1
                 fi
                 
@@ -75,7 +94,8 @@ jobs:
                     --arg root "$ROOT" \
                     --arg category "$CATEGORY" \
                     --arg package "$PACKAGE" \
-                    '{root: $root, category: $category, package: $package}')
+                    --arg location "$LOCATION" \
+                    '{root: $root, category: $category, package: $package, location: $location}')
                   
                   # Add to array if not already present
                   jq --argjson obj "$PATH_OBJ" \
@@ -105,8 +125,9 @@ jobs:
             ROOT=$(echo "$pkg" | jq -r '.root')
             CATEGORY=$(echo "$pkg" | jq -r '.category')
             PACKAGE=$(echo "$pkg" | jq -r '.package')
+            LOCATION=$(echo "$pkg" | jq -r '.location')
             
-            echo "Processing: $ROOT/$CATEGORY/$PACKAGE"
+            echo "Processing: $ROOT/$CATEGORY/$PACKAGE/$LOCATION"
             
             # Example processing logic based on path components
             if [ "$ROOT" = "maintain" ]; then

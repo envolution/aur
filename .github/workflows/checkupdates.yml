@@ -111,8 +111,8 @@ jobs:
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           cd $GITHUB_WORKSPACE
           find . -type d -name 'briquolo'
-          echo "did that work?"
           for foundpath in ${UPDATES[@]}; do
+            echo "did that work?"
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
             echo "$path: ${foundpath} subdirs...:"
             printf '%s\n' "${subdirs[@]}"

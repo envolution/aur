@@ -31,6 +31,19 @@ jobs:
           pacman -S --noconfirm --needed git base-devel pacman-contrib \
           openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg
 
+      - name: Setup non-root user for AUR
+        run: |
+          # Create build user with sudo access
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chmod 440 /etc/sudoers.d/builder
+
+          # Create build directories with proper permissions
+          install -d -m 755 /home/builder/.cache/paru
+          install -d -m 755 /home/builder/.local/share/paru
+          install -d -m 755 /home/builder/.gnupg
+          chown -R builder:builder /home/builder
+
       - name: Install paru
         run: |
           cd /tmp

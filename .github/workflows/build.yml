@@ -151,7 +151,8 @@ jobs:
             fi
             echo "::group::==== Building package: $package ===="
             echo "==== Building package: $package ====" >> $GITHUB_STEP_SUMMARY
-            sudo -u builder bash ./buildscript.sh "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
+            sudo -u builder bash ./buildscript.sh |\
+              "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" "Auto update $package "
             if [[ $? -eq 0 ]]; then
               echo "$package completed SUCCESSFULLY"
               echo "$package completed SUCCESSFULLY" >> $GITHUB_STEP_SUMMARY

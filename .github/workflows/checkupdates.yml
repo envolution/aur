@@ -112,12 +112,14 @@ jobs:
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           find ${GITHUB_WORKSPACE} 
           for _path in ${UPDATES[@]}; do
-            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 2 -type d -name "@{_path}"))
+            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 3 -type d -name "@{_path}"))
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
               exit 1
             fi
             IFS='/' read -r -a _package <<< "${_path:1}"
+            printf '%s\n' "${UPDATES[@]}"
+            exit 1
             maintain=${_package[0]}
             build=   ${_package[1]}
             package= ${_package[2]}

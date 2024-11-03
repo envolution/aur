@@ -67,10 +67,24 @@ jobs:
           
           # Your task logic goes here
           echo "Starting task..."
+          paru -S --noconfirm nvchecker
           
           # Example environment setup
           cd $GITHUB_WORKSPACE
-          find .
+          mkdir -p ~/nvchecker
+          cd ~/nvchecker
+          curl https://aur.archlinux.org/rpc/v5/search/envolution?by=maintainer | jq '{version: 2, data: (.results | map({(.Name): {version: .Version}}) | add)}' > oldver.json
+          FILES=$(find . -name ".nvchecker.toml")
+          echo '[__config__]' > new.toml
+          echo -e "oldver='oldver.json'" >> new.toml
+          echo -e "newver='newver.json'\n" >> new.toml
+
+          for FILE in $FILES; do
+            cat "$FILE" >> new.toml
+            echo -e "\n" >> new.toml
+          done
+          nvchecker -c new.toml  --logger json > newver.json
+          nvcmp -c new.toml
           
           # Example task execution
           echo "Task executed at: $(date)"

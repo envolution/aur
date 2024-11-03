@@ -114,6 +114,8 @@ jobs:
           echo "did that work?"
           for _path in ${UPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "@{_path}"))
+            echo "subdirs...:"
+            printf '%s\n' "${subdirs[@]}"
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
               exit 1

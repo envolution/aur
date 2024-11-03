@@ -90,6 +90,7 @@ jobs:
           done
           nvchecker -c new.toml  --logger json > newver.json
           nvcmp -c new.toml
+          readarray -t UPDATES < <(nvcmp -c new.toml -q)
           
           # Example task execution
           echo "Task executed at: $(date)"

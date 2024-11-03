@@ -17,24 +17,35 @@ jobs:
 
       - name: Initialize pacman keyring
         run: |
+          # Initialize keyring with proper permissions
+          mkdir -p /etc/pacman.d/gnupg
           pacman-key --init
           pacman-key --populate archlinux
+          echo -e "\n[multilib]" >> /etc/pacman.conf
+          echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+          cat /etc/pacman.conf
 
-      - name: Update system and enable repositories
-        run: |
-          # Update pacman.conf to enable repos
-          sed -i 's/^#\[extra\]/\[extra\]/' /etc/pacman.conf
-          sed -i 's/^#\[community\]/\[community\]/' /etc/pacman.conf
-          
-          # Add development tools repository
-          echo -e "\n[devel]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
-          
-          # Update package database and system
+          # Update system and install dependencies
+          pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed git base-devel pacman-contrib \
+          openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg
 
-      - name: Install base development packages
+      - name: Install paru
         run: |
-          pacman -S --noconfirm base-devel git
+          cd /tmp
+          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          cd paru-bin
+          sudo -u builder makepkg -si --noconfirm
+
+          # Configure paru
+          echo '[options]
+          BatchInstall
+          BottomUp
+          RemoveMake
+          SudoLoop
+          UseAsk' | sudo tee /etc/paru.conf          
+
 
       - name: Run task
         run: |
@@ -45,9 +56,8 @@ jobs:
           echo "Starting task..."
           
           # Example environment setup
-          export WORKDIR="/workspace"
-          mkdir -p "$WORKDIR"
-          cd "$WORKDIR"
+          cd $GITHUB_WORKSPACE
+          find .
           
           # Example task execution
           echo "Task executed at: $(date)"

@@ -112,15 +112,15 @@ jobs:
           cd $GITHUB_WORKSPACE
           find . -type d -name 'briquolo'
           echo "did that work?"
-          for _path in ${UPDATES[@]}; do
-            subdirs=($(find . -maxdepth 3 -type d -name "@{_path}"))
-            echo "$path: {_path} subdirs...:"
+          for foundpath in ${UPDATES[@]}; do
+            subdirs=($(find . -maxdepth 3 -type d -name "@{foundpath}"))
+            echo "$path: {foundpath} subdirs...:"
             printf '%s\n' "${subdirs[@]}"
             if [ ${#subdirs[@]} -ne 1 ]; then
-              echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
+              echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."
               exit 1
             fi
-            IFS='/' read -r -a _package <<< "${_path:1}"
+            IFS='/' read -r -a _package <<< "${foundpath:1}"
             printf '%s\n' "${UPDATES[@]}"
             exit 1
             maintain=${_package[0]}

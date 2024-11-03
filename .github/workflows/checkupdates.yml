@@ -10,7 +10,8 @@ jobs:
     container:
       image: archlinux:latest
       options: --privileged
-
+    env:
+        AUR_MAINTAINER_NAME: envolution
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,7 +74,11 @@ jobs:
           cd $GITHUB_WORKSPACE
           mkdir -p ~/nvchecker
           cd ~/nvchecker
-          curl https://aur.archlinux.org/rpc/v5/search/envolution?by=maintainer | jq '{version: 2, data: (.results | map({(.Name): {version: .Version}}) | add)}' > oldver.json
+
+          curl -s https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer | \
+            jq '{version: 2, data: (.results | map({(.Name): {version: (.Version | gsub("-[0-9]+$";""))}}) | add)}' | \
+            tee oldver.json
+
           FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
           echo '[__config__]' > new.toml
           echo -e "oldver='oldver.json'" >> new.toml

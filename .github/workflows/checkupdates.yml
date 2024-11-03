@@ -114,7 +114,7 @@ jobs:
           for foundpath in ${UPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
             echo "did that work?"
-            echo "$path: ${foundpath} subdirs...:"
+            echo "path: ${foundpath} subdirs...:"
             printf '%s\n' "${subdirs[@]}"
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."

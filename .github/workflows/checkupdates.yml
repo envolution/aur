@@ -90,7 +90,6 @@ jobs:
           paru -S --noconfirm nvchecker
           
           # Example environment setup
-          cd $GITHUB_WORKSPACE
           mkdir -p ~/nvchecker
           cd ~/nvchecker
 
@@ -110,9 +109,10 @@ jobs:
           nvchecker -c new.toml  --logger json > newver.json
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
-          find ${GITHUB_WORKSPACE} 
+          cd $GITHUB_WORKSPACE
+          find .
           for _path in ${UPDATES[@]}; do
-            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 4 -type d -name "@{_path}"))
+            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 5 -type d -name "@{_path}"))
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
               exit 1

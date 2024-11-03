@@ -113,7 +113,7 @@ jobs:
           find . -type d -name 'briquolo'
           echo "did that work?"
           for _path in ${UPDATES[@]}; do
-            subdirs=($(find ${GITHUB_WORKSPACE} -maxdepth 1 -type d -name "@{_path}"))
+            subdirs=($(find . -maxdepth 2 -type d -name "@{_path}"))
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${_path}', expected exactly 1."
               exit 1

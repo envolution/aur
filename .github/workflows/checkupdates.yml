@@ -112,6 +112,8 @@ jobs:
           done
           cat new.toml
           nvchecker -c new.toml  --logger json > newver.json
+          ls -latr newver.json oldver.json new.toml
+          cat newver.json
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           cd $GITHUB_WORKSPACE

@@ -111,7 +111,7 @@ jobs:
             echo -e "\n" >> new.toml
           done
           cat new.toml
-          nvchecker -c new.toml  --logger json > newver.json
+          sudo -u builder nvchecker -c new.toml  --logger json > newver.json
           ls -latr newver.json oldver.json new.toml
           cat newver.json
           nvcmp -c new.toml

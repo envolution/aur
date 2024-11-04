@@ -109,10 +109,9 @@ fi
 
 ls -la "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" 
 echo "$HOME is my home I am $(whoami)"
-ls -la ~
-ls -la ~/nvchecker/
-ls -la "~/nvchecker/github_version.sh" 
-cat "~/nvchecker/github_version.sh"
+ls -la "$HOME/nvchecker/"
+ls -la "$HOME/nvchecker/github_version.sh" 
+cat "$HOME/nvchecker/github_version.sh"
 # Check for a TOML version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
     NEW_VERSION=$(nvchecker -c .nvchecker.toml --logger json | jq -r 'select(.logger_name == "nvchecker.core") | .version')

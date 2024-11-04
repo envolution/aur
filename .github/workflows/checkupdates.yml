@@ -97,8 +97,18 @@ jobs:
           [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
             cp ${GITHUB_WORKSPACE}/github_version.sh /home/builder/nvchecker
 
-          curl -s https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer | \
-            jq '{version: 2, data: (.results | map({(.Name): {version: (.Version | gsub("-[0-9]+$";""))}}) | add)}' | \
+          curl -s "https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer" | \
+            jq '{
+                version: 2, 
+                data: (.results | map({
+                    (.Name): {
+                        version: (.Version | 
+                            gsub("^[0-9]+:"; "") | # Remove epoch prefix (e.g., "2:")
+                            gsub("-[0-9]+$"; "")   # Remove release suffix (e.g., "-1")
+                        )
+                    }
+                }) | add)
+            }' | \
             tee oldver.json
 
           FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")

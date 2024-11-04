@@ -108,6 +108,9 @@ else
 fi
 
 ls -la "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" 
+echo "$HOME is my home I am $(whoami)"
+ls -la ~
+ls -la ~/nvchecker/
 ls -la "~/nvchecker/github_version.sh" 
 cat "~/nvchecker/github_version.sh"
 # Check for a TOML version file

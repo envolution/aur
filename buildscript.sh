@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-echo "In buildscript.sh"
 # Ensure the script receives exactly 7 arguments
 if [ "$#" -ne 7 ]; then
     echo "[debug] Usage: $0 <GITHUB_REPO> <GITHUB_TOKEN> <GITHUB_WORKSPACE> <BUILD:0:1> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"
@@ -108,16 +107,26 @@ else
     echo "[debug] == PKGBUILD source array looks like just one item =="
 fi
 
-# Check for a version file
-if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
-    NEW_VERSION=$(bash "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
+# Check for a TOML version file
+if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
+    NEW_VERSION=$(nvchecker -c .nvchecker.toml --logger json | jq -r 'select(.logger_name == "nvchecker.core") | .version')
     [[ -z $NEW_VERSION ]] && \
-        echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
+        echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml exists, but it's giving errors." \
         && exit 1
     echo "[debug] == UPDATE DETECTED ${NEW_VERSION} from upstream, PKGBUILD updating... =="
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
     cat PKGBUILD
 fi
+# Check for a version file
+#if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
+#    NEW_VERSION=$(bash "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
+#    [[ -z $NEW_VERSION ]] && \
+#        echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
+#        && exit 1
+#    echo "[debug] == UPDATE DETECTED ${NEW_VERSION} from upstream, PKGBUILD updating... =="
+#    sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
+#    cat PKGBUILD
+#fi
 
 # Update source files
 echo "[debug] == Updating package checksums =="

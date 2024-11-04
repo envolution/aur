@@ -1,0 +1,5 @@
+[clamav-git]
+source="github"
+github="Cisco-Talos/clamav"
+use_latest_release=true
+use_release_name=true

@@ -127,7 +127,7 @@ jobs:
             pkgbuild=${maintain}/${build}
             echo "Maintain: $maintain build: $build package: $package pkgbuild: $pkgbuild"
             sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh \
-              "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "$pkgbuild" \
+              "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "${pkgbuild}/${package}" \
               "Auto update $package "
 
           done          

@@ -107,11 +107,6 @@ else
     echo "[debug] == PKGBUILD source array looks like just one item =="
 fi
 
-ls -la "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" 
-echo "$HOME is my home I am $(whoami)"
-ls -la "$HOME/nvchecker/"
-ls -la "$HOME/nvchecker/github_version.sh" 
-cat "$HOME/nvchecker/github_version.sh"
 # Check for a TOML version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
     NEW_VERSION=$(nvchecker -c .nvchecker.toml --logger json | jq -r 'select(.logger_name == "nvchecker.core") | .version')
@@ -122,16 +117,6 @@ if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
     sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
     cat PKGBUILD
 fi
-# Check for a version file
-#if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh" ]; then
-#    NEW_VERSION=$(bash "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh")
-#    [[ -z $NEW_VERSION ]] && \
-#        echo "[debug] !! ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/version.sh exists, but it's giving errors." \
-#        && exit 1
-#    echo "[debug] == UPDATE DETECTED ${NEW_VERSION} from upstream, PKGBUILD updating... =="
-#    sed -i "s|pkgver=.*|pkgver=${NEW_VERSION}|" PKGBUILD
-#    cat PKGBUILD
-#fi
 
 # Update source files
 echo "[debug] == Updating package checksums =="
@@ -151,7 +136,7 @@ git add "${TRACKED_FILES[@]}"
 
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
     echo "[debug] == Initial commit, committing selected files =="
-    git commit -m "${COMMIT_MESSAGE}"
+    git commit -m "${COMMIT_MESSAGE}: ${NEW_VERSION:-}"
     git push
     INITIAL=1
 fi
@@ -223,7 +208,7 @@ else
             echo "[debug] == AUR and LOCAL already synced for ${PACKAGE_NAME} =="
         else
             if [ "$BUILD" != "test" ]; then
-                git commit -m "${COMMIT_MESSAGE}"
+                git commit -m "${COMMIT_MESSAGE}: ${NEW_VERSION:-}"
                 git push origin master
                 if [ $? -eq 0 ]; then
                     echo "[debug] == ${PACKAGE_NAME} submitted to AUR successfully =="

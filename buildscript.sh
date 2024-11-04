@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+echo "In buildscript.sh"
 # Ensure the script receives exactly 7 arguments
 if [ "$#" -ne 7 ]; then
     echo "[debug] Usage: $0 <GITHUB_REPO> <GITHUB_TOKEN> <GITHUB_WORKSPACE> <BUILD:0:1> <PACKAGE_NAME> <PKGBUILD_PATH> <COMMIT_MESSAGE>"

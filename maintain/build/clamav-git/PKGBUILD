@@ -122,7 +122,11 @@ check() {
 
 pkgver() {
   cd ${_pkgname}
-  git log -1 --format="%cd-%h" --date=format:"%Y%m%d"
+
+  _version=$(git tag --sort=-v:refname --list 'clamav-*.*' | head -n1)
+  _commits=$(git rev-list --count HEAD)
+  _short_commit_hash=$(git rev-parse --short HEAD)
+  echo "${_version#'clamav-'}+r${_commits}+${_short_commit_hash}"
 }
 
 package() {

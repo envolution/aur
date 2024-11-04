@@ -12,6 +12,10 @@
 # Contributor: codyps <archlinux@codyps.com>
 
 pkgname=aircrack-ng-git
+_pkgver=1.7+r4701+g8177f63da
+pkgver=1.7+r4701+8177f63da
+pkgrel=1
+epoch=1
 pkgver=1.7+r661+g8177f63d
 pkgrel=2
 pkgdesc="Key cracker for the 802.11 WEP and WPA-PSK protocols"

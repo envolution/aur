@@ -28,6 +28,11 @@ if [ -z "$BRANCH" ] || [ "$BRANCH" = "null" ]; then
     error_exit "Failed to fetch default branch for ${USERNAME}/${REPO}."
 fi
 
+current_commit=$(gh api "repos/${USERNAME}/${REPO}/commits/${BRANCH}" --jq '.sha[0:9]' 2>/dev/null)
+if [ -z "$current_commit" ]; then
+    error_exit "Failed to retrieve commit information for ${USERNAME}/${REPO}."
+fi
+
 # Fetch the commit count
 response=$(curl -sI "https://api.github.com/repos/${USERNAME}/${REPO}/commits?sha=${BRANCH}&per_page=1&page=1")
 if [ -z "$response" ]; then
@@ -40,11 +45,6 @@ commit_count=$(echo "$response" | grep -i '^Link:' | sed -n 's/.*page=\([0-9]*\)
 # Fetch the latest release information
 latest_release=$(gh api "repos/${USERNAME}/${REPO}/releases/latest" 2>/dev/null || gh api "repos/${USERNAME}/${REPO}/releases" --jq '.[0]' 2>/dev/null)
 if [ -z "$latest_release" ]; then
-    # Fallback to commits if no releases found
-    current_commit=$(gh api "repos/${USERNAME}/${REPO}/commits/${BRANCH}" --jq '.sha[0:9]' 2>/dev/null)
-    if [ -z "$current_commit" ]; then
-        error_exit "Failed to retrieve commit information for ${USERNAME}/${REPO}."
-    fi
     echo "r${commit_count}.${current_commit}"
     exit 0
 fi
@@ -55,11 +55,6 @@ latest_tag=$(gh api /repos/GNOME/gnome-shell/tags --jq '.[0].name' 2> /dev/null 
 # Extract release tag name
 release_name=$(echo "$latest_release" | jq -r '.tag_name')
 if [ -z "$release_name" ] || [ "$release_name" = "null" ]; then
-    # Fallback if no tag name found
-    current_commit=$(gh api "repos/${USERNAME}/${REPO}/commits/${BRANCH}" --jq '.sha[0:9]' 2>/dev/null)
-    if [ -z "$current_commit" ]; then
-        error_exit "Failed to retrieve commit information for ${USERNAME}/${REPO}."
-    fi
     if [ -n "$latest_tag" ]; then
         echo "${latest_tag}+r${commit_count}+${current_commit}"
     else
@@ -77,18 +72,11 @@ if [ -z "$release_sha" ]; then
     fi
 fi
 
-# Fetch current commit hash on the default branch
-current_commit=$(gh api "repos/${USERNAME}/${REPO}/commits/${BRANCH}" --jq '.sha[0:7]' 2>/dev/null)
-if [ -z "$current_commit" ]; then
-    error_exit "Failed to retrieve current commit hash for ${USERNAME}/${REPO}."
-fi
-
-
 # Output the version string
 if [ -n "$release_sha" ]; then
     # Format: <tag>.r<N>.g<commit>
     _tmpname=$release_name
-    [ -n "$3" ] && release_name="${_tmpname#$3}"
+    release_name="${_tmpname#${3:-}}"
     echo "${release_name}+r${commit_count}+g${current_commit}"
 elif [ -n "$latest_tag" ]; then
     echo "${latest_tag}+r${commit_count}+${current_commit}"

@@ -233,15 +233,15 @@ else
                         if [[ -f "$file" ]]; then
                             # Check if the file exists in the remote repository
                             echo "[debug] [debug] - 1 - Still ok "
-                            sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null) || true
+                            sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${file}" --jq '.sha' 2>/dev/null) || true
                             echo "[debug] [debug] - 2 - Still ok "
                             if [[ -n "$sha" ]]; then
                                 echo "[debug] [debug] - 3 - Still ok "
                                 # File exists, update it
                                 filesha=$(sha256sum "$file")
                                 if [[ $sha !=  $filesha ]]; then
-                                    echo "[debug] local ${file} != /contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file} replacing..."
-                                    gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file}" \
+                                    echo "[debug] local ${file} != /contents/${PKGBUILD_PATH}/${file} replacing..."
+                                    gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${file}" \
                                         -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
                                         -f content="$(base64 < "${file}")" \
                                         --jq '.commit.sha' \
@@ -252,15 +252,15 @@ else
                             else
                                 # File does not exist, create it
                                 echo "[debug] [debug] - 4 - Still ok "
-                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file}" \
+                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}${file}" \
                                     -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
                                     -f content="$(base64 < "${file}")" \
                                     --jq '.commit.sha'
                             fi
                             if [[ $? -eq 0 ]]; then
-                                echo "[debug] ==${file} pushed to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} successfully =="
+                                echo "[debug] ==${file} pushed to ${GITHUB_REPOSITORY}/${PKGBUILD_PATH} successfully =="
                             else
-                                echo "[debug] !! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PACKAGE_NAME} !!"
+                                echo "[debug] !! FAILED on ${file} push to ${GITHUB_REPOSITORY}/${PKGBUILD_PATH} !!"
                             fi
 
                         else

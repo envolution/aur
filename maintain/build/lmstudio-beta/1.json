@@ -1,0 +1,2 @@
+{"logger_name": "nvchecker_source.cmd", "cmd": "curl -s https://lmstudio.ai/beta-releases | grep -oP '/releases.lmstudio.ai/linux/x86/\\K(\\d+(?:\\.\\d+)*)/beta/(\\d+)(?=/LM_Studio)' | head -1 | sed 's|/beta/|.|'\n", "event": "running cmd", "level": "debug"}
+{"logger_name": "nvchecker.core", "name": "lmstudio-beta", "version": "0.3.5.4", "old_version": null, "event": "updated", "level": "info"}

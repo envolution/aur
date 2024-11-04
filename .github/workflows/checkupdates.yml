@@ -90,7 +90,7 @@ jobs:
           paru -S --noconfirm nvchecker
           
           # Example environment setup
-          sudo -u builder mkdir -p ~/nvchecker
+          sudo -u builder mkdir -p /home/builder/nvchecker
           cd /home/builder/nvchecker
           [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
             cp ${GITHUB_WORKSPACE}/github_version.sh /home/builder/nvchecker

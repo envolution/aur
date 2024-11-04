@@ -32,7 +32,9 @@ jobs:
           pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
           pacman -S --noconfirm --needed git base-devel pacman-contrib \
-          openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg
+            openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg \
+            pyalpm python-awesomeversion python-packaging python-lxml \
+            python-jq python-gobject libnotify
 
       - name: Setup non-root user for AUR
         run: |
@@ -113,7 +115,6 @@ jobs:
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           cd $GITHUB_WORKSPACE
-          find . -type d -name 'briquolo'
           for foundpath in ${UPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
             if [ ${#subdirs[@]} -ne 1 ]; then

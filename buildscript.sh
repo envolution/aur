@@ -240,12 +240,14 @@ else
                                 # File exists, update it
                                 filesha=$(sha256sum "$file")
                                 if [[ $sha !=  $filesha ]]; then
-                                    echo "[debug] $file with same sha on remote.  Skipping ..."
-                                    gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}${PACKAGE_NAME}/${file}" \
+                                    echo "[debug] local ${file} != /contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file} replacing..."
+                                    gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file}" \
                                         -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
                                         -f content="$(base64 < "${file}")" \
                                         --jq '.commit.sha' \
                                         -f sha="$sha"
+                                else 
+                                    echo "[debug] $file with same sha on remote.  Skipping ..."
                                 fi
                             else
                                 # File does not exist, create it

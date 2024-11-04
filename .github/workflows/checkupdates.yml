@@ -92,6 +92,8 @@ jobs:
           # Example environment setup
           mkdir -p ~/nvchecker
           cd ~/nvchecker
+          [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
+            cp ${GITHUB_WORKSPACE}/github_version.sh ~/nvchecker
 
           curl -s https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer | \
             jq '{version: 2, data: (.results | map({(.Name): {version: (.Version | gsub("-[0-9]+$";""))}}) | add)}' | \

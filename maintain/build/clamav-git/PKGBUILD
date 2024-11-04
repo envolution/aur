@@ -122,7 +122,7 @@ check() {
 
 pkgver() {
   cd ${_pkgname}
-  git describe --tags | sed 's/[^-]*-g/r&/;s/-/+/g;s/^clamav+//g'
+  git log -1 --format="%cd-%h" --date=format:"%Y%m%d"
 }
 
 package() {

@@ -106,6 +106,7 @@ jobs:
             cat "$FILE" >> new.toml
             echo -e "\n" >> new.toml
           done
+          cat new.toml
           nvchecker -c new.toml  --logger json > newver.json
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)

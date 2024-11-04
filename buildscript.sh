@@ -107,6 +107,8 @@ else
     echo "[debug] == PKGBUILD source array looks like just one item =="
 fi
 
+echo "[debug] --- ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" 
+ls -la "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml"
 # Check for a TOML version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
     NEW_VERSION=$(nvchecker -c .nvchecker.toml --logger json | jq -r 'select(.logger_name == "nvchecker.core") | .version')

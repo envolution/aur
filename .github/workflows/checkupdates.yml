@@ -90,10 +90,10 @@ jobs:
           paru -S --noconfirm nvchecker
           
           # Example environment setup
-          mkdir -p ~/nvchecker
-          cd ~/nvchecker
+          sudo -u builder mkdir -p ~/nvchecker
+          cd /home/builder/nvchecker
           [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
-            cp ${GITHUB_WORKSPACE}/github_version.sh ~/nvchecker
+            cp ${GITHUB_WORKSPACE}/github_version.sh /home/builder/nvchecker
 
           curl -s https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer | \
             jq '{version: 2, data: (.results | map({(.Name): {version: (.Version | gsub("-[0-9]+$";""))}}) | add)}' | \

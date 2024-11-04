@@ -108,7 +108,6 @@ else
 fi
 
 echo "[debug] --- ${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" 
-ls -la "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml"
 # Check for a TOML version file
 if [ -f "${GITHUB_WORKSPACE}/${PKGBUILD_PATH}/.nvchecker.toml" ]; then
     NEW_VERSION=$(nvchecker -c .nvchecker.toml --logger json | jq -r 'select(.logger_name == "nvchecker.core") | .version')
@@ -230,20 +229,24 @@ else
                         if [[ -f "$file" ]]; then
                             # Check if the file exists in the remote repository
                             echo "[debug] [debug] - 1 - Still ok "
-                            sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null) || true
+                            sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file}" --jq '.sha' 2>/dev/null) || true
                             echo "[debug] [debug] - 2 - Still ok "
                             if [[ -n "$sha" ]]; then
                                 echo "[debug] [debug] - 3 - Still ok "
                                 # File exists, update it
-                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
-                                    -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
-                                    -f content="$(base64 < "${file}")" \
-                                    --jq '.commit.sha' \
-                                    -f sha="$sha"
+                                filesha=$(sha256sum "$file")
+                                if [[ $sha !=  $filesha ]]; then
+                                    echo "[debug] $file with same sha on remote.  Skipping ..."
+                                    gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}${PACKAGE_NAME}/${file}" \
+                                        -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \
+                                        -f content="$(base64 < "${file}")" \
+                                        --jq '.commit.sha' \
+                                        -f sha="$sha"
+                                fi
                             else
                                 # File does not exist, create it
                                 echo "[debug] [debug] - 4 - Still ok "
-                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PACKAGE_NAME}/${file}" \
+                                gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${PACKAGE_NAME}/${file}" \
                                     -f message="Added ${file} to ${GITHUB_REPOSITORY}" \
                                     -f content="$(base64 < "${file}")" \
                                     --jq '.commit.sha'

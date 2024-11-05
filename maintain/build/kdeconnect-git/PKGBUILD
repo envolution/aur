@@ -62,7 +62,7 @@ source=("git+https://invent.kde.org/network/${_pkgname}-kde.git")
 sha256sums=('SKIP')
 
 pkgver(){
-  cd "$srcdir/$_pkgname"
+  cd "${srcdir}/${_pkgname}-kde"
   _version=$(git tag --sort=-v:refname --list | grep '^v[0-9.]*$' | head -n1 | cut -c2-)
   _commits=$(git rev-list --count HEAD)
   _short_commit_hash=$(git rev-parse --short=9 HEAD)

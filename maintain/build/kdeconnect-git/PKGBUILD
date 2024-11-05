@@ -66,6 +66,14 @@ pkgver() {
 	git describe --long --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
 }
 
+pkgver(){
+  cd "$srcdir/$_pkgname"
+  _version=$(git tag --sort=-v:refname --list | grep '^v[0-9.]*$' | head -n1 | cut -c2-)
+  _commits=$(git rev-list --count HEAD)
+  _short_commit_hash=$(git rev-parse --short=9 HEAD)
+  echo "${_version#'v'}+r${_commits}+${_short_commit_hash}"
+}
+
 build() {
 	cmake -B build -S "${_pkgname}-kde" \
 		-DBUILD_TESTING=OFF

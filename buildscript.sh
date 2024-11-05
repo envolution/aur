@@ -130,12 +130,11 @@ TRACKED_FILES+=(".SRCINFO")
 echo "[debug] == Checking for changes to commit =="
 echo "[debug] == staging current files to compare against remote for changes =="
 log_array "TRACKED_FILES" "${TRACKED_FILES[@]}"
-git add "${TRACKED_FILES[@]}"
+git rm --cached .gitignore || true
+git add -f "${TRACKED_FILES[@]}"
 
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
 	echo "[debug] == Initial commit, committing selected files =="
-	touch .gitignore && rm .gitignore
-	git add .gitignore
 	git commit -m "${COMMIT_MESSAGE}: ${NEW_VERSION:-}"
 	git push
 	INITIAL=1

@@ -32,10 +32,10 @@ build() {
 }
 
 package() {
+	install -vDm644 $pkgname.service        "$pkgdir/usr/lib/systemd/system/$pkgname.service" 
+    install -vDm644 $pkgname.users.conf     "$pkgdir/usr/lib/sysusers.d/$pkgname.conf"
+	install -vDm644 $pkgname.tempfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$pkgname.conf"
 	cd $pkgname-$pkgver
-	install -vDm755 $pkgname -t            "$pkgdir/usr/bin/"
-	install -vDm644 LICENSE -t             "$pkgdir/usr/share/licenses/$pkgname/"
-	install -vDm644 $pkgname.service       "$pkgdir/usr/lib/systemd/system/$pkgname.service" 
-    install -vDm644 owncast.users.conf     "$pkgdir/usr/lib/sysusers.d/$pkgname.conf"
-	install -vDm644 owncast.tempfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$pkgname.conf"
+	install -vDm755 $pkgname -t             "$pkgdir/usr/bin/"
+	install -vDm644 LICENSE -t              "$pkgdir/usr/share/licenses/$pkgname/"
 }

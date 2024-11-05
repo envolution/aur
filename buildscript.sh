@@ -224,7 +224,7 @@ else
                                 echo "[debug] [debug] - 3 - Still ok "
                                 # File exists, update it
                                 filesha=$(sha256sum "$file")
-                                if [[ $sha !=  $filesha ]]; then
+                                if [[ "$sha" !=  "$filesha" ]]; then
                                     echo "[debug] local ${file} != /contents/${PKGBUILD_PATH}/${file} replacing..."
                                     gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${file}" \
                                         -f message="Auto updated ${file} in ${GITHUB_REPOSITORY} while syncing to AUR" \

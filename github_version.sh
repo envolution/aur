@@ -44,7 +44,6 @@ if [ ${#positional_args[@]} -lt "2" ]; then
     exit 1
 fi
 
-
 # Now you can use both types of arguments
 #echo "First positional arg: ${positional_args[0]}"
 #echo "Second positional arg: ${positional_args[1]}"

@@ -19,43 +19,46 @@ if [ "$#" -lt "2" ]; then
 fi
 
 # Initialize variables
-USERNAME=$1
+REPONAME=$1
 REPO=$2
 
 # Fetch default branch for the repository
-BRANCH=$(curl -s "https://api.github.com/repos/${USERNAME}/${REPO}" | jq -r '.default_branch' 2>/dev/null)
+BRANCH=$(curl -s "https://api.github.com/repos/${REPONAME}/${REPO}" | jq -r '.default_branch' 2>/dev/null)
 if [ -z "$BRANCH" ] || [ "$BRANCH" = "null" ]; then
-    error_exit "Failed to fetch default branch for ${USERNAME}/${REPO}."
+    error_exit "Failed to fetch default branch for ${REPONAME}/${REPO}."
 fi
 
-current_commit=$(gh api "repos/${USERNAME}/${REPO}/commits/${BRANCH}" --jq '.sha[0:9]' 2>/dev/null)
+current_commit=$(gh api "repos/${REPONAME}/${REPO}/commits/${BRANCH}" --jq '.sha[0:9]' 2>/dev/null)
 if [ -z "$current_commit" ]; then
-    error_exit "Failed to retrieve commit information for ${USERNAME}/${REPO}."
+    error_exit "Failed to retrieve commit information for ${REPONAME}/${REPO}."
 fi
 
 # Fetch the commit count
-response=$(curl -sI "https://api.github.com/repos/${USERNAME}/${REPO}/commits?sha=${BRANCH}&per_page=1&page=1")
+response=$(curl -sI "https://api.github.com/repos/${REPONAME}/${REPO}/commits?sha=${BRANCH}&per_page=1&page=1")
 if [ -z "$response" ]; then
-    error_exit "Failed to retrieve commit information for ${USERNAME}/${REPO}."
+    error_exit "Failed to retrieve commit information for ${REPONAME}/${REPO}."
 fi
 
 commit_count=$(echo "$response" | grep -i '^Link:' | sed -n 's/.*page=\([0-9]*\)>; rel="last".*/\1/p')
 [[ "$commit_count" =~ ^[0-9]+$ ]] || commit_count=1
 
 # Fetch the latest release information
-latest_release=$(gh api "repos/${USERNAME}/${REPO}/releases/latest" 2>/dev/null || gh api "repos/${USERNAME}/${REPO}/releases" --jq '.[0]' 2>/dev/null)
+latest_release=$(gh api "repos/${REPONAME}/${REPO}/releases/latest" 2>/dev/null || gh api "repos/${REPONAME}/${REPO}/releases" --jq '.[0]' 2>/dev/null)
 if [ -z "$latest_release" ]; then
     echo "r${commit_count}.${current_commit}"
     exit 0
 fi
 
 #Fetch latest tag
-latest_tag=$(gh api /repos/GNOME/gnome-shell/tags --jq '.[0].name' 2> /dev/null || echo '')
+lt=$(gh api /repos/KDE/kdeconnect-kde/tags --jq '.[0].name' 2>/dev/null || echo '')
+latest_tag=$lt
 
 # Extract release tag name
 release_name=$(echo "$latest_release" | jq -r '.tag_name')
 if [ -z "$release_name" ] || [ "$release_name" = "null" ]; then
     if [ -n "$latest_tag" ]; then
+	_tmpname=${latest_tag}
+	latest_tag=${_tmpname#${3:-}}
         echo "${latest_tag}+r${commit_count}+${current_commit}"
     else
         echo "r${commit_count}.${current_commit}"
@@ -64,7 +67,7 @@ if [ -z "$release_name" ] || [ "$release_name" = "null" ]; then
 fi
 
 # Fetch the SHA for the release
-release_sha=$(gh api "repos/${USERNAME}/${REPO}/git/refs/tags/${release_name}" --jq '.object.sha' 2>/dev/null || echo '')
+release_sha=$(gh api "repos/${REPONAME}/${REPO}/git/refs/tags/${release_name}" --jq '.object.sha' 2>/dev/null || echo '')
 if [ -z "$release_sha" ]; then
     release_sha=$(echo "$latest_release" | jq -r '.target_commitish')
     if [ -z "$release_sha" ] || [ "$release_sha" = "null" ]; then
@@ -79,6 +82,8 @@ if [ -n "$release_sha" ]; then
     release_name="${_tmpname#${3:-}}"
     echo "${release_name}+r${commit_count}+g${current_commit}"
 elif [ -n "$latest_tag" ]; then
+    _tmpname=$latest_tag
+    latest_tag="${_tmpname#${3:-}}"
     echo "${latest_tag}+r${commit_count}+${current_commit}"
 else
     echo "r${commit_count}+${current_commit}"

@@ -31,7 +31,10 @@ sha512sums=('SKIP'
 
 pkgver(){
   cd "$srcdir/$_pkgname"
-  git describe --long --tags | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+  _version=$(git tag --sort=-v:refname --list | grep '^[0-9.]*$' | head -n1 )
+  _commits=$(git rev-list --count HEAD)
+  _short_commit_hash=$(git rev-parse --short=9 HEAD)
+  echo "${_version#'v'}+r${_commits}+${_short_commit_hash}"
 }
 
 _ensure_local_nvm() {

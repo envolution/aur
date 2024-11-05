@@ -19,7 +19,7 @@ sha512sums=('SKIP')
 
 prepare() {
   cd shotcut
-  sed -e "s|${Qt6_LUPDATE_EXECUTABLE}|/usr/lib/qt6/bin/lupdate|" -i translations/CMakeLists.txt
+  sed -e 's|${Qt6_LUPDATE_EXECUTABLE}|/usr/lib/qt6/bin/lupdate|' -i translations/CMakeLists.txt
 }
 
 pkgver(){

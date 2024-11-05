@@ -166,8 +166,7 @@ else
 
         # Build package
         echo "[debug] Building package..."
-        makepkg -s --noconfirm
-        if [ $? -eq 0 ]; then
+        if makepkg -s --noconfirm; then
             echo "[debug] == Package ${PACKAGE_NAME} built successfully =="
         else
             echo "[debug] == FAIL makepkg build of ${PACKAGE_NAME} failed (skipping commit) =="
@@ -179,8 +178,7 @@ else
         sudo rm -f "${PACKAGE_NAME}"*debug*pkg.tar.zst || true
         ls -latr
 
-        sudo pacman --noconfirm -U "${PACKAGE_NAME}"*.pkg.tar.zst
-        if [ $? -eq 0 ]; then
+        if sudo pacman --noconfirm -U "${PACKAGE_NAME}"*.pkg.tar.zst; then
             echo "[debug] == Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
             sudo pacman --noconfirm -R "$(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' '|tail -n 1)"
             # Create a new release
@@ -188,7 +186,7 @@ else
                 echo "[debug] === Push compiled binary to releases ==="
                 gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" \
                     || echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
-                gh release upload "${PACKAGE_NAME}" ./${PACKAGE_NAME}*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
+                gh release upload "${PACKAGE_NAME}" "./${PACKAGE_NAME}*.pkg.tar.zst" --clobber -R "${GITHUB_REPOSITORY}"
             fi
         else
             echo "[debug] == FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
@@ -209,8 +207,7 @@ else
         else
             if [ "$BUILD" != "test" ]; then
                 git commit -m "${COMMIT_MESSAGE}: ${NEW_VERSION:-}"
-                git push origin master
-                if [ $? -eq 0 ]; then
+                if git push origin master; then
                     echo "[debug] == ${PACKAGE_NAME} submitted to AUR successfully =="
                     # We update our local PKGBUILD now since we've confirmed an update to remote AUR
                     for file in "${TRACKED_FILES[@]}"; do
@@ -223,7 +220,7 @@ else
                             if [[ -n "$sha" ]]; then
                                 echo "[debug] [debug] - 3 - Still ok "
                                 # File exists, update it
-                                filesha=$(sha256sum "$file")
+                                filesha=$(git hash-object "$file")
                                 if [[ "$sha" !=  "$filesha" ]]; then
                                     echo "[debug] local ${file} != /contents/${PKGBUILD_PATH}/${file} replacing..."
                                     gh api -X PUT "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${file}" \

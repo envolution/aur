@@ -134,6 +134,8 @@ git add "${TRACKED_FILES[@]}"
 
 if [ -z "$(git rev-parse --verify HEAD 2>/dev/null)" ]; then
 	echo "[debug] == Initial commit, committing selected files =="
+	touch .gitignore && rm .gitignore
+	git add .gitignore
 	git commit -m "${COMMIT_MESSAGE}: ${NEW_VERSION:-}"
 	git push
 	INITIAL=1

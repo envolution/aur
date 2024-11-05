@@ -183,8 +183,8 @@ else
 			if [ "$BUILD" != "test" ]; then
 				echo "[debug] === Push compiled binary to releases ==="
 				gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" ||
-					echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
-				gh release upload "${PACKAGE_NAME}" "./${PACKAGE_NAME}*.pkg.tar.zst" --clobber -R "${GITHUB_REPOSITORY}"
+				echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
+				gh release upload "${PACKAGE_NAME}" ./"${PACKAGE_NAME}"*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
 			fi
 		else
 			echo "[debug] == FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="

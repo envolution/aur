@@ -211,6 +211,7 @@ else
 					for file in "${TRACKED_FILES[@]}"; do
 						echo "[debug] [debug] - LOOPING $file - Still ok "
 						if [[ -f "$file" ]]; then
+						    _ret=0
 							# Check if the file exists in the remote repository
 							echo "[debug] [debug] - 1 - Still ok "
 							sha=$(gh api "/repos/${GITHUB_REPOSITORY}/contents/${PKGBUILD_PATH}/${file}" --jq '.sha' 2>/dev/null) || true

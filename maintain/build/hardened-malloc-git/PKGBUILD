@@ -14,17 +14,6 @@ source=('hardened_malloc::git+https://github.com/GrapheneOS/hardened_malloc#bran
 sha256sums=('SKIP'
             'e6dbce7ac1d689fafbc94ffb17d8c4ae5271dd3580421828d35aac2c067b652d')
 
-# compress the modules or not
-_compress="y"
-
-# don't compress the package - we're just going to uncompress during install in a moment
-PKGEXT='.pkg.tar'
-
-pkgver() {
-	cd "${srcdir}/hardened_malloc"	
-	printf "%s+%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
-
 pkgver(){
   cd "$srcdir/hardened_malloc"
   _version=$(git tag --sort=-v:refname --list | head -n1 )

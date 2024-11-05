@@ -25,6 +25,14 @@ pkgver() {
 	printf "%s+%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
+pkgver(){
+  cd "$srcdir/hardened_malloc"
+  _version=$(git tag --sort=-v:refname --list | head -n1 )
+  _commits=$(git rev-list --count HEAD)
+  _short_commit_hash=$(git rev-parse --short=9 HEAD)
+  echo "${_version}+r${_commits}+${_short_commit_hash}"
+}
+
 build() {
 	cd "${srcdir}/hardened_malloc"
 	

@@ -33,9 +33,9 @@ pkgver(){
 build() {
   cd shotcut
   compile_version=${pkgver/#v/}     # First remove optional leading 'v'
-  compile_version=${compile_version%+*}   # Then remove everything after first '+'
+  compile_version=${compile_version%%+*}   # Then remove everything after first '+'
 
-  #  https://github.com/mltframework/shotcut/issues/1275
+  #   https://github.com/mltframework/shotcut/issues/1275
   export CXXFLAGS+=" -DSHOTCUT_NOUPGRADE"
 
   cmake \

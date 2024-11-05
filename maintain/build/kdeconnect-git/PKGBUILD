@@ -56,15 +56,10 @@ makedepends=(extra-cmake-modules
 optdepends=('python-nautilus: Nautilus integration'
             'qt6-tools: for some runcommand plugin actions'
             'sshfs: remote filesystem browser')
-conflicts=($_pkgname)
-provides=($_pkgname)
+conflicts=("$_pkgnam")
+provides=("$_pkgname")
 source=("git+https://invent.kde.org/network/${_pkgname}-kde.git")
 sha256sums=('SKIP')
-
-pkgver() {
-	cd "${_pkgname}-kde"
-	git describe --long --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
-}
 
 pkgver(){
   cd "$srcdir/$_pkgname"

@@ -28,7 +28,7 @@ build() {
 package() {
     install -Dm755 hyperrogue.sh "${pkgdir}/usr/bin/hyperrogue"
     cd "${srcdir}/${pkgname}-${pkgver}"
-    install -d ${pkgdir}/usr/bin ${pkgdir}/usr/share/hyperrogue/{sounds,music,honeycombs} ${pkgdir}/usr/share/applications
+    install -d "${pkgdir}"/usr/bin "${pkgdir}"/usr/share/hyperrogue/{sounds,music,honeycombs} "${pkgdir}"/usr/share/applications
     install -Dm755 ./hyperrogue "${pkgdir}/usr/share/${pkgname}/app"
     install -Dm644 ./*ttf "${pkgdir}/usr/share/${pkgname}"
     install -Dm644 ./honeycombs/* "${pkgdir}/usr/share/${pkgname}/honeycombs"

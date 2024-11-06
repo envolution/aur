@@ -30,8 +30,8 @@ for i in "${!pkgbuilds[@]}"; do
     source "$pkgbuild"
     # Check if pkgname, pkgver, and pkgrel are set
     if [[ -n "$pkgname" && -n "$pkgver" && -n "$pkgrel" ]]; then
-      # Append the package info to the JSON file
-      echo -n "  \"$pkgname\": { \"pkgbuildversion\": \"$pkgver\",\"pkgbuildrel\": \"$pkgrel\"   }" >> result.json
+      # Append the package info to the JSON file - some packages are in a group (like gnome-shell, so we force capture the 1st)
+      echo -n "  \"${pkgname[0]}\": { \"pkgbuildversion\": \"$pkgver\",\"pkgbuildrel\": \"$pkgrel\"   }" >> result.json
       # Add a comma only if it's not the last item
       if [[ "$i" -ne "$last_index" ]]; then
         echo "," >> result.json

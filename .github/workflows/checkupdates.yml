@@ -96,20 +96,13 @@ jobs:
           cd /home/builder/nvchecker
           [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
             cp ${GITHUB_WORKSPACE}/github_version.sh /home/builder/nvchecker
+          [ -f ${GITHUB_WORKSPACE}/github_json.sh ] && \
+            cp ${GITHUB_WORKSPACE}/github_json.sh /home/builder/nvchecker
 
-          curl -s "https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer" | \
-            jq '{
-                version: 2, 
-                data: (.results | map({
-                    (.Name): {
-                        version: (.Version | 
-                            gsub("^[0-9]+:"; "") | # Remove epoch prefix (e.g., "2:")
-                            gsub("-[0-9]+$"; "")   # Remove release suffix (e.g., "-1")
-                        )
-                    }
-                }) | add)
-            }' | \
-            tee oldver.json
+          mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/github_json.sh ${AUR_MAINTAINER_NAME})
+          cat oldver.json
+          echo '[debug] differences from local to AUR'
+          printf '%s\n' "${LOCALCHANGES[@]}"
 
           FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
           echo '[__config__]' > new.toml
@@ -131,7 +124,8 @@ jobs:
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           cd $GITHUB_WORKSPACE
-          for foundpath in ${UPDATES[@]}; do
+          UNIQUEUPDATES=($(printf "%s\n" "${LOCALCHANGES[@]}" "${UPDATES[@]}" | sort -u))
+          for foundpath in ${UNIQUEUPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
             if [ ${#subdirs[@]} -ne 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."
@@ -140,7 +134,7 @@ jobs:
             echo "subdirs pre split: ${subdirs} without ./ = ${subdirs:2}"
             IFS='/' read -r -a _package <<< "${subdirs:2}"
             echo "[debug] Packages that will attempt to update:"
-            printf '%s\n' "${UPDATES[@]}"
+            printf '%s\n' "${UNIQUEUPDATES[@]}"
             maintain=${_package[0]}
             build=${_package[1]}
             package=${_package[2]}

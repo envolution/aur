@@ -9,9 +9,9 @@ arch=('i686' 'x86_64')
 license=('LGPL')
 depends=('gtk2')
 makedepends=('gtk-doc' 'gobject-introspection')
-url="http://live.gnome.org/LibUnique"
+url="https://wiki.gnome.org/Attic/LibUnique"
 source=(
-        "http://download.gnome.org/sources/${pkgname}/1.1/${pkgname}-${pkgver}.tar.bz2"
+        "https://download.gnome.org/sources/${pkgname}/1.1/${pkgname}-${pkgver}.tar.bz2"
         00git_g_const_return.patch
         01_format-security.patch
         99_ltmain_as-needed.patch

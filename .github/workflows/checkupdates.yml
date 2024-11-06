@@ -138,7 +138,6 @@ jobs:
               exit 1
             elif [ ${#subdirs[@]} -eq 0 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}'skipping ..."
-              exit 0
             else
               echo "subdirs pre split: ${subdirs} without ./ = ${subdirs:2}"
               IFS='/' read -r -a _package <<< "${subdirs:2}"

@@ -15,7 +15,7 @@ license=('GPL')
 depends=('qt5-svg' 'qt5-webengine' 'alsa-lib' 'zlib' 'python')
 makedepends=('cmake' 'swig' 'qt5-tools' 'ruby')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/canorusmusic/canorus/archive/refs/tags/${pkgver}.zip")
-sha256sums=('c5d470ac6cae696472dcb7176e0cd4545b883ff84ae2dc767a8956546f5b4b15')
+sha256sums=('a4f54c96172e02d799b30b0939ecea3e43d9b99511e556b208d1811ea3330e41')
 
 build() {
   cd $pkgname-$pkgver

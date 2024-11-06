@@ -14,7 +14,8 @@ jq '{
 	}
     }) | add)
 }' | \
-tee oldver.json      
+tee workingver.json      
+jq 'del(.data[].release)' workingver.json > oldver.json
 # Start the JSON file
 echo '{ "version": 2, "data": {' > result.json
 
@@ -43,7 +44,7 @@ done
 # Close the JSON file
 echo '  }' >> result.json
 echo '}' >> result.json
-jq -s '.[0] * .[1]' oldver.json result.json > combined.json
+jq -s '.[0] * .[1]' workingver.json result.json > combined.json
 json_data=$(cat combined.json)
 cat combined.json
 

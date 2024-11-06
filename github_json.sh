@@ -1,5 +1,20 @@
 #!/bin/bash
-
+curl -s "https://aur.archlinux.org/rpc/v5/search/${AUR_MAINTAINER_NAME}?by=maintainer" | \
+jq '{
+    version: 2, 
+    data: (.results | map({
+	(.Name): {
+	    version: (.Version | 
+		gsub("^[0-9]+:"; "") |     # Remove epoch prefix (e.g., "2:")
+		gsub("-[0-9]+$"; "")       # Extract version without release suffix
+	    ),
+	    release: (.Version | 
+		capture("-(?<release>[0-9]+)$").release   # Capture release suffix as a separate value
+	    )
+	}
+    }) | add)
+}' | \
+tee oldver.json      
 # Start the JSON file
 echo '{ "version": 2, "data": {' > result.json
 

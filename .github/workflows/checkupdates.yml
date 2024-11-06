@@ -102,6 +102,8 @@ jobs:
           mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/github_json.sh ${AUR_MAINTAINER_NAME} "${GITHUB_WORKSPACE}")
           echo '[debug] differences from local to AUR'
           printf '%s\n' "${LOCALCHANGES[@]}"
+          cat combined.json
+          exit 1
 
           FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
           echo '[__config__]' > new.toml

@@ -44,9 +44,8 @@ done
 echo '  }' >> result.json
 echo '}' >> result.json
 jq -s '.[0] * .[1]' oldver.json result.json > combined.json
-json_data=$(cat oldver.json)
-rm oldver.json result.json
-mv combined.json oldver.json
+json_data=$(cat combined.json)
+cat combined.json
 
 # Use jq to iterate over each package and compare fields
 echo "$json_data" | jq -r '

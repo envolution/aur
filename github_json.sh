@@ -46,7 +46,6 @@ echo '  }' >> result.json
 echo '}' >> result.json
 jq -s '.[0] * .[1]' workingver.json result.json > combined.json
 json_data=$(cat combined.json)
-cat combined.json
 
 # Use jq to iterate over each package and compare fields
 echo "$json_data" | jq -r '

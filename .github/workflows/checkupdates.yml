@@ -99,7 +99,7 @@ jobs:
           [ -f ${GITHUB_WORKSPACE}/github_json.sh ] && \
             cp ${GITHUB_WORKSPACE}/github_json.sh /home/builder/nvchecker
 
-          mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/github_json.sh ${AUR_MAINTAINER_NAME})
+          mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/github_json.sh ${AUR_MAINTAINER_NAME} "${GITHUB_WORKSPACE}")
           echo '[debug] differences from local to AUR'
           printf '%s\n' "${LOCALCHANGES[@]}"
 

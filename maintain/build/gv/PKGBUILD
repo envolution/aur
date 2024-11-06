@@ -1,8 +1,9 @@
+# Maintainer: envolution
 # Contributor: Eric Bélanger <eric@archlinux.org>
 
 pkgname=gv
 pkgver=3.7.4
-pkgrel=6
+pkgrel=7
 pkgdesc="A program to view PostScript and PDF documents"
 arch=('x86_64')
 url="https://www.gnu.org/software/gv/"

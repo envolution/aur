@@ -28,11 +28,15 @@ conflicts=('slade')
 source=('slade::git+https://github.com/sirjuddington/SLADE.git')
 sha256sums=('SKIP')
 
-pkgver() {
-    cd slade
-
-    git describe --long --tags | sed -r 's/-/+/g'
+pkgver(){
+  cd "${srcdir}/slade"
+  _version=$(git tag --sort=-v:refname --list | head -n1)
+  _commits=$(git rev-list --count HEAD)
+  _short_commit_hash=$(git rev-parse --short=9 HEAD)
+  echo "${_version}+r${_commits}+${_short_commit_hash}"
 }
+
+
 
 build() {
     cd slade

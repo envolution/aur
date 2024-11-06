@@ -12,7 +12,7 @@ options=(!strip !debug)
 depends=('sdl_gfx' 'sdl_ttf' 'sdl_mixer' 'mesa' 'ttf-dejavu')
 makedepends=('glu' 'glew')
 source=(
-  "hyperrogue-$pkgver.tgz::https://github.com/zenorogue/hyperrogue/archive/refs/tags/${pkgver}.tar.gz"
+  "hyperrogue-$pkgver.tgz::https://github.com/zenorogue/hyperrogue/archive/refs/tags/v${pkgver}.tar.gz"
   "hyperrogue.sh"
 )
 sha256sums=('e02a4ada30c9167be9de723a46e83c45b0d2f0f37150dc5fcdef206b21e28303'

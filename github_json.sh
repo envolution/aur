@@ -13,8 +13,7 @@ jq '{
 	    )
 	}
     }) | add)
-}' | \
-tee workingver.json      
+}' > workingver.json      
 jq 'del(.data[].release)' workingver.json > oldver.json
 # Start the JSON file
 echo '{ "version": 2, "data": {' > result.json

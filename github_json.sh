@@ -20,7 +20,7 @@ jq 'del(.data[].release)' workingver.json > oldver.json
 echo '{ "version": 2, "data": {' > result.json
 
 # Find all PKGBUILD files and process each one
-pkgbuilds=($(find . -name 'PKGBUILD'))
+mapfile -t pkgbuilds < <($find "${GITHUB_WORKSPACE}" -name 'PKGBUILD')
 last_index=$((${#pkgbuilds[@]} - 1))
 
 for i in "${!pkgbuilds[@]}"; do

@@ -6,6 +6,7 @@ pkgbase = clamav-git
 	arch = x86_64
 	license = GPL-2.0-only
 	checkdepends = check
+	makedepends = git
 	makedepends = cargo
 	makedepends = cmake
 	makedepends = libmilter

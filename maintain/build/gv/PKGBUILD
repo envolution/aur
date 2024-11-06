@@ -11,7 +11,7 @@ depends=('xaw3d' 'ghostscript')
 optdepends=('perl: gv-update-userconfig')
 options=('emptydirs')
 source=(
-  https://ftp.gnu.org/gnu/gv/${pkgname}-${pkgver}.tar.gz
+  "https://ftp.gnu.org/gnu/gv/${pkgname}-${pkgver}.tar.gz"
   gv.desktop
   0001-Do-not-segfault-on-buggy-postscript-files-i.-e.-file.patch
   0002-Fix-crash-in-zoom.c.patch

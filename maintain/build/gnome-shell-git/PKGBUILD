@@ -53,7 +53,7 @@ depends=(
   libsoup3
   libx11
   libxfixes
-  mutter-git #we need mutter-clutter 16, currently only 15 in base mutter
+  mutter
   pango
   polkit
   systemd-libs
@@ -73,6 +73,7 @@ makedepends=(
   meson
   python-docutils
   sassc
+  libmutter-16.so
 )
 source=(
   # GNOME Shell tags use SSH signatures which makepkg doesnt understand

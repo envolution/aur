@@ -1,0 +1,48 @@
+# Maintainer: envolution
+# Contributor: Brian Bidulock <bidulock@openss7.org>
+#
+pkgname=libunique
+pkgver=1.1.6
+pkgrel=10
+pkgdesc="Library for writing single instance applications"
+arch=('i686' 'x86_64')
+license=('LGPL')
+depends=('gtk2')
+makedepends=('gtk-doc' 'gobject-introspection')
+url="http://live.gnome.org/LibUnique"
+source=(
+        "http://download.gnome.org/sources/${pkgname}/1.1/${pkgname}-${pkgver}.tar.bz2"
+        00git_g_const_return.patch
+        01_format-security.patch
+        99_ltmain_as-needed.patch
+)        
+sha256sums=('e5c8041cef8e33c55732f06a292381cb345db946cf792a4ae18aa5c66cdd4fbb'
+            'bf99ddbf9104502ea498a6812ec2d700f61f4dbbaa2471cd52174b0b27070769'
+            '194ebfcc4c9297c44bbcfe5d45474310983121cdad881b72265d79cf4ec44235')
+
+prepare() {
+  cd $pkgname-$pkgver
+  patch -Np1 -i "${srcdir}/00git_g_const_return.patch"
+  patch -Np1 -i "${srcdir}/01_format-security.patch"
+  patch -Np1 -i "${srcdir}/99_ltmain_as-needed.patch"
+}
+
+build() {
+  cd $pkgname-$pkgver
+  autoreconf -fi
+  ./configure --prefix=/usr --sysconfdir=/etc \
+      --localstatedir=/var --disable-static \
+      --disable-dbus \
+      --disable-maintainer-flags
+  # Fight unused direct deps
+  sed -i -e 's/ -shared / -Wl,-O1,--as-needed\0 /g' -e 's/    if test "$export_dynamic" = yes && test -n "$export_dynamic_flag_spec"; then/      func_append compile_command " -Wl,-O1,--as-needed"\n\0/' libtool
+  make
+}
+
+package() {
+  cd $pkgname-$pkgver
+  make DESTDIR="${pkgdir}" install
+
+  # Remove documentation, provided by libunique
+  rm -r "$pkgdir/usr/share/gtk-doc"
+}

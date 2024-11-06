@@ -8,7 +8,7 @@ makedepends=("git")
 conflicts=("hardened_malloc")
 provides=("hardened_malloc")
 arch=("x86_64")
-pkgrel=2
+pkgrel=1
 source=('hardened_malloc::git+https://github.com/GrapheneOS/hardened_malloc#branch=main'
 		'preload.sh')
 sha256sums=('SKIP'

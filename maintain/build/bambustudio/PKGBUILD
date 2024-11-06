@@ -3,7 +3,7 @@
 
 pkgname="bambustudio"
 pkgver=01.10.00.81
-pkgrel=1
+pkgrel=2
 pkgdesc="PC Software for BambuLab's 3D printers"
 arch=('x86_64')
 url="https://github.com/bambulab/BambuStudio"
@@ -11,7 +11,7 @@ license=('AGPLv3')
 depends=('mesa' 'glu' 'cairo' 'gtk3' 'libsoup' 'webkit2gtk' 'gstreamer' 'openvdb' 'wayland' 'wayland-protocols' 'libxkbcommon' 'ttf-harmonyos-sans')
 makedepends=('cmake' 'extra-cmake-modules' 'git' 'm4' 'pkgconf')
 source=(
-  "https://github.com/bambulab/BambuStudio/archive/refs/tags/v${pkgver}.tar.gz"
+  "${pkgname}-${pkgver}.tar.gz::https://github.com/bambulab/BambuStudio/archive/refs/tags/v${pkgver}.tar.gz"
   'OCCT.cmake.patch'
   'OpenCV.cmake.patch'
   'BambuStudio.desktop'

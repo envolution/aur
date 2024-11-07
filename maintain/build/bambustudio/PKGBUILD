@@ -9,7 +9,7 @@ arch=('x86_64')
 url="https://github.com/bambulab/BambuStudio"
 license=('AGPLv3')
 depends=('mesa' 'glu' 'cairo' 'gtk3' 'libsoup' 'webkit2gtk' 'gstreamer' 'openvdb' 'wayland' 'wayland-protocols' 'libxkbcommon' 'ttf-harmonyos-sans')
-makedepends=('ninja' 'cmake' 'extra-cmake-modules' 'git' 'm4' 'pkgconf')
+makedepends=('ninja' 'nasm' 'yasm' 'cmake' 'extra-cmake-modules' 'git' 'm4' 'pkgconf')
 source=(
   "${pkgname}-${pkgver}.tar.gz::https://github.com/bambulab/BambuStudio/archive/refs/tags/v${pkgver}.tar.gz"
   'OCCT.cmake.patch'

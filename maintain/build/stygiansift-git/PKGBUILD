@@ -1,9 +1,11 @@
 # Maintainer : envolution
+# Contributor: mnussbaum
+# Contributor: j.r <j.r@jugendhacker.de>
 
 pkgname=stygiansift-git
 _pkgname="StygianSift"
 pkgver=r111+2539f820a
-pkgrel=2
+pkgrel=1
 pkgdesc="A highly customizable TUI file explorer"
 arch=("x86_64")
 url="https://github.com/Mauitron/StygianSift"
@@ -18,7 +20,7 @@ pkgver(){
   cd "${srcdir}/${_pkgname}"
   _commits=$(git rev-list --count HEAD)
   _short_commit_hash=$(git rev-parse --short=9 HEAD)
-  echo "r${_commits}+g${_short_commit_hash}"
+  echo "r${_commits}+${_short_commit_hash}"
 }
 
 prepare() {

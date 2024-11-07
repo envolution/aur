@@ -1,5 +1,0 @@
-[bambustudio]
-source="github"
-github="bambulab/BambuStudio"
-use_max_tag=true
-prefix="v"

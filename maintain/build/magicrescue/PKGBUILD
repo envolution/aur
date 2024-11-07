@@ -2,7 +2,7 @@
 # Contributor: Jaroslav Lichtblau <dragonlord@aur.archlinux.org>
 
 pkgname=magicrescue
-pkgver=1.1.9
+pkgver=1.1.10
 pkgrel=1
 pkgdesc="Find and recover deleted files on block devices"
 arch=('i686' 'x86_64')

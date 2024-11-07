@@ -6,6 +6,7 @@ pkgbase = goxel-voxel-editor-git
 	arch = i686
 	arch = x86_64
 	license = GPL3
+	makedepends = git
 	makedepends = scons
 	makedepends = pkg-config
 	depends = glfw

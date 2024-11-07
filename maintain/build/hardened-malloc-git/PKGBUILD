@@ -11,7 +11,7 @@ arch=("x86_64")
 pkgrel=2
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/GrapheneOS/hardened_malloc/archive/refs/tags/${pkgver}.tar.gz"
 		'preload.sh')
-sha256sums=('SKIP'
+sha256sums=('d43yff'
             'e6dbce7ac1d689fafbc94ffb17d8c4ae5271dd3580421828d35aac2c067b652d')
 
 build() {

@@ -5,12 +5,14 @@
 pkgname=stygiansift-git
 _pkgname="StygianSift"
 pkgver=r111+2539f820a
-pkgrel=1
+pkgrel=2
 pkgdesc="A highly customizable TUI file explorer"
 arch=("x86_64")
 url="https://github.com/Mauitron/StygianSift"
 license=("Custom")
 makedepends=("git" "rust" "cargo")
+provides=("stygiansift")
+conflicts=("stygiansift")
 source=("$_pkgname::git+https://github.com/Mauitron/StygianSift.git")
 sha256sums=('SKIP')
 
@@ -35,7 +37,7 @@ build() {
 }
 
 package() {
-  install -Dm755 "$srcdir/$_pkgname/target/release/StygianSift" "$pkgdir/usr/bin/StygianSift"
+  install -Dm755 "$srcdir/$_pkgname/target/release/StygianSift" "$pkgdir/usr/bin/stygiansift"
   install -Dm644 "$srcdir/$_pkgname/LICENSE.md" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.md"
 }
 

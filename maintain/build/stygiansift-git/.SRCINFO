@@ -1,13 +1,15 @@
 pkgbase = stygiansift-git
 	pkgdesc = A highly customizable TUI file explorer
-	pkgver = r111+2539f820a
-	pkgrel = 1
+	pkgver = r111.2539f820a
+	pkgrel = 2
 	url = https://github.com/Mauitron/StygianSift
 	arch = x86_64
 	license = Custom
 	makedepends = git
 	makedepends = rust
 	makedepends = cargo
+	provides = stygiansift
+	conflicts = stygiansift
 	source = StygianSift::git+https://github.com/Mauitron/StygianSift.git
 	sha256sums = SKIP
 

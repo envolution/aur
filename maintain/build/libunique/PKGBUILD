@@ -22,7 +22,7 @@ sha256sums=('e5c8041cef8e33c55732f06a292381cb345db946cf792a4ae18aa5c66cdd4fbb'
             '01829263fae69782d7558c6e50a4b1c9885b9309c5198844eafa9005fc470631')
 
 prepare() {
-  cd $pkgname-$pkgver
+  cd "$srcdir/$pkgname-$pkgver"
   patch -Np1 -i "${srcdir}/00git_g_const_return.patch"
   patch -Np1 -i "${srcdir}/01_format-security.patch"
   patch -Np1 -i "${srcdir}/99_ltmain_as-needed.patch"

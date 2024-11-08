@@ -77,6 +77,7 @@ readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"'
 readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"' | grep .)
 readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"' | grep .)
 readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"' | grep .)
+readarray -t PACKAGES < <(bash -c 'source PKGBUILD; printf "%s\n" "${pkgname[@]}"' | grep .)
 
 [[ ${#SOURCES[@]} -gt 0 ]] && log_array "SOURCES" "${SOURCES[@]}" ||
 	echo "[debug] !!!== No sources in PKGBUILD, this is probably not intended =="
@@ -177,20 +178,22 @@ else
 		sudo rm -f "${PACKAGE_NAME}"*debug*pkg.tar.zst || true
 		ls -latr
 
-		if sudo pacman --noconfirm -U "${PACKAGE_NAME}"*.pkg.tar.zst; then
-			echo "[debug] == Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="
-			sudo pacman --noconfirm -R "$(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' ' | tail -n 1)"
-			# Create a new release
-			if [ "$BUILD" != "test" ]; then
-				echo "[debug] === Push compiled binary to releases ==="
-				gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" ||
-				echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
-				gh release upload "${PACKAGE_NAME}" ./"${PACKAGE_NAME}"*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
+        for PACKAGE in "${PACKAGES[@]}"; do
+			if sudo pacman --noconfirm -U "${PACKAGE}"*.pkg.tar.zst; then
+				echo "[debug] == Package ${PACKAGE} installed successfully, attempting to remove it =="
+				sudo pacman --noconfirm -R "$(expac --timefmt=%s '%l\t%n' | sort | cut -f2 | xargs -r pacman -Q | cut -f1 -d' ' | tail -n 1)"
+				# Create a new release
+				if [ "$BUILD" != "test" ]; then
+					echo "[debug] === Push compiled binary to releases ==="
+					gh release create "${PACKAGE_NAME}" --title "Binary installers for ${PACKAGE_NAME}" --notes "${RELEASE_BODY}" -R "${GITHUB_REPOSITORY}" ||
+					echo "[debug] == Assuming tag ${PACKAGE_NAME} exists as we can't create one =="
+					gh release upload "${PACKAGE_NAME}" ./"${PACKAGE}"*.pkg.tar.zst --clobber -R "${GITHUB_REPOSITORY}"
+				fi
+			else
+				echo "[debug] == FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
+				FAILURE=1
 			fi
-		else
-			echo "[debug] == FAIL install of ${PACKAGE_NAME} failed (skipping commit) =="
-			FAILURE=1
-		fi
+		done
 	fi
 
 	if [ $FAILURE = 0 ]; then

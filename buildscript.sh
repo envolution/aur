@@ -179,7 +179,7 @@ else
 		ls -latr
 
 		if sudo pacman --noconfirm -U *.pkg.tar.zst; then
-			if [ "${#PACKAGES[@]} -gt 1"]; then
+			if [ "${#PACKAGES[@]}" -gt 1 ]; then
 				echo "[debug] == Package ${PACKAGE_NAME} installed successfully, it's a multi package so not removing it due to possible complexities =="
 			else
 				echo "[debug] == Package ${PACKAGE_NAME} installed successfully, attempting to remove it =="

@@ -92,7 +92,7 @@ commit_count=$(echo "$response" | grep -i '^Link:' | sed -n 's/.*page=\([0-9]*\)
 # Fetch the latest release information
 latest_release=$(gh api "repos/${REPONAME}/${REPO}/releases/latest" 2>/dev/null || gh api "repos/${REPONAME}/${REPO}/releases" --jq '.[0]' 2>/dev/null)
 if [ -z "$latest_release" ] && [ -n "$tags" ]; then
-    echo "r${commit_count}.${current_commit}"
+    echo "r${commit_count}+g${current_commit}"
     exit 0
 fi
 
@@ -106,9 +106,9 @@ if [ -z "$release_name" ] || [ "$release_name" = "null" ]; then
     if [ -n "$latest_tag" ]; then
         _tmpname=${latest_tag}
         latest_tag=${_tmpname#"${STRIPSTRING:-}"}
-        echo "${latest_tag}+r${commit_count}+${current_commit}"
+        echo "${latest_tag}+r${commit_count}+g${current_commit}"
     else
-        echo "r${commit_count}.${current_commit}"
+        echo "r${commit_count}+g${current_commit}"
     fi
     exit 0
 fi
@@ -131,7 +131,7 @@ if [ -n "$release_sha" ]; then
 elif [ -n "$latest_tag" ]; then
     _tmpname=$latest_tag
     latest_tag="${_tmpname#${STRIPSTRING:-}}"
-    echo "${latest_tag}+r${commit_count}+${current_commit}"
+    echo "${latest_tag}+r${commit_count}+g${current_commit}"
 else
-    echo "r${commit_count}+${current_commit}"
+    echo "r${commit_count}+g${current_commit}"
 fi

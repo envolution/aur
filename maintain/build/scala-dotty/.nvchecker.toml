@@ -1,4 +1,4 @@
-[dotty]
+[scala-dotty]
 source="github"
 github="scala/scala3"
 use_latest_release=true

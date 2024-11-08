@@ -28,7 +28,7 @@ package_scala3() {
 }
 
 package_scala-dotty() {
-	depends=(scala3)
+	depends+=(scala3)
 
 	install -d "${pkgdir}/usr/bin"
 

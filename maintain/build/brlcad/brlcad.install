@@ -9,4 +9,5 @@ post_install() {
     }
 
     note 're-login or source /etc/profile.d/brlcad.sh to add BRL-CAD to $PATH'
+    note 'configured with QT so mged is named qged'
 }

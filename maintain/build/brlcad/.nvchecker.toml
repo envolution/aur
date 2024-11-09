@@ -2,5 +2,6 @@
 source="github"
 github="BRL-CAD/brlcad"
 use_latest_release=true
-from_pattern = "rel-(\\d+)-(\\d+)-(\\d+)"
-to_pattern = "\\1.\\2.\\3"
+prefix="rel-"
+from_pattern = "-"
+to_pattern = "."

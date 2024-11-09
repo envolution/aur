@@ -1,5 +1,5 @@
---- ./src/build/bext/geogram/geogram/src/lib/third_party/numerics/SUPERLU/slacon2.c	2024-11-08 16:45:57.828556643 -0500
-+++ ./src/build/bext/geogram/geogram/src/lib/third_party/numerics/SUPERLU/slacon2.c_patched	2024-11-08 17:25:12.939279798 -0500
+--- ./build/bext/geogram/geogram/src/lib/third_party/numerics/SUPERLU/slacon2.c	2024-11-08 16:45:57.828556643 -0500
++++ ./build/bext/geogram/geogram/src/lib/third_party/numerics/SUPERLU/slacon2.c_patched	2024-11-08 17:25:12.939279798 -0500
 @@ -22,7 +22,7 @@
  #include <math.h>
  #include "slu_Cnames.h"

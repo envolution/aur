@@ -8,71 +8,76 @@ license=('LGPL' 'BSD' 'custom:BDL')
 arch=('i686' 'x86_64')
 depends=('gdal' 'libgl' 'libxft' 'libxi')
 makedepends=('cmake' 'ninja')
+options=(!strip !debug)
 install="${pkgname}.install"
 _tag_name="rel-${pkgver//./-}"
 source=(
-    'build.patch'
-    "https://github.com/BRL-CAD/${pkgname}/releases/download/${_tag_name}/${pkgname}-${pkgver}.tar.bz2"
+  'build.patch'
+  'clipper.core.h.patch'
+  'slacon_idamax_isamax.patch'
+  "https://github.com/BRL-CAD/${pkgname}/releases/download/${_tag_name}/${pkgname}-${pkgver}.tar.bz2"
 )
 sha256sums=('74e8dc6bec7e83359439dc05d9f53105f487544ae61af19fca5658cc8f0d56d9'
+            'cc218e8ae5c10dfba90097c2789896f3039a638a52e0b53c63e9a470d5981388'
+            '2745ec168c0c09aa261c8fde66e2cba9ce3680dcfa43dec146f3b5fb66a9f023'
             'da444502029791d2c074fc3826b8c32fec9afd7e762d19cd9797279ad691b809')
-
 
 _build_config='Release'
 _prefix="/opt/${pkgname}"
 
-
 prepare() {
-    patch \
-        --strip=0 \
-        "--directory=${srcdir}/${pkgname}-${pkgver}" \
-        "--input=${srcdir}/build.patch"
-}
+  mkdir -p build
+  git clone -b $_tag_name https://github.com/BRL-CAD/bext.git build/
+  cmake \
+    -G Ninja \
+    -S "${srcdir}/${pkgname}-${pkgver}" \
+    -B "${srcdir}/build" \
+    -Wno-dev \
+    "-DCMAKE_INSTALL_PREFIX=${_prefix}" \
+    "-DCMAKE_BUILD_TYPE=${_build_config}" \
+    -DBUILD_STATIC_LIBS=OFF \
+    -DBRLCAD_ENABLE_COMPILER_WARNINGS=OFF \
+    -DBRLCAD_ENABLE_STRICT=OFF \
+    -DBRLCAD_FLAGS_DEBUG=OFF \
+    -DBRLCAD_BUNDLED_LIBS=BUNDLED \
+    -DBRLCAD_GDAL=OFF \
+    -DBRLCAD_PNG=OFF \
+    -DBRLCAD_REGEX=OFF \
+    -DBRLCAD_ZLIB=OFF \
+    -DBRLCAD_ENABLE_OPENGL=ON \
+    -DBRLCAD_ENABLE_QT=ON \
+    -DBRLCAD_ENABLE_TCL=OFF
 
+  patch -p2 -i ../clipper.core.h.patch
+  patch -p2 -i ../slacon_idamax_isamax.patch
+  cd $pkgname-${pkgver}
+  patch -p0 -i ../build.patch
+exit 1
+}
 
 build() {
-    cmake \
-        -G Ninja \
-        -S "${srcdir}/${pkgname}-${pkgver}" \
-        -B "${srcdir}/build" \
-        -Wno-dev \
-        "-DCMAKE_INSTALL_PREFIX=${_prefix}" \
-        "-DCMAKE_BUILD_TYPE=${_build_config}" \
-        -DBUILD_STATIC_LIBS=OFF \
-        -DBRLCAD_ENABLE_COMPILER_WARNINGS=OFF \
-        -DBRLCAD_ENABLE_STRICT=OFF \
-        -DBRLCAD_FLAGS_DEBUG=OFF \
-        -DBRLCAD_BUNDLED_LIBS=BUNDLED \
-        -DBRLCAD_GDAL=OFF \
-        -DBRLCAD_PNG=OFF \
-        -DBRLCAD_REGEX=OFF \
-        -DBRLCAD_ZLIB=OFF \
-        -DBRLCAD_ENABLE_OPENGL=ON \
-        -DBRLCAD_ENABLE_QT=OFF
+  cmake --build "${srcdir}/build" --config "${_build_config}"
 
-    cmake --build "${srcdir}/build" --config "${_build_config}"
-
-    echo \
-        "export PATH=\"\$PATH:${_prefix}/bin\"" \
-        >"${srcdir}/build/${pkgname}.sh"
+  echo \
+    "export PATH=\"\$PATH:${_prefix}/bin\"" \
+    >"${srcdir}/build/${pkgname}.sh"
 }
 
-
 package() {
-    cmake \
-        --install "${srcdir}/build" \
-        --config "${_build_config}" \
-        --prefix "${pkgdir}${_prefix}"
+  cmake \
+    --install "${srcdir}/build" \
+    --config "${_build_config}" \
+    --prefix "${pkgdir}${_prefix}"
 
-    install \
-        -D \
-        --mode=u=rw,go=r \
-        "--target-directory=${pkgdir}/usr/share/licenses/${pkgname}" \
-        "${srcdir}/build/share/doc/legal/"{bdl,bsd}.txt
+  install \
+    -D \
+    --mode=u=rw,go=r \
+    "--target-directory=${pkgdir}/usr/share/licenses/${pkgname}" \
+    "${srcdir}/build/share/doc/legal/"{bdl,bsd}.txt
 
-    install \
-        -D \
-        --mode=u=rw,go=r \
-        "--target-directory=${pkgdir}/etc/profile.d" \
-        "${srcdir}/build/${pkgname}.sh"
+  install \
+    -D \
+    --mode=u=rw,go=r \
+    "--target-directory=${pkgdir}/etc/profile.d" \
+    "${srcdir}/build/${pkgname}.sh"
 }

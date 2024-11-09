@@ -28,8 +28,10 @@ _prefix="/opt/${pkgname}"
 prepare() {
   mkdir -p build
   git clone -b "${_tag_name}" https://github.com/BRL-CAD/bext.git build/
-  patch -p2 -i ../clipper.core.h.patch
-  patch -p2 -i ../slacon_idamax_isamax.patch
+  pwd
+  ls -la
+  patch -p0 -i ../clipper.core.h.patch
+  patch -p0 -i ../slacon_idamax_isamax.patch
   patch -p0 -i ../build.patch -d $pkgname-${pkgver}
 
   cmake \

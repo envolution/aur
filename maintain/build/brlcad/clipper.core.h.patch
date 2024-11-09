@@ -1,5 +1,5 @@
---- ./src/build/bext/manifold/manifold/src/third_party/clipper2/include/clipper2/clipper.core.h	2024-11-08 16:45:27.205735113 -0500
-+++ ./src/build/bext/manifold/manifold/src/third_party/clipper2/include/clipper2/clipper.core.h_patch	2024-11-08 18:42:49.950337130 -0500
+--- ./build/bext/manifold/manifold/src/third_party/clipper2/include/clipper2/clipper.core.h	2024-11-08 16:45:27.205735113 -0500
++++ ./build/bext/manifold/manifold/src/third_party/clipper2/include/clipper2/clipper.core.h_patch	2024-11-08 18:42:49.950337130 -0500
 @@ -178,7 +178,7 @@
      Point(const T2 x_, const T2 y_) { Init(x_, y_); }
  

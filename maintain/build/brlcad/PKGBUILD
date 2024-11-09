@@ -27,7 +27,7 @@ _prefix="/opt/${pkgname}"
 
 prepare() {
   mkdir -p build
-  git clone -b "${_tag_name}" https://github.com/BRL-CAD/bext.git build/
+  git clone -b "${_tag_name}" https://github.com/BRL-CAD/bext.git build/bext
   pwd
   ls -la
   patch -p0 -i ../clipper.core.h.patch

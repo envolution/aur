@@ -1,0 +1,16 @@
+pkgbase = pyinstaller-hooks-contrib
+	pkgdesc = Community maintained hooks for PyInstaller
+	pkgver = 2024.10
+	pkgrel = 1
+	url = https://github.com/pyinstaller/pyinstaller-hooks-contrib
+	arch = any
+	license = Apache-2.0 OR GPL-2.0-or-later
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-wheel
+	makedepends = python-setuptools
+	depends = python
+	source = pyinstaller-hooks-contrib-2024.10.tar.gz::https://github.com/pyinstaller/pyinstaller-hooks-contrib/archive/refs/tags/v2024.10.tar.gz
+	sha256sums = dd2c1f23065156630b21ac99b21d2d8a94ec4972d7cc110c3c53657612d0beb0
+
+pkgname = pyinstaller-hooks-contrib

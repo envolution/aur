@@ -1,0 +1,11 @@
+--- CMakeLists.txt	2024-11-10 12:40:01.848592277 -0500
++++ CMakeLists.txt_patch	2024-11-10 12:40:49.685262545 -0500
+@@ -2,7 +2,7 @@
+ # Geogram/Vorpaline root CMakeList
+ ##############################################################################
+ 
+-cmake_minimum_required(VERSION 3.5)
++cmake_minimum_required(VERSION 3.10)
+ cmake_policy(SET CMP0048 NEW)
+ 
+ 

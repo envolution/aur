@@ -18,8 +18,8 @@ source=(
   "https://github.com/BRL-CAD/${pkgname}/releases/download/${_tag_name}/${pkgname}-${pkgver}.tar.bz2"
 )
 sha256sums=('74e8dc6bec7e83359439dc05d9f53105f487544ae61af19fca5658cc8f0d56d9'
-            'cc218e8ae5c10dfba90097c2789896f3039a638a52e0b53c63e9a470d5981388'
-            '2745ec168c0c09aa261c8fde66e2cba9ce3680dcfa43dec146f3b5fb66a9f023'
+            '9fb1f3670d3fc9a5566548ea56f7f51945eb2b9f782d6556adca4ddf111f12d9'
+            '66ea42c548d50e203590afce317849766b91477da4e14cff494605288a22fb18'
             'da444502029791d2c074fc3826b8c32fec9afd7e762d19cd9797279ad691b809')
 
 _build_config='Release'

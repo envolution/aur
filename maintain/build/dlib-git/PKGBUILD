@@ -38,7 +38,7 @@ pkgver(){
 
 build() {
     #Test avx capabilities
-    grep -q 'flags.*avsx' /proc/cpuinfo && _AVX=ON || _AVX=OFF
+    grep -q 'flags.*avx' /proc/cpuinfo && _AVX=ON || _AVX=OFF
     mkdir -p build && cd build
     cmake -GNinja \
         -DCMAKE_INSTALL_PREFIX:PATH=/usr \

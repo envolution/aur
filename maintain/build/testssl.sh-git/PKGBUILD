@@ -24,8 +24,7 @@ source=(
   'set-install-dir.patch'
 )
 sha256sums=('SKIP'
-  'ed81981de5d8f41de3a36f30fca283d2f668d62da1eda71d3799aa10bd49b617'
-)
+            'ed81981de5d8f41de3a36f30fca283d2f668d62da1eda71d3799aa10bd49b617')
 
 pkgver() {
   cd ${pkgname}

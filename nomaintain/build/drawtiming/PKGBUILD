@@ -1,4 +1,5 @@
-# Maintainer: Melvin Vermeeren <mail@mel.vin>
+# Maintainer: envolution
+# Contributor: Melvin Vermeeren <mail@mel.vin>
 pkgname=drawtiming
 pkgver=0.7.1
 pkgrel=3

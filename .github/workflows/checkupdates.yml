@@ -149,9 +149,13 @@ jobs:
               package=${_package[2]}
               pkgbuild=${maintain}/${build}
               echo "Maintain: $maintain build: $build package: $package pkgbuild: $pkgbuild"
-              sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh \
-                "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "${pkgbuild}/${package}" \
-                "Auto update $package "
+              if [ ${maintain} == "maintain" ]; then 
+                sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh \
+                  "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "${pkgbuild}/${package}" \
+                  "Auto update $package "
+              else
+                echo "[debug] skipping $package as it's not in maintain directory"
+              fi
             fi  
 
           done          

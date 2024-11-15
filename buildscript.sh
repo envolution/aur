@@ -76,6 +76,7 @@ fi
 readarray -t SOURCES < <(bash -c 'source PKGBUILD; printf "%s\n" "${source[@]}"' | grep .)
 readarray -t DEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${depends[@]}"' | grep .)
 readarray -t MAKEDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${makedepends[@]}"' | grep .)
+readarray -t CHECKDEPENDS < <(bash -c 'source PKGBUILD; printf "%s\n" "${checkdepends[@]}"' | grep .)
 readarray -t PGPKEYS < <(bash -c 'source PKGBUILD; printf "%s\n" "${validpgpkeys[@]}"' | grep .)
 readarray -t PACKAGES < <(bash -c 'source PKGBUILD; printf "%s\n" "${pkgname[@]}"' | grep .)
 
@@ -85,6 +86,8 @@ readarray -t PACKAGES < <(bash -c 'source PKGBUILD; printf "%s\n" "${pkgname[@]}
 	echo "[debug] == No depends in PKGBUILD =="
 [[ ${#MAKEDEPENDS[@]} -gt 0 ]] && log_array "MAKEDEPENDS" "${MAKEDEPENDS[@]}" ||
 	echo "[debug] == No make depends in PKGBUILD =="
+[[ ${#CHECKDEPENDS[@]} -gt 0 ]] && log_array "CHECKDEPENDS" "${CHECKDEPENDS[@]}" ||
+	echo "[debug] == No check depends in PKGBUILD =="
 [[ ${#PGPKEYS[@]} -gt 0 ]] && gpg --receive-keys "${PGPKEYS[@]}" &&
 	echo "[debug] == Adopted package PGP keys ==" ||
 	echo "[debug] == No PGP keys in PKGBUILD =="
@@ -160,6 +163,13 @@ else
 		#Install package make dependancies if they exist
 		if [[ ${#MAKEDEPENDS[@]} -gt 0 ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" "${MAKEDEPENDS[@]}"; then
 			echo "[debug] == Package make dependencies installed successfully =="
+		else
+			echo "[debug] == FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
+		fi
+
+		#Install package check dependancies if they exist
+		if [[ ${#CHECKDEPENDS[@]} -gt 0 ]] && paru -S --needed --norebuild --noconfirm --mflags "--skipchecksums --skippgpcheck" "${CHECKDEPENDS[@]}"; then
+			echo "[debug] == Package check dependencies installed successfully =="
 		else
 			echo "[debug] == FAIL Package make dependency installation failed (this should not cause issues as makepkg will try again but won't have access to AUR) =="
 		fi

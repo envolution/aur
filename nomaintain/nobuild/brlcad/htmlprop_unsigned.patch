@@ -1,0 +1,38 @@
+--- ./build/bext/tkhtml/tkhtml/src/htmlprop.c	2024-11-15 00:43:27.073506901 -0500
++++ ./build/bext/tkhtml/tkhtml/src/htmlprop.c_patched	2024-11-15 00:44:35.588876168 -0500
+@@ -1098,7 +1098,7 @@
+     unsigned char *pOpt;
+ 
+     if (val == CSS_CONST_INHERIT) {
+-        unsigned char *pInherit = getInheritPointer(p, pEVar);
++        unsigned char *pInherit = getInheritPointer(p, (unsigned char*)pEVar);
+         if (pInherit) {
+             *pEVar = *pInherit;
+         }
+@@ -1183,7 +1183,7 @@
+     HtmlTree *pTree = p->pTree;
+ 
+     if (pProp->eType == CSS_CONST_INHERIT) {
+-        HtmlColor **pInherit = (HtmlColor **)getInheritPointer(p, pCVar);
++        HtmlColor **pInherit = (HtmlColor **)getInheritPointer(p, (unsigned char*)pCVar);
+         assert(pInherit);
+         cVal = *pInherit;
+         goto setcolor_out;
+@@ -1533,7 +1533,7 @@
+     switch (pProp->eType) {
+         case CSS_CONST_INHERIT: {
+             unsigned char *v = (unsigned char *)pImVar;
+-            HtmlImage2 **pInherit = (HtmlImage2 **)getInheritPointer(p, v);
++            HtmlImage2 **pInherit = (HtmlImage2 **)getInheritPointer(p, (unsigned char*)v);
+             *pImVar = *pInherit;
+             HtmlImageRef(*pImVar);
+             return 0;
+@@ -1686,7 +1686,7 @@
+         case CSS_CONST_INHERIT:
+             if (allow_mask & SZ_INHERIT) {
+                 HtmlNode *pParent = p->pParent;
+-                int *pInherit = (int *)getInheritPointer(p, pIVal);
++                int *pInherit = (int *)getInheritPointer(p, (unsigned char*)pIVal);
+                 assert(pInherit);
+                 assert(pParent);
+ 

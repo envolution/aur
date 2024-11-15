@@ -1,0 +1,83 @@
+--- ./build/bext/tkhtml/tkhtml/src/htmltree.c	2024-11-14 22:46:35.398100544 -0500
++++ -	2024-11-15 01:17:15.295299718 -0500
+@@ -1057,7 +1057,7 @@
+ 
+     pNew->iNode = pTree->iNextNode++;
+     if (HtmlMarkupFlags(eTag) & HTMLTAG_EMPTY) {
+-        nodeHandlerCallbacks(pTree, pNew);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)pNew);
+         pTree->state.pFoster = HtmlNodeParent(pNew);
+         if (pTree->state.pFoster == pFosterParent) pTree->state.pFoster = 0;
+     } else {
+@@ -1083,7 +1083,7 @@
+     explicitCloseCount(pTree->state.pFoster, eTag, zTag, &nClose);
+     pFoster = pTree->state.pFoster;
+     for (ii = 0; ii < nClose && pFoster != pFosterParent; ii++) {
+-        nodeHandlerCallbacks(pTree, pFoster);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)pFoster);
+         pFoster = HtmlNodeParent(pFoster);
+     }
+     if (pFoster == pFosterParent) {
+@@ -1123,7 +1123,7 @@
+ 
+     /* Invoke node-handler callbacks for implicitly closed nodes */
+     for ( ; pCurrent != pParent ; pCurrent = HtmlNodeParent(pCurrent)) {
+-        nodeHandlerCallbacks(pTree, pCurrent);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)pCurrent);
+     }
+     treeCloseFosterTree(pTree);
+ 
+@@ -1214,7 +1214,7 @@
+     if (pTree->state.isCdataInHead) {
+         int nChild = HtmlNodeNumChildren(pHeadNode) - 1;
+         HtmlNode *pTitle = HtmlNodeChild(pHeadNode, nChild);
+-        nodeHandlerCallbacks(pTree, pTitle);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)pTitle);
+     }
+     pTree->state.isCdataInHead = 0;
+ 
+@@ -1415,7 +1415,7 @@
+         HtmlNode *pBody = HtmlNodeChild(pTree->pRoot, 1);
+         explicitCloseCount(pTree->state.pCurrent, eTag, zTag, &nClose);
+         for (ii = 0; ii < nClose && pTree->state.pCurrent != pBody; ii++) {
+-            nodeHandlerCallbacks(pTree, pTree->state.pCurrent);
++            nodeHandlerCallbacks(pTree, (HtmlNode*)pTree->state.pCurrent);
+             pTree->state.pCurrent = HtmlNodeParent(pTree->state.pCurrent);
+         }
+     }
+@@ -3075,7 +3075,7 @@
+             return;
+     }
+ 
+-    implicitCloseCount(pTree, pFragment->pCurrent, eType, &nClose);
++    implicitCloseCount(pTree, (HtmlNode*)pFragment->pCurrent, eType, &nClose);
+     for (ii = 0; ii < nClose; ii++) {
+         HtmlNode *pC = &pFragment->pCurrent->node;
+         HtmlNode *pParentC = HtmlNodeParent(pC);
+@@ -3105,7 +3105,7 @@
+     pFragment->pCurrent = pElem;
+ 
+     if (HtmlMarkup(eType)->flags & HTMLTAG_EMPTY) {
+-        nodeHandlerCallbacks(pTree, pFragment->pCurrent);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)pFragment->pCurrent);
+         pFragment->pCurrent = (HtmlElementNode *)HtmlNodeParent(pElem);
+     }
+     if (!pFragment->pCurrent) {
+@@ -3122,7 +3122,7 @@
+     explicitCloseCount(p->pCurrent, eType, zType, &nClose);
+     for (ii = 0; ii < nClose; ii++) {
+         assert(p->pCurrent);
+-        nodeHandlerCallbacks(pTree, p->pCurrent);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)p->pCurrent);
+         p->pCurrent = (HtmlElementNode *)HtmlNodeParent(p->pCurrent);
+     }
+     if (!p->pCurrent) {
+@@ -3147,7 +3147,7 @@
+ 
+     while (sContext.pCurrent) {
+         HtmlNode *pParent = HtmlNodeParent(sContext.pCurrent); 
+-        nodeHandlerCallbacks(pTree, sContext.pCurrent);
++        nodeHandlerCallbacks(pTree, (HtmlNode*)sContext.pCurrent);
+         sContext.pCurrent = (HtmlElementNode *)pParent;
+     }
+ 

@@ -1,0 +1,14 @@
+--- a/src/libgcv/plugins/gdal/gdal.cpp	2024-11-15 04:48:38.668185002 -0500
++++ b/src/libgcv/plugins/gdal/gdal.cpp_patched	2024-11-15 04:48:21.728518784 -0500
+@@ -29,6 +29,11 @@
+  *
+  */
+ 
++#include <strings.h>
++
++#ifndef STRCASECMP
++#define STRCASECMP strcasecmp
++#endif
+ 
+ #include "common.h"
+ #include "vmath.h"

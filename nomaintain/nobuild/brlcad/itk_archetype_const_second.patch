@@ -1,0 +1,44 @@
+--- ./build/bext/itk/itk/generic/itk_archetype.c	2024-11-15 01:39:46.587983840 -0500
++++ ./build/bext/itk/itk/generic/itk_archetype.c_patched	2024-11-15 01:46:05.644381573 -0500
+@@ -63,10 +63,10 @@
+  *  Each option in an Archetype mega-widget:
+  */
+ typedef struct ArchOption {
+-    char *switchName;           /* command-line switch for this option */
+-    char *resName;              /* resource name in X11 database */
+-    char *resClass;             /* resource class name in X11 database */
+-    char *init;                 /* initial value for option */
++    const char *switchName;           /* command-line switch for this option */
++    const char *resName;              /* resource name in X11 database */
++    const char *resClass;             /* resource class name in X11 database */
++    const char *init;                 /* initial value for option */
+     int flags;                  /* flags representing option state */
+     Itcl_List parts;            /* parts relating to this option */
+ } ArchOption;
+@@ -116,7 +116,7 @@
+     char *resClass;               /* resource class name in X11 database */
+     char *init;                   /* initial value for this option */
+     char *value;                  /* current value for this option */
+-    char **storage;               /* storage for above strings */
++    const char **storage;               /* storage for above strings */
+ 
+     ArchOption *integrated;       /* integrated into this mega-widget option */
+     ArchOptionPart *optPart;      /* integrated as this option part */
+@@ -4003,7 +4003,7 @@
+                 info->resName    = optv[1];
+                 info->resClass   = optv[2];
+                 info->init       = optv[3];
+-                info->value      = optv[4];
++                info->value      = (char *)optv[4];
+                 info->storage    = optv;
+                 info->integrated = NULL;
+                 info->optPart    = NULL;
+@@ -4088,7 +4088,7 @@
+     Tcl_Obj *codePtr = NULL;
+ 
+     int optc, result;
+-    char **optv;
++    const char **optv;
+     char *name, *info;
+     Tcl_Obj *resultPtr;
+ 

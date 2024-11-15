@@ -1,0 +1,29 @@
+--- ./build/bext/tkhtml/tkhtml/src/htmltree.c_orig	2024-11-15 01:28:33.380304094 -0500
++++ ./build/bext/tkhtml/tkhtml/src/htmltree.c	2024-11-15 01:29:04.786395872 -0500
+@@ -1080,7 +1080,7 @@
+     pFosterParent = findFosterParent(pTree, 0);
+     assert(pFosterParent);
+ 
+-    explicitCloseCount(pTree->state.pFoster, eTag, zTag, &nClose);
++    explicitCloseCount((HtmlNode*)pTree->state.pFoster, eTag, zTag, &nClose);
+     pFoster = pTree->state.pFoster;
+     for (ii = 0; ii < nClose && pFoster != pFosterParent; ii++) {
+         nodeHandlerCallbacks(pTree, (HtmlNode*)pFoster);
+@@ -1413,7 +1413,7 @@
+         treeAddFosterClosingTag(pTree, eTag, zTag);
+     } else {
+         HtmlNode *pBody = HtmlNodeChild(pTree->pRoot, 1);
+-        explicitCloseCount(pTree->state.pCurrent, eTag, zTag, &nClose);
++        explicitCloseCount((HtmlNode*)pTree->state.pCurrent, eTag, zTag, &nClose);
+         for (ii = 0; ii < nClose && pTree->state.pCurrent != pBody; ii++) {
+             nodeHandlerCallbacks(pTree, (HtmlNode*)pTree->state.pCurrent);
+             pTree->state.pCurrent = HtmlNodeParent(pTree->state.pCurrent);
+@@ -3119,7 +3119,7 @@
+     int nClose;
+     int ii;
+     HtmlFragmentContext *p = pTree->pFragment;
+-    explicitCloseCount(p->pCurrent, eType, zType, &nClose);
++    explicitCloseCount((HtmlNode*)p->pCurrent, eType, zType, &nClose);
+     for (ii = 0; ii < nClose; ii++) {
+         assert(p->pCurrent);
+         nodeHandlerCallbacks(pTree, (HtmlNode*)p->pCurrent);

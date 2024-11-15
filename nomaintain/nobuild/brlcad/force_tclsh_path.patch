@@ -1,0 +1,9 @@
+--- a/src/tclscripts/CMakeLists.txt	2024-10-01 11:17:53.000000000 -0400
++++ b/src/tclscripts/CMakeLists.txt_patch	2024-11-15 05:34:12.390577338 -0500
+@@ -1,5 +1,6 @@
+ # The auto_mkindex and pkg_mkIndex commands are called from within Tcl,
+ # which means we need script files.
++set(BTCLSH "/usr/bin/tclsh")
+ file(WRITE "${CMAKE_BINARY_DIR}/CMakeTmp/auto_mkindex.tcl" "
+ foreach arg $argv {
+ puts \"Generating tclIndex in $arg\"

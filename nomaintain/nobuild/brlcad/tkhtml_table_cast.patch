@@ -1,0 +1,54 @@
+--- ./build/bext/tkhtml/tkhtml/src/htmltable.c	2024-11-14 22:46:35.394767267 -0500
++++ ./build/bext/tkhtml/tkhtml/src/htmltable.c_patch	2024-11-15 00:57:19.474666543 -0500
+@@ -1141,7 +1141,7 @@
+ 
+         if (DISPLAY(pV) == CSS_CONST_TABLE_ROW) {
+             /* Child has "display:table-row". Good. */
+-            rowIterate(pTree, pRow, p);
++            rowIterate(pTree, (HtmlNode*)pRow, p);
+         } else {
+             /* Have to create a fake <tr> node. Bad. */
+             int jj;
+@@ -1155,7 +1155,7 @@
+             sRow.node.iNode = -1;
+             sRow.nChild = jj - ii;
+             sRow.apChildren = &((HtmlElementNode *)pNode)->apChildren[ii];
+-            rowIterate(pTree, &sRow, p);
++            rowIterate(pTree, (HtmlNode*)&sRow, p);
+             assert(!sRow.pLayoutCache);
+             ii = jj - 1;
+         }
+@@ -1243,7 +1243,7 @@
+         }
+     }
+ 
+-    rowGroupIterate(pTree, pHeader, &sRowContext);
++    rowGroupIterate(pTree, (HtmlNode*)pHeader, &sRowContext);
+ 
+     for (ii = 0; ii < HtmlNodeNumChildren(pNode); ii++) {
+         HtmlNode *pChild = HtmlNodeChild(pNode, ii);
+@@ -1261,7 +1261,7 @@
+             eDisplay == CSS_CONST_TABLE_FOOTER_GROUP ||
+             eDisplay == CSS_CONST_TABLE_HEADER_GROUP
+         ) {
+-            rowGroupIterate(pTree, pChild, &sRowContext);
++            rowGroupIterate(pTree, (HtmlNode*)pChild, &sRowContext);
+         } else {
+             /* Create a transient <TBODY> node */
+             int jj;
+@@ -1281,13 +1281,13 @@
+             sRowGroup.node.iNode = -1;
+             sRowGroup.nChild = jj - ii;
+             sRowGroup.apChildren = &((HtmlElementNode *)pNode)->apChildren[ii];
+-            rowGroupIterate(pTree, &sRowGroup, &sRowContext);
++            rowGroupIterate(pTree, (HtmlNode*)&sRowGroup, &sRowContext);
+             assert(!sRowGroup.pLayoutCache);
+             ii = jj - 1;
+         }
+     }
+ 
+-    rowGroupIterate(pTree, pFooter, &sRowContext);
++    rowGroupIterate(pTree, (HtmlNode*)pFooter, &sRowContext);
+ 
+     while (sRowContext.iRow <= sRowContext.iMaxRow && xRowCallback) {
+         xRowCallback(0, sRowContext.iRow, pContext);

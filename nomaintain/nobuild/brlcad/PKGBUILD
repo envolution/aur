@@ -6,58 +6,104 @@ pkgdesc='An extensive 3D solid modeling system.'
 url='https://brlcad.org'
 license=('LGPL' 'BSD' 'custom:BDL')
 arch=('i686' 'x86_64')
-depends=('gdal' 'libgl' 'libxft' 'libxi')
-makedepends=('cmake' 'ninja')
-options=(!strip !debug)
+depends=('boost' 'tcl' 'flex' 'libgl' 'libpng' 'mesa' 'tk' 'zlib')
+makedepends=('cmake' 'ninja' 'bc' 'libxslt')
+optdepends=(
+    'fop: for building pdf documentation'
+)
+
+options=(!strip !libtool docs !debug)
 install="${pkgname}.install"
 _tag_name="rel-${pkgver//./-}"
 source=(
   'build.patch'
-  'clipper.core.h.patch'
   'slacon_idamax_isamax.patch'
+  'htmlprop_unsigned.patch'
+  'clipper_core_h.patch'
+  'tkhtml_table_cast.patch'
+  'htmltree_node_explicit.patch'
+  'htmltree_more_node_patches.patch'
+  'itk_archetype_const.patch'
+  'itk_archetype_const_second.patch'
+  'gdal_stringsh.patch'
+  'force_tclsh_path.patch'
+  'no_optimise_nurbs.patch'
   "https://github.com/BRL-CAD/${pkgname}/releases/download/${_tag_name}/${pkgname}-${pkgver}.tar.bz2"
 )
 sha256sums=('74e8dc6bec7e83359439dc05d9f53105f487544ae61af19fca5658cc8f0d56d9'
-            '9fb1f3670d3fc9a5566548ea56f7f51945eb2b9f782d6556adca4ddf111f12d9'
             '66ea42c548d50e203590afce317849766b91477da4e14cff494605288a22fb18'
+            '5a504724f8907b0bcab5b7f65326e2a91a1059c88b8349f08fabf14fe49476fb'
+            '9fb1f3670d3fc9a5566548ea56f7f51945eb2b9f782d6556adca4ddf111f12d9'
+            'ac5505ac62946676f0e96a5550370ee44594eba186ad1053d70ed34cbe82b98d'
+            'c3a46c760671c8d21f35aff8fbf2e7cd91889d5d8bc2fff870bc005d44cb43bd'
+            '0d1160583071be8170063f0208bc9379af9d0a50f2db4ca08c2d16ccc04fc908'
+            'ced0e69a6fd9eae89832feb1720af20df8fcf922151240515a8da189e037e431'
+            'ea0435cee578f67c46e3bf63d369082fc89a67096fa624f10632d04ffaf318b2'
+            '2e44f8ccb3889fdca8e4b0b59f46bf18d9bf8450cff438aa14435ba36a3f5e3d'
+            'fdddf1e2cf1ad880a2a8f694a92b7d8db6571051ca53bc13ee5aee9ea629a331'
+            '4a8993c6867fd087d73a96350bc144edd12e007f38c8c20fc9848e1cf34c631b'
             'da444502029791d2c074fc3826b8c32fec9afd7e762d19cd9797279ad691b809')
 
 _build_config='Release'
 _prefix="/opt/${pkgname}"
 
 prepare() {
-  mkdir -p build
-  git clone -b "${_tag_name}" https://github.com/BRL-CAD/bext.git build/bext
-  pwd
-  ls -la
-  patch -p0 -i ../clipper.core.h.patch
-  patch -p0 -i ../slacon_idamax_isamax.patch
-  patch -p0 -i ../build.patch -d $pkgname-${pkgver}
-
-  cmake \
-    -G Ninja \
-    -S "${srcdir}/${pkgname}-${pkgver}" \
-    -B "${srcdir}/build" \
-    -Wno-dev \
-    "-DCMAKE_INSTALL_PREFIX=${_prefix}" \
-    "-DCMAKE_BUILD_TYPE=${_build_config}" \
-    -DBUILD_STATIC_LIBS=OFF \
-    -DBRLCAD_ENABLE_COMPILER_WARNINGS=OFF \
-    -DBRLCAD_ENABLE_STRICT=OFF \
-    -DBRLCAD_FLAGS_DEBUG=OFF \
-    -DBRLCAD_BUNDLED_LIBS=BUNDLED \
-    -DBRLCAD_GDAL=OFF \
-    -DBRLCAD_PNG=OFF \
-    -DBRLCAD_REGEX=OFF \
-    -DBRLCAD_ZLIB=OFF \
-    -DBRLCAD_ENABLE_OPENGL=ON \
-    -DBRLCAD_ENABLE_QT=ON \
-    -DBRLCAD_ENABLE_TCL=OFF
-
+  if [ -d build/bext/.git ]; then
+    #Discard local changes in the main repository
+    cd build/bext
+    git reset --hard HEAD
+    git clean -fd
+    # Discard local changes in all submodules
+    git submodule foreach --recursive git reset --hard HEAD
+    git submodule foreach --recursive git clean -fd
+    cd ../..
+  else
+    git clone --depth 1 -b "${_tag_name}" https://github.com/BRL-CAD/bext.git build/bext
+    cd build/bext
+    git submodule update --depth 1 --init geogram
+    git submodule update --depth 1 --init tkhtml
+    git submodule update --depth 1 --init manifold
+    git submodule update --depth 1 --init itk
+    cd ../../
+  fi
+  patch -Np0 -i ../build.patch -d $pkgname-${pkgver}
+  patch -Np0 -i ../slacon_idamax_isamax.patch
+  patch -Np0 -i ../htmlprop_unsigned.patch
+  patch -Np0 -i ../clipper_core_h.patch
+  patch -Np0 -i ../tkhtml_table_cast.patch
+  patch -Np0 -i ../htmltree_node_explicit.patch
+  patch -Np0 -i ../htmltree_more_node_patches.patch
+  patch -Np0 -i ../itk_archetype_const.patch
+  patch -Np0 -i ../itk_archetype_const_second.patch
+  patch -Np0 -i ../no_optimise_nurbs.patch 
+  patch -Np1 -i ../force_tclsh_path.patch -d $pkgname-$pkgver
+  patch -Np1 -i ../gdal_stringsh.patch -d $pkgname-$pkgver
 }
 
 build() {
-  cmake --build "${srcdir}/build" --config "${_build_config}"
+  cd build
+
+  # Define CMake flags as a Bash array
+  cmake_flags=(
+    "-DCMAKE_INSTALL_PREFIX=${_prefix}"
+    "-DCMAKE_BUILD_TYPE=${_build_config}"
+    "-DBRLCAD_EXT_SOURCE_DIR=build/bext"
+    "-DCMAKE_BUILD_TYPE=Release"
+    "-DBRLCAD_WARNINGS=OFF"
+    "-DBRLCAD_ENABLE_STRICT=OFF"
+    "-DBRLCAD_EXTRADOCS=OFF"
+    "-DBRLCAD_ENABLE_OPENGL=ON"
+    "-DBRLCAD_ENABLE_QT=ON"
+    "-Wno-dev"
+  )
+
+  # Check if the 'bext_output' directory exists
+  if [ -d "bext_output" ]; then
+    cmake_flags+=("-DBRLCAD_EXT_DIR=./bext_output")
+  fi
+
+  # Call cmake with the flags
+  cmake ../"$pkgname-$pkgver" "${cmake_flags[@]}"
 
   echo \
     "export PATH=\"\$PATH:${_prefix}/bin\"" \
@@ -65,20 +111,7 @@ build() {
 }
 
 package() {
-  cmake \
-    --install "${srcdir}/build" \
-    --config "${_build_config}" \
-    --prefix "${pkgdir}${_prefix}"
-
-  install \
-    -D \
-    --mode=u=rw,go=r \
-    "--target-directory=${pkgdir}/usr/share/licenses/${pkgname}" \
-    "${srcdir}/build/share/doc/legal/"{bdl,bsd}.txt
-
-  install \
-    -D \
-    --mode=u=rw,go=r \
-    "--target-directory=${pkgdir}/etc/profile.d" \
-    "${srcdir}/build/${pkgname}.sh"
+  cd build
+  make DESTDIR=$pkgdir install
+  exit 1
 }

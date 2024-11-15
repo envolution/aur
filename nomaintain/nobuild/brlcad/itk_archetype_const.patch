@@ -1,0 +1,14 @@
+--- ./build/bext/itk/itk/generic/itk_archetype.c	2024-11-15 01:31:54.483289837 -0500
++++ ./build/bext/itk/itk/generic/itk_archetype.c_patched	2024-11-15 01:37:22.387289138 -0500
+@@ -3971,9 +3971,9 @@
+     char *options;               /* string description of config options */
+ {
+     int confc;
+-    char **confv = NULL;
++    const char **confv = NULL;
+     int optc;
+-    char **optv = NULL;
++    const char **optv = NULL;
+ 
+     int i, newEntry;
+     Tcl_HashTable *tPtr;

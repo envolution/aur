@@ -20,5 +20,5 @@ post_install() {
 post_upgrade() {
   note 'Since version 1.7.2'
   note '-------------------'
-  note 'config.yml codai config files have been renamed to codai-config.yml.  You should rename these where they esist'
+  note 'config.yml codai config files have been renamed to codai-config.yml.  You should rename these where they exist'
 }

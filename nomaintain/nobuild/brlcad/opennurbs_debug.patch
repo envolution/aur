@@ -1,0 +1,184 @@
+--- ./build/bext/opennurbs/opennurbs/opennurbs_array.cpp	2024-11-16 01:15:15.869840361 -0500
++++ ./build/bext/opennurbs/opennurbs/opennurbs_array.cpp_patch	2024-11-16 01:19:17.682417764 -0500
+@@ -1134,60 +1134,68 @@
+ 
+ void ON_UuidPtrList::ImproveSearchSpeed()
+ {
+-  if ( ((unsigned int)m_count) > m_sorted_count )
+-  {
+-    QuickSort(compar_uuidptr_uuid);
+-    if ( m_removed_count > 0 )
++    // Handle empty/default initialized cases
++    if (!m_a || m_count <= 0)
++        return;
++
++    // Ensure m_sorted_count has a valid value even if uninitialized
++    if (m_sorted_count < 0)
++        m_sorted_count = 0;
++
++    if (m_count > m_sorted_count)
+     {
+-      // cull removed items.  These get sorted to the
+-      // end because the removed uuid is the largest
+-      // possible uuid.
+-      ON_UuidPtr removed_uuid;
+-      removed_uuid.m_id = ON_max_uuid;
+-      removed_uuid.m_ptr = 0;
+-      while ( m_count > 0 && !compar_uuidptr_uuid(&removed_uuid,m_a+(m_count-1)))
+-      {
+-        m_count--;
+-      }
+-      m_removed_count = 0;
++        QuickSort(compar_uuidptr_uuid);
++        if (m_removed_count > 0)
++        {
++            ON_UuidPtr removed_uuid;
++            removed_uuid.m_id = ON_max_uuid;
++            removed_uuid.m_ptr = 0;
++            
++            while (m_count > 0 && !compar_uuidptr_uuid(&removed_uuid, m_a+(m_count-1)))
++            {
++                m_count--;
++            }
++            m_removed_count = 0;
++        }
++        m_sorted_count = m_count;
+     }
+-    m_sorted_count = m_count;
+-  }
+ }
+ 
+ ON_UuidPtr* ON_UuidPtrList::SearchHelper(const ON_UUID* uuid) const
+ {
+-  if ( m_count - m_sorted_count > 8 || m_removed_count > 0 )
+-  {
+-    // time to resort the array so that the speedy
+-    // bsearch() can be used to find uuids
+-    const_cast<ON_UuidPtrList*>(this)->ImproveSearchSpeed();
+-  }
++    // Guard against null input and invalid state
++    if (!uuid || m_count < 0 || m_sorted_count < 0 || !m_a)
++        return nullptr;
+ 
+-  ON_UuidPtr* p = (m_sorted_count > 0 )
+-                   ? (ON_UuidPtr*)bsearch( uuid, m_a, m_sorted_count, 
+-                                        sizeof(m_a[0]), 
+-                                        (int(*)(const void*,const void*))compar_uuidptr_uuid ) 
+-                   : 0;
+-  if (0 == p)
+-  {
+-    // do a slow search on the last m_count-m_sort_count elements
+-    // in the array.
+-    int i;
+-    for ( i = m_sorted_count; i < m_count; i++ )
++    // Check if resorting is needed
++    if ((m_count - m_sorted_count > 8 || m_removed_count > 0) && m_count > 0)
+     {
+-      if ( 0 == ON_UuidList::CompareUuid(uuid,&m_a[i].m_id) )
+-      {
+-        p = m_a+i;
+-        break;
+-      }
++        // time to resort the array so that the speedy
++        // bsearch() can be used to find uuids
++        const_cast<ON_UuidPtrList*>(this)->ImproveSearchSpeed();
+     }
+-  }
+ 
+-  return p;
+-}
++    ON_UuidPtr* p = (m_sorted_count > 0)
++        ? (ON_UuidPtr*)bsearch(uuid, m_a, m_sorted_count,
++                              sizeof(m_a[0]),
++                              (int(*)(const void*,const void*))compar_uuidptr_uuid)
++        : nullptr;
+ 
++    if (!p)
++    {
++        // do a slow search on the last m_count-m_sort_count elements
++        for (int i = m_sorted_count; i < m_count; i++)
++        {
++            if (0 == ON_UuidList::CompareUuid(uuid, &m_a[i].m_id))
++            {
++                p = m_a + i;
++                break;
++            }
++        }
++    }
+ 
++    return p;
++}
+ 
+ ON_UuidPairList::ON_UuidPairList() 
+ : ON_SimpleArray<ON_UuidPair>(32)
+@@ -1474,42 +1482,45 @@
+ 
+   return p;
+ }
+-
+ void ON_UuidList::RemapUuids( const ON_SimpleArray<ON_UuidPair>& uuid_remap )
+ {
+-  if( m_count > 0 && uuid_remap.Count() > 0 )
+-  {
++    if (m_count <= 0 || uuid_remap.Count() <= 0)
++        return;
++
++    // Add safety checks but keep original behavior
++    static_assert(sizeof(ON_UUID) <= sizeof(ON_UuidPair), "UUID size assumption violated");
++    static_assert(offsetof(ON_UuidPair, m_uuid[0]) == 0, "UUID layout assumption violated");
++
+     bool bRemapped = false;
+     int i, j;
+-    for ( i = 0; i < m_count; i++ )
++    for (i = 0; i < m_count; i++)
+     {
+-      j = uuid_remap.BinarySearch( (const ON_UuidPair*)&m_a[i], ON_UuidPair::CompareFirstUuid );
+-      if ( j >= 0 )
+-      {
+-        if ( ON_max_uuid == m_a[i] )
+-          continue;
+-        m_sorted_count = 0;
+-        bRemapped = true;
+-        m_a[i] = uuid_remap[j].m_uuid[1];
+-        if ( ON_max_uuid == m_a[i] )
+-          m_removed_count++;
+-      }
++        j = uuid_remap.BinarySearch((const ON_UuidPair*)&m_a[i], ON_UuidPair::CompareFirstUuid);
++        if (j >= 0)
++        {
++            if (ON_max_uuid == m_a[i])
++                continue;
++            m_sorted_count = 0;
++            bRemapped = true;
++            m_a[i] = uuid_remap[j].m_uuid[1];
++            if (ON_max_uuid == m_a[i])
++                m_removed_count++;
++        }
+     }
+ 
+-    if ( bRemapped )
++    if (bRemapped)
+     {
+-      m_sorted_count = 0;
+-      SortHelper();
+-      for ( i = m_count-1; i > 0; i-- )
+-      {
+-        if ( m_a[i] == m_a[i-1] )
++        m_sorted_count = 0;
++        SortHelper();
++        for (i = m_count-1; i > 0; i--)
+         {
+-          Remove(i);
+-          m_sorted_count--;
++            if (m_a[i] == m_a[i-1])
++            {
++                Remove(i);
++                m_sorted_count--;
++            }
+         }
+-      }
+     }
+-  }
+ }
+ 
+ int ON_UuidList::GetUuids(

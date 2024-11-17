@@ -28,6 +28,7 @@ source=(
   'gdal_stringsh.patch'
   'force_tclsh_path.patch'
   'no_optimise_nurbs.patch'
+  'opennurbs_debug.patch'
   "https://github.com/BRL-CAD/${pkgname}/releases/download/${_tag_name}/${pkgname}-${pkgver}.tar.bz2"
 )
 sha256sums=('74e8dc6bec7e83359439dc05d9f53105f487544ae61af19fca5658cc8f0d56d9'
@@ -42,6 +43,7 @@ sha256sums=('74e8dc6bec7e83359439dc05d9f53105f487544ae61af19fca5658cc8f0d56d9'
             '2e44f8ccb3889fdca8e4b0b59f46bf18d9bf8450cff438aa14435ba36a3f5e3d'
             'fdddf1e2cf1ad880a2a8f694a92b7d8db6571051ca53bc13ee5aee9ea629a331'
             '4a8993c6867fd087d73a96350bc144edd12e007f38c8c20fc9848e1cf34c631b'
+            '91c92d2aac2c1990fd92c740e74c5f92d1e2002dd5617687b1bf95f25c0d06f4'
             'da444502029791d2c074fc3826b8c32fec9afd7e762d19cd9797279ad691b809')
 
 _build_config='Release'
@@ -64,9 +66,11 @@ prepare() {
     git submodule update --depth 1 --init tkhtml
     git submodule update --depth 1 --init manifold
     git submodule update --depth 1 --init itk
+    git submodule update --depth 1 --init opennurbs
     cd ../../
   fi
-  patch -Np0 -i ../build.patch -d $pkgname-${pkgver}
+  pwd
+#  patch -Np0 -i ../build.patch -d $pkgname-${pkgver}
   patch -Np0 -i ../slacon_idamax_isamax.patch
   patch -Np0 -i ../htmlprop_unsigned.patch
   patch -Np0 -i ../clipper_core_h.patch
@@ -75,20 +79,21 @@ prepare() {
   patch -Np0 -i ../htmltree_more_node_patches.patch
   patch -Np0 -i ../itk_archetype_const.patch
   patch -Np0 -i ../itk_archetype_const_second.patch
-  patch -Np0 -i ../no_optimise_nurbs.patch 
-  patch -Np1 -i ../force_tclsh_path.patch -d $pkgname-$pkgver
+  patch -Np0 -i ../opennurbs_debug.patch
+  #patch -Np0 -i ../no_optimise_nurbs.patch 
+  #patch -Np1 -i ../force_tclsh_path.patch -d $pkgname-$pkgver
   patch -Np1 -i ../gdal_stringsh.patch -d $pkgname-$pkgver
 }
 
 build() {
   cd build
-
   # Define CMake flags as a Bash array
   cmake_flags=(
     "-DCMAKE_INSTALL_PREFIX=${_prefix}"
     "-DCMAKE_BUILD_TYPE=${_build_config}"
-    "-DBRLCAD_EXT_SOURCE_DIR=build/bext"
-    "-DCMAKE_BUILD_TYPE=Release"
+    "-DBRLCAD_EXT_SOURCE_DIR=$srcdir/build/bext"
+#    "-DCMAKE_BUILD_TYPE=Release"
+    "-DCMAKE_BUILD_TYPE=Debug"
     "-DBRLCAD_WARNINGS=OFF"
     "-DBRLCAD_ENABLE_STRICT=OFF"
     "-DBRLCAD_EXTRADOCS=OFF"
@@ -99,7 +104,7 @@ build() {
 
   # Check if the 'bext_output' directory exists
   if [ -d "bext_output" ]; then
-    cmake_flags+=("-DBRLCAD_EXT_DIR=./bext_output")
+    cmake_flags+=("-DBRLCAD_EXT_DIR=bext_output")
   fi
 
   # Call cmake with the flags

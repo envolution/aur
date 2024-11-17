@@ -6,8 +6,8 @@ on:
 
 jobs:
   arch-task:
-    runs-on: ubuntu-latest
-  #  runs-on: self-hosted
+  #  runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: archlinux:latest
       options: --privileged

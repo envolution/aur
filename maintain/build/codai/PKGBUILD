@@ -2,7 +2,7 @@
 
 pkgname=codai
 pkgver=1.7.2
-pkgrel=1
+pkgrel=2
 pkgdesc="AI code assistant that helps developers through a session CLI"
 arch=("x86_64")
 url="https://github.com/meysamhadeli/codai"

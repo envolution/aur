@@ -15,7 +15,7 @@ depends=('python'
          'python-beautifulsoup4'
          'python-gtkspellcheck'
          'webkitgtk-6.0'
-         'wkhtmltopdf')
+         'wkhtmltopdf-static')
 options=('!emptydirs' '!strip')
 install="${pkgname}.install"
 source=(

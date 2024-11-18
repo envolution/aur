@@ -1,0 +1,30 @@
+pkgbase = sup
+	pkgdesc = Console-based email client for people with a lot of email. Great mutt alternative.
+	pkgver = 1.2
+	pkgrel = 3
+	url = http://sup-heliotrope.github.io/
+	arch = any
+	license = GPL-2.0-or-later
+	makedepends = ruby-rake
+	depends = ruby
+	depends = ruby-chronic
+	depends = ruby-highline
+	depends = ruby-locale>=2.0
+	depends = ruby-locale<3
+	depends = ruby-lockfile
+	depends = ruby-mime-types>2.0
+	depends = ruby-ncursesw>=1.4.0
+	depends = ruby-ncursesw<1.5
+	depends = ruby-optimist
+	depends = ruby-rmail>=1.1.2
+	depends = ruby-rmail<2
+	depends = ruby-unicode>=0.4.4
+	depends = ruby-unicode<0.5
+	depends = ruby-unicode-display_width
+	depends = ruby-xapian-ruby
+	optdepends = ruby-gpgme>=2.0.2: PGP support
+	noextract = sup-1.2.gem
+	source = https://rubygems.org/downloads/sup-1.2.gem
+	b2sums = 2ec78cfd84973671759479a9197355903e881ef5f1324c9946b785711eeff1fce3a2dbea993dedf90d0b37dad95fa07051d627e587515e9c54193206eabcb14e
+
+pkgname = sup

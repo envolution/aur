@@ -1,4 +1,3 @@
 [cycle-git]
 source="cmd"
-cmd="~/nvchecker/github_version.sh metlov cycle" 
-prefix="v"
+cmd="~/nvchecker/github_version.py metlov/cycle --releases -strip v"

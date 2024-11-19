@@ -95,8 +95,8 @@ jobs:
           # Example environment setup
           sudo -u builder mkdir -p /home/builder/nvchecker
           cd /home/builder/nvchecker
-          [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
-            cp ${GITHUB_WORKSPACE}/github_version.sh /home/builder/nvchecker
+          [ -f ${GITHUB_WORKSPACE}/github_version.py ] && \
+            cp ${GITHUB_WORKSPACE}/github_version.py /home/builder/nvchecker
           [ -f ${GITHUB_WORKSPACE}/github_json.sh ] && \
             cp ${GITHUB_WORKSPACE}/github_json.sh /home/builder/nvchecker
 

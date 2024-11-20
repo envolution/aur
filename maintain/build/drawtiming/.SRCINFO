@@ -8,7 +8,6 @@ pkgbase = drawtiming
 	makedepends = autoconf
 	depends = imagemagick
 	depends = gsfonts
-	depends = gsfonts
 	depends = ghostscript
 	options = !lto
 	options = !debug

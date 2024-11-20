@@ -1,3 +1,3 @@
 [clamav-git]
 source="cmd"
-cmd="~/nvchecker/github_version.sh Cisco-Talos clamav clamav-"
+cmd="~/nvchecker/github_version.py Cisco-Talos/clamav -strip clamav- --releases"

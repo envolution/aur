@@ -95,8 +95,8 @@ jobs:
           # Example environment setup
           sudo -u builder mkdir -p /home/builder/nvchecker
           cd /home/builder/nvchecker
-          [ -f ${GITHUB_WORKSPACE}/github_version.sh ] && \
-            cp ${GITHUB_WORKSPACE}/github_version.sh /home/builder/nvchecker
+          [ -f ${GITHUB_WORKSPACE}/github_version.py ] && \
+            cp ${GITHUB_WORKSPACE}/github_version.py /home/builder/nvchecker
           [ -f ${GITHUB_WORKSPACE}/github_json.sh ] && \
             cp ${GITHUB_WORKSPACE}/github_json.sh /home/builder/nvchecker
 
@@ -118,7 +118,6 @@ jobs:
           curHOME=$HOME
           HOME=/home/builder
           nvchecker -c new.toml  --logger json > newver.json
-          ls -latr ~/nvchecker/github_version.sh 
           HOME=curHOME
           ls -latr newver.json oldver.json new.toml
           cat newver.json

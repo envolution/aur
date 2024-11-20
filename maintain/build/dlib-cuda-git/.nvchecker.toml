@@ -1,4 +1,3 @@
 [dlib-cuda-git]
 source="cmd"
-cmd="~/nvchecker/github_version.sh davisking dlib"
-prefix="v"
+cmd="~/nvchecker/github_version.py davisking/dlib --releases -strip v"

@@ -1,0 +1,3 @@
+[remmina-git]
+source="cmd"
+cmd="~/nvchecker/github_version.py FreeRDP/Remmina --tags -strip v"

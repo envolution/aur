@@ -50,7 +50,7 @@ class GitHubAPI:
             "User-Agent": "github-version-script"
         })
         if token:
-            self.session.headers["Authorization"] = f"token {token}"
+            self.session.headers["Authorization"] = f"Bearer {token}"
 
     def _get_api_url(self, endpoint: str) -> str:
         """Construct full API URL."""
@@ -63,6 +63,7 @@ class GitHubAPI:
         url = self._get_api_url(endpoint)
         try:
             response = self.session.get(url)
+            
             if response.status_code == 403 and int(response.headers.get("X-RateLimit-Remaining", 1)) == 0:
                 raise GitHubRateLimitError(int(response.headers.get("X-RateLimit-Reset", 0)))
             if response.status_code == 404:

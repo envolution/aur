@@ -35,7 +35,7 @@ jobs:
           pacman -S --noconfirm --needed git base-devel pacman-contrib \
             openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg \
             pyalpm python-awesomeversion python-packaging python-lxml \
-            python-jq python-gobject python-requests libnotify
+            python-jq python-gobject python-requests libnotify nvchecker
 
       - name: Setup non-root user for AUR
         run: |
@@ -82,15 +82,17 @@ jobs:
           sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
           sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"          
 
+      - name: Load NVChecker Script 
+        run: |
+          pacman -S nvchecker
+          site_packages=$(python3 -c "import site; print('\n'.join(site.getsitepackages()))")
+          [ -f ${GITHUB_WORKSPACE}/github-test.py ] && \
+            cp ${GITHUB_WORKSPACE}/github-test.py ${site_packages}/nvchecker_source/
 
       - name: Run task
         run: |
           #!/bin/bash
           set -euo pipefail
-          
-          # Your task logic goes here
-          echo "Starting task..."
-          paru -S --noconfirm nvchecker
           
           # Example environment setup
           sudo -u builder mkdir -p /home/builder/nvchecker
@@ -124,6 +126,7 @@ jobs:
           HOME=curHOME
           cat newver.json
           nvcmp -c new.toml
+
           #mapfile -t DOWNGRADES < <(jq -r 'to_entries | map(select(.value.status == "downgrade") | .key) | .[]' changes.json)
           mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json)
           echo "[debug] List of packages with UPGRADES scheduled from REPO -> AUR:"

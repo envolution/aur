@@ -97,18 +97,15 @@ jobs:
           cd /home/builder/nvchecker
           [ -f ${GITHUB_WORKSPACE}/github_version.py ] && \
             cp ${GITHUB_WORKSPACE}/github_version.py /home/builder/nvchecker
-          [ -f ${GITHUB_WORKSPACE}/github_json.sh ] && \
-            cp ${GITHUB_WORKSPACE}/github_json.sh /home/builder/nvchecker
+          [ -f ${GITHUB_WORKSPACE}/compare_aur_local_versions.py ] && \
+            cp ${GITHUB_WORKSPACE}/compare_aur_local_versions.py /home/builder/nvchecker
 
-          mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/github_json.sh ${AUR_MAINTAINER_NAME} "${GITHUB_WORKSPACE}")
-          echo '[debug] differences from local to AUR'
-          printf '%s\n' "${LOCALCHANGES[@]}"
-          cat combined.json
+          mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/compare_aur_local_versions.py --maintainer ${AUR_MAINTAINER_NAME} --repo-root "${GITHUB_WORKSPACE}")
 
           FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
           echo '[__config__]' > new.toml
-          echo -e "oldver='oldver.json'" >> new.toml
-          echo -e "newver='newver.json'\n" >> new.toml
+          echo -e "oldver='aur.json'" >> new.toml
+          echo -e "newver='local.json'\n" >> new.toml
 
           for FILE in $FILES; do
             cat "$FILE" >> new.toml

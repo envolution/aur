@@ -221,10 +221,9 @@ def main():
             print(f"    Status: {diff['status'].upper()}")
         
         # Initialize all the data dictionaries with the same starting value
-        combined_data = aur_data = local_data = {
-            "version": 2,
-            "data": {}
-        }
+        combined_data = {"version": 2, "data": {}}
+        aur_data = {"version": 2, "data": {}}
+        local_data = {"version": 2, "data": {}}
 
         # Iterate through AUR packages and check if they exist in the workspace
         for pkg, aur_pkg_data in aur_packages.items():

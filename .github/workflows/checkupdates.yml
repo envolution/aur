@@ -116,7 +116,6 @@ jobs:
           HOME=/home/builder
           nvchecker -c new.toml  --logger json > newver.json
           HOME=curHOME
-          ls -latr newver.json oldver.json new.toml
           cat newver.json
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)

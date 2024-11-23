@@ -100,7 +100,7 @@ jobs:
           [ -f ${GITHUB_WORKSPACE}/compare_aur_local_versions.py ] && \
             cp ${GITHUB_WORKSPACE}/compare_aur_local_versions.py /home/builder/nvchecker
 
-          mapfile -t LOCALCHANGES < <(/home/builder/nvchecker/compare_aur_local_versions.py --maintainer ${AUR_MAINTAINER_NAME} --repo-root "${GITHUB_WORKSPACE}")
+          python /home/builder/nvchecker/compare_aur_local_versions.py --maintainer ${AUR_MAINTAINER_NAME} --repo-root "${GITHUB_WORKSPACE}"
 
           FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
           echo '[__config__]' > new.toml
@@ -111,23 +111,22 @@ jobs:
             cat "$FILE" >> new.toml
             echo -e "\n" >> new.toml
           done
+          echo "[debug] new.toml"
           cat new.toml
+          echo "[debug] aur.json"
+          cat aur.json
+          echo "[debug] local.json"
+          cat local.json
+
           curHOME=$HOME
           HOME=/home/builder
-          nvchecker -c new.toml  --logger json > newver.json
+          nvchecker -c new.toml --logger json > newver.json
           HOME=curHOME
           cat newver.json
           nvcmp -c new.toml
           readarray -t UPDATES < <(nvcmp -c new.toml -q)
           cd $GITHUB_WORKSPACE
-          UNIQUEUPDATES=($(printf "%s\n" "${LOCALCHANGES[@]}" "${UPDATES[@]}" | sort -u))
-          echo "LOCALCHANGES LIST:"
-          printf '%s\n' "${LOCALCHANGES[@]}"
-          echo "UPDATES LIST:"
-          printf '%s\n' "${UPDATES[@]}"
-          echo "UNIQUE LIST:"
-          printf '%s\n' "${UNIQUEUPDATES[@]}"
-          for foundpath in ${UNIQUEUPDATES[@]}; do
+          for foundpath in ${UPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
             if [ ${#subdirs[@]} -gt 1 ]; then
               echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."
@@ -138,7 +137,7 @@ jobs:
               echo "subdirs pre split: ${subdirs} without ./ = ${subdirs:2}"
               IFS='/' read -r -a _package <<< "${subdirs:2}"
               echo "[debug] Packages that will attempt to update:"
-              printf '%s\n' "${UNIQUEUPDATES[@]}"
+              printf '%s\n' "${UPDATES[@]}"
               maintain=${_package[0]}
               build=${_package[1]}
               package=${_package[2]}

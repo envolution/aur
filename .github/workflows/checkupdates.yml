@@ -35,7 +35,7 @@ jobs:
           pacman -S --noconfirm --needed git base-devel pacman-contrib \
             openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg \
             pyalpm python-awesomeversion python-packaging python-lxml \
-            python-jq python-gobject libnotify
+            python-jq python-gobject python-requests libnotify
 
       - name: Setup non-root user for AUR
         run: |

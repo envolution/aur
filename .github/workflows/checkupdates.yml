@@ -84,7 +84,6 @@ jobs:
 
       - name: Load NVChecker Script 
         run: |
-          pacman -S nvchecker
           site_packages=$(python3 -c "import site; print('\n'.join(site.getsitepackages()))")
           [ -f ${GITHUB_WORKSPACE}/github-test.py ] && \
             cp ${GITHUB_WORKSPACE}/github-test.py ${site_packages}/nvchecker_source/

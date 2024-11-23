@@ -124,8 +124,8 @@ jobs:
           HOME=curHOME
           cat newver.json
           nvcmp -c new.toml
-          #mapfile -t DOWNGRADES < <(jq -r 'to_entries | map(select(.value.status == "DOWNGRADE") | .key) | .[]' changes.json)
-          mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "UPGRADE") | .key) | .[]' changes.json)
+          #mapfile -t DOWNGRADES < <(jq -r 'to_entries | map(select(.value.status == "downgrade") | .key) | .[]' changes.json)
+          mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json)
           echo "[debug] List of packages with UPGRADES scheduled from REPO -> AUR:"
           for pkg in "${UPGRADES[@]}"; do
               echo "[debug] $pkg"

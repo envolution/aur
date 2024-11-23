@@ -151,9 +151,9 @@ def compare_versions(ver1: str, ver2: str) -> str:
         v1 = version.parse(ver1)
         v2 = version.parse(ver2)
         if v1 > v2:
-            return "upgrade"
-        elif v1 < v2:
             return "downgrade"
+        elif v1 < v2:
+            return "upgrade"
         return "same"
     except Exception as e:
         logging.error(f"Error comparing versions {ver1} vs {ver2}: {str(e)}")
@@ -169,13 +169,19 @@ def analyze_packages(aur_packages: Dict, workspace_packages: Dict) -> Tuple[Set,
     
     for pkg in common_packages:
         aur_ver = aur_packages[pkg]['version']
+        aur_rel = aur_packages[pkg]['release']
         workspace_ver = workspace_packages[pkg]['pkgbuildversion']
-        
-        if aur_ver != workspace_ver:
+        workspace_rel = workspace_packages[pkg]['pkgbuildrel']
+        #
+        # Concatenate version and release to form full version strings
+        aur_full_version = f"{aur_ver}-{aur_rel}"
+        workspace_full_version = f"{workspace_ver}-{workspace_rel}" 
+
+        if aur_full_version != workspace_full_version:
             version_differences[pkg] = {
-                'aur_version': aur_ver,
-                'workspace_version': workspace_ver,
-                'status': compare_versions(aur_ver, workspace_ver)
+                'aur_version': aur_full_version,
+                'workspace_version': workspace_full_version,
+                'status': compare_versions(aur_full_version, workspace_full_version)
             }
     
     return aur_only, workspace_only, version_differences
@@ -240,13 +246,11 @@ def main():
                 # Store AUR-specific data in aur_data
                 aur_data["data"][pkg] = {
                     "version": aur_pkg_data.get("version"),
-                    "release": aur_pkg_data.get("release"),
                 }
                 
                 # Store workspace-specific data in local_data
                 local_data["data"][pkg] = {
-                    "pkgbuildversion": workspace_pkg_data.get("pkgbuildversion"),
-                    "pkgbuildrel": workspace_pkg_data.get("pkgbuildrel"),
+                    "version": workspace_pkg_data.get("pkgbuildversion"),
                 }
 
         # Write the combined data (AUR + workspace) to combined.json
@@ -261,6 +265,10 @@ def main():
         with open('local.json', 'w') as f:
             json.dump(local_data, f, indent=2)   
         
+        # Write the original version_differences (with full details) to 'changes.json'
+        with open('changes.json', 'w') as f:
+            json.dump(version_differences, f, indent=2)
+
         logging.info("Analysis complete. Results saved to combined.json")
         
     except Exception as e:

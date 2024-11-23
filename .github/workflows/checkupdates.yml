@@ -124,7 +124,23 @@ jobs:
           HOME=curHOME
           cat newver.json
           nvcmp -c new.toml
-          readarray -t UPDATES < <(nvcmp -c new.toml -q)
+          #mapfile -t DOWNGRADES < <(jq -r 'to_entries | map(select(.value.status == "DOWNGRADE") | .key) | .[]' changes.json)
+          mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "UPGRADE") | .key) | .[]' changes.json)
+          echo "[debug] List of packages with UPGRADES scheduled from REPO -> AUR:"
+          for pkg in "${UPGRADES[@]}"; do
+              echo "[debug] $pkg"
+          done
+          readarray -t NVCUPDATES < <(nvcmp -c new.toml -q)
+          echo "[debug] List of packages in with UPGRADES scheduled from NVCHECKER:"
+          for pkg in "${NVCUPDATES[@]}"; do
+              echo "[debug] $pkg"
+          done
+          UPDATES=($(echo "${UPGRADES[@]}" "${NVCUPDATES[@]}" | tr ' ' '\n' | sort -u))
+          echo "[debug] List of packages in the concatenated array:"
+          for pkg in "${concatenated_array[@]}"; do
+              echo "[debug] $pkg"
+          done
+
           cd $GITHUB_WORKSPACE
           for foundpath in ${UPDATES[@]}; do
             subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))

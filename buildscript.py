@@ -312,8 +312,23 @@ class ArchPackageBuilder:
     def run(self) -> Dict[str, Any]:
         """Run the complete build process."""
         try:
-            if not self.authenticate_github():
-                raise Exception("GitHub authentication failed")
+            try:
+                result = self._run_command(['gh', 'auth', 'status'])
+                # If no exception was raised, the user is authenticated
+                self.logger.info("User is authenticated.")
+                is_authenticated = True
+            except subprocess.CalledProcessError as e:
+                # If the command fails, it means the user is not authenticated
+                if e.returncode == 1:
+                    self.logger.info("User is not authenticated.")
+                    is_authenticated = False
+                else:
+                    self.logger.error(f"Unexpected error during authentication check: {e}")
+                    is_authenticated = None
+
+            if is_authenticated is not True:
+                if not self.authenticate_github():
+                    raise Exception("GitHub authentication failed")
 
             self.setup_build_environment()
             self.collect_package_files()

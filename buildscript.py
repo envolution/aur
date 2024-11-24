@@ -69,10 +69,10 @@ class ArchPackageBuilder:
                 stderr_lines = []
                 for stdout_line in iter(proc.stdout.readline, ""):
                     stdout_lines.append(stdout_line)
-                    self.logger.debug(stdout_line, end="")  # Stream stdout to logs or terminal
+                    self.logger.debug(stdout_line.strip())  # Stream stdout to logs or terminal
                 for stderr_line in iter(proc.stderr.readline, ""):
                     stderr_lines.append(stderr_line)
-                    self.logger.debug(stderr_line, end="")  # Stream stderr to logs or terminal
+                    self.logger.debug(stderr_line.strip())  # Stream stderr to logs or terminal
                 
                 # Wait for the process to complete
                 proc.stdout.close()
@@ -170,7 +170,7 @@ class ArchPackageBuilder:
             for array in depends makedepends checkdepends validpgpkeys pkgname; do
                 # Check if the array exists, if not, initialize it as empty
                 if declare -p "$array" &>/dev/null; then
-                    eval "values=(\"\${${array}[@]}\")"
+                    eval "values=(\"${${array}[@]}\")"
                 else
                     values=()
                 fi

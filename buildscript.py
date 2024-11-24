@@ -147,26 +147,15 @@ class ArchPackageBuilder:
         """Parse PKGBUILD file to extract package information."""
         parse_script = '''
             source PKGBUILD
-            # Print the relevant arrays to ensure they are populated
-            echo "Depends: ${depends[@]}"
-            echo "===SEPARATOR==="
             printf "%s\n" "${depends[@]}"
-
-            echo "Makedeps: ${makedepends[@]}"
-            echo "===SEPARATOR==="
+            printf "===SEPARATOR===\n"
             printf "%s\n" "${makedepends[@]}"
-
-            echo "Checkdeps: ${checkdepends[@]}"
-            echo "===SEPARATOR==="
+            printf "===SEPARATOR===\n"
             printf "%s\n" "${checkdepends[@]}"
-
-            echo "PGP Keys: ${validpgpkeys[@]}"
-            echo "===SEPARATOR==="
+            printf "===SEPARATOR===\n"
             printf "%s\n" "${validpgpkeys[@]}"
-
-            echo "Package Name: ${pkgname[@]}"
-            echo "===SEPARATOR==="
-            printf "%s\n" "${pkgname[@]}"
+            printf "===SEPARATOR===\n"
+            printf "%s\n" "${pkgname[@]}"            
         '''
 
         try:

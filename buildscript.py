@@ -214,6 +214,8 @@ class ArchPackageBuilder:
         """Build and optionally install the package."""
         if self.config.build_mode not in ['build', 'test']:
             return True
+        
+        self.logger.debug(f"pkg_info: {pkg_info}")  # Log the entire pkg_info dict
 
         # Install dependencies
         for dep_type in ['depends', 'makedepends', 'checkdepends']:

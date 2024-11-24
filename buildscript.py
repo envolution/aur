@@ -149,12 +149,15 @@ class ArchPackageBuilder:
             source PKGBUILD
             function join_by { local IFS="$1"; shift; echo "$*"; }
             for array in depends makedepends checkdepends validpgpkeys pkgname; do
-                # Ensure the variable exists and is an array
-                declare -a "$array" || declare -a "$array"=()
-                eval "values=(\"\${${array}[@]}\")"
+                # Check if the array exists, if not, initialize it as empty
+                if declare -p "$array" &>/dev/null; then
+                    eval "values=(\"\${${array}[@]}\")"
+                else
+                    values=()
+                fi
                 join_by $'\n' "${values[@]}"
                 printf "===SEPARATOR===\n"
-            done            
+            done
         '''
         try:
             # Run the bash script and capture stdout and stderr for debugging

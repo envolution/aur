@@ -140,31 +140,35 @@ class ArchPackageBuilder:
         """Parse PKGBUILD file to extract package information."""
         parse_script = '''
             source PKGBUILD
-            printf "%s\n" "${source[@]}"
+            printf "%s\n" "${source[@]:-}"
             printf "===SEPARATOR===\n"
-            printf "%s\n" "${depends[@]}"
+            printf "%s\n" "${depends[@]:-}"
             printf "===SEPARATOR===\n"
-            printf "%s\n" "${makedepends[@]}"
+            printf "%s\n" "${makedepends[@]:-}"
             printf "===SEPARATOR===\n"
-            printf "%s\n" "${checkdepends[@]}"
+            printf "%s\n" "${checkdepends[@]:-}"
             printf "===SEPARATOR===\n"
-            printf "%s\n" "${validpgpkeys[@]}"
+            printf "%s\n" "${validpgpkeys[@]:-}"
             printf "===SEPARATOR===\n"
-            printf "%s\n" "${pkgname[@]}"
+            printf "%s\n" "${pkgname[@]:-}"
         '''
         
         try:
             result = self._run_command(['bash', '-c', parse_script])
+            
+            # Split the output by the separator
             sections = result.stdout.split("===SEPARATOR===\n")
             
+            # Prepare the result dictionary
             return {
                 'sources': [s for s in sections[0].splitlines() if s],
-                'depends': [s for s in sections[1].splitlines() if s],
-                'makedepends': [s for s in sections[2].splitlines() if s],
-                'checkdepends': [s for s in sections[3].splitlines() if s],
-                'pgpkeys': [s for s in sections[4].splitlines() if s],
-                'packages': [s for s in sections[5].splitlines() if s]
+                'depends': [s for s in sections[1].splitlines() if s] if len(sections) > 1 else [],
+                'makedepends': [s for s in sections[2].splitlines() if s] if len(sections) > 2 else [],
+                'checkdepends': [s for s in sections[3].splitlines() if s] if len(sections) > 3 else [],
+                'pgpkeys': [s for s in sections[4].splitlines() if s] if len(sections) > 4 else [],
+                'packages': [s for s in sections[5].splitlines() if s] if len(sections) > 5 else []
             }
+
         except (subprocess.CalledProcessError, IndexError) as e:
             raise Exception(f"Failed to parse PKGBUILD: {str(e)}")
 

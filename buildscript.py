@@ -148,11 +148,13 @@ class ArchPackageBuilder:
         parse_script = '''
             source PKGBUILD
             function join_by { local IFS="$1"; shift; echo "$*"; }
-            declare -p depends makedepends checkdepends validpgpkeys pkgname | sed -n "s/^declare -a \\([^=]*\\)=.*/\\1/p" | while read -r array; do
-                eval "values=\\${!array}[@]"
-                join_by $'\\n' "${!values}"
+            for array in depends makedepends checkdepends validpgpkeys pkgname; do
+                # Ensure the variable exists and is an array
+                declare -a "$array" || declare -a "$array"=()
+                eval "values=(\"\${${array}[@]}\")"
+                join_by $'\n' "${values[@]}"
                 printf "===SEPARATOR===\n"
-            done
+            done            
         '''
         try:
             # Run the bash script and capture stdout and stderr for debugging

@@ -161,6 +161,17 @@ class ArchPackageBuilder:
             
             # Split the output by the separator
             sections = output.split("===SEPARATOR===\n")
+
+            if len(sections) < 6:
+                self.logger.warning(f"Unexpected number of sections: {len(sections)}")
+                return {}
+
+            # If sources is a file object, read its content and log it
+            if isinstance(pkg_info.get('sources', [])[0], _io.TextIOWrapper):
+                with pkg_info['sources'][0] as file:
+                    file_content = file.read()  # Read the entire content of the file
+                    self.logger.debug(f"File content of sources: {file_content}")
+
                     
             # Prepare the result dictionary
             return {

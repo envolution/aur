@@ -235,8 +235,8 @@ class ArchPackageBuilder:
 
         # Install dependencies
         for dep_type in ['depends', 'makedepends', 'checkdepends']:
-            deps = [dep.strip(',') for dep in deps]
             if deps := pkg_info.get(dep_type):
+                deps = [dep.strip(',') for dep in deps]
                 try:
                     # Log the command being run
                     self.logger.debug(f"Running command to install {dep_type}: paru -S --needed --norebuild --noconfirm --mflags \"--skipchecksums --skippgpcheck\" {', '.join(deps)}")

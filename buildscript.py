@@ -54,18 +54,38 @@ class ArchPackageBuilder:
         return logger
 
     def _run_command(self, cmd: List[str], check: bool = True, input_data: Optional[str] = None) -> subprocess.CompletedProcess:
-        """Run a command with optional input data."""
+        """Run a command with optional input data and stream output to the main thread."""
         self.logger.debug(f"Running command: {' '.join(cmd)}")
         try:
-            return subprocess.run(
+            # Start the process using subprocess.Popen
+            process = subprocess.Popen(
                 cmd,
-                check=check,
-                capture_output=True,
-                text=True,
-                input=input_data
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,  # Capture output as text (str)
+                input=input_data  # Pass input_data directly to stdin
             )
+            
+            # Stream stdout and stderr to the main process's stdout and stderr
+            for line in process.stdout:
+                self.logger.debug(line.strip())  # Log stdout line
+
+            for line in process.stderr:
+                self.logger.error(line.strip())  # Log stderr line
+
+            # Wait for the process to complete
+            process.wait()
+
+            # Handle the return code
+            if process.returncode != 0 and check:
+                raise subprocess.CalledProcessError(process.returncode, cmd)
+
+            return process
+    
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Command failed: {e.stderr}")
+            self.logger.error(f"Command failed with return code {e.returncode}")
+            self.logger.error(f"stdout: {e.output}")
+            self.logger.error(f"stderr: {e.stderr}")
             raise
 
     def authenticate_github(self) -> bool:
@@ -75,8 +95,10 @@ class ArchPackageBuilder:
             token_file = self.build_dir / '.github_token'
             token_file.write_text(self.config.github_token)
             
-            self._run_command(['gh', 'auth', 'login', '--with-token'], input_data=open(token_file).read().strip())
-            token_file.unlink()  # Remove token file immediately after use
+            _token = open(token_file).read().strip()
+            self._run_command(['gh', 'auth', 'login', '--with-token'], input_data=_token)
+            _token.unlink() # Remove token file immediately after use
+            token_file.unlink()  
             
             self._run_command(['gh', 'auth', 'status'])
             return True

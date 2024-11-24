@@ -102,8 +102,8 @@ class ArchPackageBuilder:
             
             _token = open(token_file).read().strip()
             self._run_command(['gh', 'auth', 'login', '--with-token'], input_data=_token)
-            _token.unlink() # Remove token file immediately after use
             token_file.unlink()  
+            del _token
             
             self._run_command(['gh', 'auth', 'status'])
             return True

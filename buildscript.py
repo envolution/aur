@@ -156,9 +156,12 @@ class ArchPackageBuilder:
         try:
             result = self._run_command(['bash', '-c', parse_script])
             
-            # Split the output by the separator
-            sections = result.stdout.split("===SEPARATOR===\n")
+            # Ensure result.stdout is a string
+            output = result.stdout if isinstance(result.stdout, str) else result.stdout.decode('utf-8')
             
+            # Split the output by the separator
+            sections = output.split("===SEPARATOR===\n")
+                    
             # Prepare the result dictionary
             return {
                 'sources': [s for s in sections[0].splitlines() if s],

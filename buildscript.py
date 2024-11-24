@@ -147,17 +147,13 @@ class ArchPackageBuilder:
         """Parse PKGBUILD file to extract package information."""
         parse_script = '''
             source PKGBUILD
-            printf "%s\n" "${depends[@]}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${makedepends[@]}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${checkdepends[@]}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${validpgpkeys[@]}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${pkgname[@]}"            
+            function join_by { local IFS="$1"; shift; echo "$*"; }
+            declare -p depends makedepends checkdepends validpgpkeys pkgname | sed -n "s/^declare -a \\([^=]*\\)=.*/\\1/p" | while read -r array; do
+                eval "values=\\${!array}[@]"
+                join_by $'\\n' "${!values}"
+                printf "===SEPARATOR===\n"
+            done
         '''
-
         try:
             # Run the bash script and capture stdout and stderr for debugging
             result = self._run_command(['bash', '-c', parse_script])
@@ -167,24 +163,24 @@ class ArchPackageBuilder:
             self.logger.debug(f"Raw PKGBUILD error: {result.stderr}")
 
             # Split by separator and process the sections
-            sections = result.stdout.split("===SEPARATOR===")
+            sections = result.stdout.split("===SEPARATOR===\n")
 
             # Log the number of sections and the sections themselves for debugging
             self.logger.debug(f"Number of sections: {len(sections)}")
             self.logger.debug(f"Sections: {sections}")
 
-            if len(sections) < 6:
+            if len(sections) < 5:
                 self.logger.warning(f"Unexpected number of sections: {len(sections)}")
-                return {}
+                sections += [''] * (5 - len(sections))  # Pad missing sections with empty strings
 
             # Return the parsed dependencies and other fields
             return {
-                'depends': [s for s in sections[0].splitlines() if s],
-                'makedepends': [s for s in sections[1].splitlines() if s],
-                'checkdepends': [s for s in sections[2].splitlines() if s],
-                'pgpkeys': [s for s in sections[3].splitlines() if s],
-                'packages': [s for s in sections[4].splitlines() if s]
-            }
+                'depends': [s.strip() for s in sections[0].splitlines() if s.strip()],
+                'makedepends': [s.strip() for s in sections[1].splitlines() if s.strip()],
+                'checkdepends': [s.strip() for s in sections[2].splitlines() if s.strip()],
+                'pgpkeys': [s.strip() for s in sections[3].splitlines() if s.strip()],
+                'packages': [s.strip() for s in sections[4].splitlines() if s.strip()]
+            }            
 
         except (subprocess.CalledProcessError, IndexError) as e:
             self.logger.error(f"Failed to parse PKGBUILD: {str(e)}")

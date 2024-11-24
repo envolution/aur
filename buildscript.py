@@ -13,6 +13,56 @@ import base64
 import shutil
 import tempfile
 
+from typing import List, Optional, Iterator
+import subprocess
+import logging
+from dataclasses import dataclass
+
+from typing import List, Optional
+import subprocess
+import logging
+from dataclasses import dataclass
+
+class CommandRunnerMigration:
+    """
+    Helper class to migrate from old _run_command to new SubprocessRunner.
+    Provides backwards compatibility while transitioning.
+    """
+    def __init__(self, logger: logging.Logger):
+        self.subprocess_runner = SubprocessRunner(logger)
+        self.logger = logger
+
+    def _run_command(
+        self,
+        cmd: List[str],
+        check: bool = True,
+        input_data: Optional[str] = None
+    ) -> subprocess.CompletedProcess:
+        """
+        Compatibility wrapper that maintains the old interface while using new implementation.
+        Returns CompletedProcess to maintain backwards compatibility.
+        """
+        result = self.subprocess_runner.run_command(cmd, check=check, input_data=input_data)
+        
+        # Convert CommandResult back to CompletedProcess for backwards compatibility
+        return subprocess.CompletedProcess(
+            args=result.command,
+            returncode=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr
+        )
+
+    def migrate_to_new_runner(self):
+        """
+        Helper method to assist with migration.
+        Replace self._run_command with self.subprocess_runner.run_command
+        """
+        self.logger.warning(
+            "Please replace self._run_command with self.subprocess_runner.run_command. "
+            "The _run_command method will be deprecated."
+        )
+        return self.subprocess_runner
+
 @dataclass
 class BuildConfig:
     github_repo: str
@@ -53,72 +103,6 @@ class ArchPackageBuilder:
         logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
         return logger
 
-    def _run_command(self, cmd: List[str], check: bool = True, input_data: Optional[str] = None) -> subprocess.CompletedProcess:
-        """Run a command with optional input data and stream output to the main thread."""
-        self.logger.debug(f"Running command: {' '.join(cmd)}")
-        try:
-            with subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE if input_data else None,
-                text=True,
-            ) as proc:
-                # Stream stdout and stderr while the command is running
-                stdout_lines = []
-                stderr_lines = []
-                for stdout_line in iter(proc.stdout.readline, ""):
-                    stdout_lines.append(stdout_line)
-                    self.logger.debug(stdout_line.strip())  # Stream stdout to logs or terminal
-                for stderr_line in iter(proc.stderr.readline, ""):
-                    stderr_lines.append(stderr_line)
-                    self.logger.debug(stderr_line.strip())  # Stream stderr to logs or terminal
-                
-                # Wait for the process to complete
-                proc.stdout.close()
-                proc.stderr.close()
-                proc.wait()
-
-                stdout = "".join(stdout_lines)
-                stderr = "".join(stderr_lines)
-
-                # Check for errors and raise if needed
-                if check and proc.returncode != 0:
-                    raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
-
-                return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
-
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Command failed: {e.stderr}")
-            raise
-
-            # Send input_data to the subprocess via stdin
-            if input_data:
-                process.stdin.write(input_data)
-                process.stdin.close()  # Close stdin after writing
-
-            # Stream stdout and stderr to the main process's stdout and stderr
-            for line in process.stdout:
-                self.logger.debug(line.strip())  # Log stdout line
-
-            for line in process.stderr:
-                self.logger.error(line.strip())  # Log stderr line
-
-            # Wait for the process to complete
-            process.wait()
-
-            # Handle the return code
-            if process.returncode != 0 and check:
-                raise subprocess.CalledProcessError(process.returncode, cmd)
-
-            return process
-    
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Command failed with return code {e.returncode}")
-            self.logger.error(f"stdout: {e.output}")
-            self.logger.error(f"stderr: {e.stderr}")
-            raise
-
     def authenticate_github(self) -> bool:
         """Authenticate with GitHub using provided token."""
         try:
@@ -127,11 +111,11 @@ class ArchPackageBuilder:
             token_file.write_text(self.config.github_token)
             
             _token = open(token_file).read().strip()
-            self._run_command(['gh', 'auth', 'login', '--with-token'], input_data=_token)
+            self.subprocess_runner.run_command(['gh', 'auth', 'login', '--with-token'], input_data=_token)
             token_file.unlink()  
             del _token
             
-            self._run_command(['gh', 'auth', 'status'])
+            self.subprocess_runner.run_command(['gh', 'auth', 'status'])
             return True
         except subprocess.CalledProcessError:
             self.logger.error("GitHub authentication failed")
@@ -144,7 +128,7 @@ class ArchPackageBuilder:
         """Initialize build environment and clone AUR repository."""
         aur_repo = f"ssh://aur@aur.archlinux.org/{self.config.package_name}.git"
         try:
-            self._run_command(['git', 'clone', aur_repo, str(self.build_dir)])
+            self.subprocess_runner.run_command(['git', 'clone', aur_repo, str(self.build_dir)])
             os.chdir(self.build_dir)
         except subprocess.CalledProcessError as e:
             raise Exception(f"Failed to clone AUR repository: {e.stderr}")
@@ -180,7 +164,7 @@ class ArchPackageBuilder:
         '''
         try:
             # Run the bash script and capture stdout and stderr for debugging
-            result = self._run_command(['bash', '-c', parse_script])
+            result = self.subprocess_runner.run_command(['bash', '-c', parse_script])
 
             # Log the raw PKGBUILD output and any error
             self.logger.debug(f"Raw PKGBUILD output: {result.stdout}")
@@ -217,7 +201,7 @@ class ArchPackageBuilder:
             return None
 
         try:
-            result = self._run_command(['nvchecker', '-c', '.nvchecker.toml', '--logger', 'json'])
+            result = self.subprocess_runner.run_command(['nvchecker', '-c', '.nvchecker.toml', '--logger', 'json'])
             version_info = json.loads(result.stdout)
             new_version = next(
                 (item['version'] for item in version_info 
@@ -258,7 +242,7 @@ class ArchPackageBuilder:
                 deps = [dep.strip(',') for dep in deps]
                 try:
                     # Run the command
-                    result = self._run_command(['paru', '-S', '--needed', '--norebuild', '--noconfirm',
+                    result = self.subprocess_runner.run_command(['paru', '-S', '--needed', '--norebuild', '--noconfirm',
                                                 '--mflags', '--skipchecksums', '--mflags', '--skippgpcheck', *deps])
                     
                     # Log the result of the command
@@ -270,14 +254,14 @@ class ArchPackageBuilder:
 
         # Build package
         try:
-            self._run_command(['makepkg', '-s', '--noconfirm'])
+            self.subprocess_runner.run_command(['makepkg', '-s', '--noconfirm'])
             
             # Install package
             packages = sorted(Path('.').glob('*.pkg.tar.zst'))
             if not packages:
                 raise Exception("No packages built")
                 
-            self._run_command(['sudo', 'pacman', '--noconfirm', '-U', *[str(p) for p in packages]])
+            self.subprocess_runner.run_command(['sudo', 'pacman', '--noconfirm', '-U', *[str(p) for p in packages]])
             self.result.built_packages = [p.name for p in packages]
             
             # Create release if not in test mode
@@ -294,7 +278,7 @@ class ArchPackageBuilder:
         """Create GitHub release with built packages."""
         try:
             # Create release (ignore if already exists)
-            self._run_command([
+            self.subprocess_runner.run_command([
                 'gh', 'release', 'create', self.config.package_name,
                 '--title', f"Binary installers for {self.config.package_name}",
                 '--notes', self.RELEASE_BODY,
@@ -303,7 +287,7 @@ class ArchPackageBuilder:
 
             # Upload packages
             for pkg_file in package_files:
-                self._run_command([
+                self.subprocess_runner.run_command([
                     'gh', 'release', 'upload', self.config.package_name,
                     str(pkg_file), '--clobber',
                     '-R', self.config.github_repo
@@ -318,12 +302,12 @@ class ArchPackageBuilder:
                 self.logger.warning("No files to commit")
                 return False
 
-            self._run_command(['git', 'add', *self.tracked_files])
+            self.subprocess_runner.run_command(['git', 'add', *self.tracked_files])
             
             if self._has_changes():
                 commit_msg = f"{self.config.commit_message}: {self.result.version or ''}"
-                self._run_command(['git', 'commit', '-m', commit_msg])
-                self._run_command(['git', 'push', 'origin', 'master'])
+                self.subprocess_runner.run_command(['git', 'commit', '-m', commit_msg])
+                self.subprocess_runner.run_command(['git', 'push', 'origin', 'master'])
                 self.result.changes_detected = True
                 
                 # Update GitHub repository
@@ -336,7 +320,7 @@ class ArchPackageBuilder:
 
     def _has_changes(self) -> bool:
         """Check if there are any changes to commit."""
-        result = self._run_command(['git', 'status', '--porcelain'], check=False)
+        result = self.subprocess_runner.run_command(['git', 'status', '--porcelain'], check=False)
         return bool(result.stdout.strip())
 
     def _update_github_files(self):
@@ -352,7 +336,7 @@ class ArchPackageBuilder:
                 
                 # Try to get existing file's SHA
                 try:
-                    response = self._run_command([
+                    response = self.subprocess_runner.run_command([
                         'gh', 'api',
                         f"/repos/{self.config.github_repo}/contents/{self.config.pkgbuild_path}/{file}",
                         '--jq', '.sha'
@@ -363,7 +347,7 @@ class ArchPackageBuilder:
 
                 # Update or create file
                 if sha:
-                    self._run_command([
+                    self.subprocess_runner.run_command([
                         'gh', 'api', '-X', 'PUT',
                         f"/repos/{self.config.github_repo}/contents/{self.config.pkgbuild_path}/{file}",
                         '-f', f"message=Auto updated {file}",
@@ -371,7 +355,7 @@ class ArchPackageBuilder:
                         '-f', f"sha={sha}"
                     ])
                 else:
-                    self._run_command([
+                    self.subprocess_runner.run_command([
                         'gh', 'api', '-X', 'PUT',
                         f"/repos/{self.config.github_repo}/contents/{self.config.pkgbuild_path}/{file}",
                         '-f', f"message=Added {file}",
@@ -391,7 +375,7 @@ class ArchPackageBuilder:
         """Run the complete build process."""
         try:
             try:
-                result = self._run_command(['gh', 'auth', 'status'])
+                result = self.subprocess_runner.run_command(['gh', 'auth', 'status'])
                 # If no exception was raised, the user is authenticated
                 self.logger.info("User is authenticated.")
                 is_authenticated = True

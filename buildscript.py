@@ -157,7 +157,7 @@ class ArchPackageBuilder:
             result = self._run_command(['bash', '-c', parse_script])
             
             # Ensure result.stdout is a string
-            output = result.stdout if isinstance(result.stdout, str) else result.stdout.decode('utf-8')
+            output = result.stdout if isinstance(result.stdout, str) else str(result.stdout)
             
             # Split the output by the separator
             sections = output.split("===SEPARATOR===\n")

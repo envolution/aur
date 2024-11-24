@@ -235,6 +235,7 @@ class ArchPackageBuilder:
 
         # Install dependencies
         for dep_type in ['depends', 'makedepends', 'checkdepends']:
+            deps = [dep.strip(',') for dep in deps]
             if deps := pkg_info.get(dep_type):
                 try:
                     # Log the command being run
@@ -242,7 +243,7 @@ class ArchPackageBuilder:
                     
                     # Run the command
                     result = self._run_command(['paru', '-S', '--needed', '--norebuild', '--noconfirm',
-                                                '--mflags "--skipchecksums --skippgpcheck"', *deps])
+                                                '--mflags', '--skipchecksums', '--mflags', '--skippgpcheck', *deps])
                     
                     # Log the result of the command
                     self.logger.debug(f"Command result for {dep_type}: {result.stdout}")

@@ -248,11 +248,11 @@ class ArchPackageBuilder:
             if deps := pkg_info.get(dep_type):
                 try:
                     # Log the command being run
-                    self.logger.debug(f"Running command to install {dep_type}: paru -S --needed --norebuild --noconfirm --mflags --skipchecksums --skippgpcheck {', '.join(deps)}")
+                    self.logger.debug(f"Running command to install {dep_type}: paru -S --needed --norebuild --noconfirm --mflags \"--skipchecksums --skippgpcheck\" {', '.join(deps)}")
                     
                     # Run the command
                     result = self._run_command(['paru', '-S', '--needed', '--norebuild', '--noconfirm',
-                                                '--mflags', '--skipchecksums', '--skippgpcheck', *deps])
+                                                '--mflags "--skipchecksums --skippgpcheck"', *deps])
                     
                     # Log the result of the command
                     self.logger.debug(f"Command result for {dep_type}: {result.stdout}")

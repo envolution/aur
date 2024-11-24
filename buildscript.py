@@ -8,7 +8,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 import base64
 import shutil
 import tempfile
@@ -53,10 +53,17 @@ class ArchPackageBuilder:
         logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
         return logger
 
-    def _run_command(self, cmd: List[str], check: bool = True) -> subprocess.CompletedProcess:
+    def _run_command(self, cmd: List[str], check: bool = True, input_data: Optional[str] = None) -> subprocess.CompletedProcess:
+        """Run a command with optional input data."""
         self.logger.debug(f"Running command: {' '.join(cmd)}")
         try:
-            return subprocess.run(cmd, check=check, capture_output=True, text=True)
+            return subprocess.run(
+                cmd,
+                check=check,
+                capture_output=True,
+                text=True,
+                input=input_data
+            )
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Command failed: {e.stderr}")
             raise
@@ -64,56 +71,75 @@ class ArchPackageBuilder:
     def authenticate_github(self) -> bool:
         """Authenticate with GitHub using provided token."""
         try:
-            self._run_command(['gh', 'auth', 'login', '--with-token'], input=self.config.github_token)
+            # Write token to a temporary file to avoid command line exposure
+            token_file = self.build_dir / '.github_token'
+            token_file.write_text(self.config.github_token)
+            
+            self._run_command(['gh', 'auth', 'login', '--with-token', str(token_file)])
+            token_file.unlink()  # Remove token file immediately after use
+            
             self._run_command(['gh', 'auth', 'status'])
             return True
         except subprocess.CalledProcessError:
             self.logger.error("GitHub authentication failed")
             return False
+        except Exception as e:
+            self.logger.error(f"Authentication error: {str(e)}")
+            return False
 
     def setup_build_environment(self):
         """Initialize build environment and clone AUR repository."""
         aur_repo = f"ssh://aur@aur.archlinux.org/{self.config.package_name}.git"
-        self._run_command(['git', 'clone', aur_repo, str(self.build_dir)])
-        os.chdir(self.build_dir)
+        try:
+            self._run_command(['git', 'clone', aur_repo, str(self.build_dir)])
+            os.chdir(self.build_dir)
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to clone AUR repository: {e.stderr}")
 
     def collect_package_files(self):
         """Collect PKGBUILD and related files from workspace."""
         workspace_path = Path(self.config.github_workspace) / self.config.pkgbuild_path
         
         for file in ['PKGBUILD', '.nvchecker.toml']:
-            if (workspace_path / file).is_file():
-                shutil.copy2(workspace_path / file, self.build_dir / file)
-                self.tracked_files.append(file)
+            source_file = workspace_path / file
+            if source_file.is_file():
+                try:
+                    shutil.copy2(source_file, self.build_dir / file)
+                    self.tracked_files.append(file)
+                except Exception as e:
+                    self.logger.warning(f"Failed to copy {file}: {e}")
 
     def parse_pkgbuild(self) -> Dict[str, List[str]]:
         """Parse PKGBUILD file to extract package information."""
-        parse_cmd = [
-            'bash', '-c',
-            'source PKGBUILD; printf "%s\n" "${source[@]}"; '
-            'printf "===SEPARATOR===\n"; '
-            'printf "%s\n" "${depends[@]}"; '
-            'printf "===SEPARATOR===\n"; '
-            'printf "%s\n" "${makedepends[@]}"; '
-            'printf "===SEPARATOR===\n"; '
-            'printf "%s\n" "${checkdepends[@]}"; '
-            'printf "===SEPARATOR===\n"; '
-            'printf "%s\n" "${validpgpkeys[@]}"; '
-            'printf "===SEPARATOR===\n"; '
-            'printf "%s\n" "${pkgname[@]}"'
-        ]
+        parse_script = '''
+            source PKGBUILD
+            printf "%s\n" "${source[@]}"
+            printf "===SEPARATOR===\n"
+            printf "%s\n" "${depends[@]}"
+            printf "===SEPARATOR===\n"
+            printf "%s\n" "${makedepends[@]}"
+            printf "===SEPARATOR===\n"
+            printf "%s\n" "${checkdepends[@]}"
+            printf "===SEPARATOR===\n"
+            printf "%s\n" "${validpgpkeys[@]}"
+            printf "===SEPARATOR===\n"
+            printf "%s\n" "${pkgname[@]}"
+        '''
         
-        result = self._run_command(parse_cmd)
-        sections = result.stdout.split("===SEPARATOR===\n")
-        
-        return {
-            'sources': [s for s in sections[0].splitlines() if s],
-            'depends': [s for s in sections[1].splitlines() if s],
-            'makedepends': [s for s in sections[2].splitlines() if s],
-            'checkdepends': [s for s in sections[3].splitlines() if s],
-            'pgpkeys': [s for s in sections[4].splitlines() if s],
-            'packages': [s for s in sections[5].splitlines() if s]
-        }
+        try:
+            result = self._run_command(['bash', '-c', parse_script])
+            sections = result.stdout.split("===SEPARATOR===\n")
+            
+            return {
+                'sources': [s for s in sections[0].splitlines() if s],
+                'depends': [s for s in sections[1].splitlines() if s],
+                'makedepends': [s for s in sections[2].splitlines() if s],
+                'checkdepends': [s for s in sections[3].splitlines() if s],
+                'pgpkeys': [s for s in sections[4].splitlines() if s],
+                'packages': [s for s in sections[5].splitlines() if s]
+            }
+        except (subprocess.CalledProcessError, IndexError) as e:
+            raise Exception(f"Failed to parse PKGBUILD: {str(e)}")
 
     def check_version_update(self) -> Optional[str]:
         """Check for package version updates using nvchecker."""
@@ -134,20 +160,21 @@ class ArchPackageBuilder:
                 self._update_pkgbuild_version(new_version)
                 self.result.version = new_version
                 return new_version
+                
         except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
             self.logger.error(f"Version check failed: {e}")
             return None
 
     def _update_pkgbuild_version(self, new_version: str):
         """Update PKGBUILD with new version."""
-        with open('PKGBUILD', 'r') as f:
-            content = f.read()
-        
-        updated_content = content.replace(
-            f"pkgver=", f"pkgver={new_version}")
-        
-        with open('PKGBUILD', 'w') as f:
-            f.write(updated_content)
+        pkgbuild_path = self.build_dir / 'PKGBUILD'
+        try:
+            content = pkgbuild_path.read_text()
+            updated_content = content.replace(
+                'pkgver=', f'pkgver={new_version}')
+            pkgbuild_path.write_text(updated_content)
+        except Exception as e:
+            raise Exception(f"Failed to update PKGBUILD version: {str(e)}")
 
     def build_package(self, pkg_info: Dict[str, List[str]]) -> bool:
         """Build and optionally install the package."""
@@ -188,6 +215,7 @@ class ArchPackageBuilder:
     def _create_release(self, package_files: List[Path]):
         """Create GitHub release with built packages."""
         try:
+            # Create release (ignore if already exists)
             self._run_command([
                 'gh', 'release', 'create', self.config.package_name,
                 '--title', f"Binary installers for {self.config.package_name}",
@@ -195,6 +223,7 @@ class ArchPackageBuilder:
                 '-R', self.config.github_repo
             ], check=False)
 
+            # Upload packages
             for pkg_file in package_files:
                 self._run_command([
                     'gh', 'release', 'upload', self.config.package_name,
@@ -207,11 +236,15 @@ class ArchPackageBuilder:
     def commit_and_push(self) -> bool:
         """Commit changes and push to AUR and GitHub."""
         try:
+            if not self.tracked_files:
+                self.logger.warning("No files to commit")
+                return False
+
             self._run_command(['git', 'add', *self.tracked_files])
             
             if self._has_changes():
-                self._run_command(['git', 'commit', '-m', 
-                                f"{self.config.commit_message}: {self.result.version or ''}"])
+                commit_msg = f"{self.config.commit_message}: {self.result.version or ''}"
+                self._run_command(['git', 'commit', '-m', commit_msg])
                 self._run_command(['git', 'push', 'origin', 'master'])
                 self.result.changes_detected = True
                 
@@ -232,7 +265,11 @@ class ArchPackageBuilder:
         """Update files in GitHub repository."""
         for file in self.tracked_files:
             try:
-                with open(file, 'rb') as f:
+                file_path = self.build_dir / file
+                if not file_path.is_file():
+                    continue
+
+                with open(file_path, 'rb') as f:
                     content = base64.b64encode(f.read()).decode('utf-8')
                 
                 # Try to get existing file's SHA

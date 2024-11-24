@@ -140,51 +140,59 @@ class ArchPackageBuilder:
         """Parse PKGBUILD file to extract package information."""
         parse_script = '''
             source PKGBUILD
-            printf "%s\n" "${source[@]:-}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${depends[@]:-}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${makedepends[@]:-}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${checkdepends[@]:-}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${validpgpkeys[@]:-}"
-            printf "===SEPARATOR===\n"
-            printf "%s\n" "${pkgname[@]:-}"
+            # Print the relevant arrays to ensure they are populated
+            echo "Depends: ${depends[@]}"
+            echo "===SEPARATOR==="
+            printf "%s\n" "${depends[@]}"
+
+            echo "Makedeps: ${makedepends[@]}"
+            echo "===SEPARATOR==="
+            printf "%s\n" "${makedepends[@]}"
+
+            echo "Checkdeps: ${checkdepends[@]}"
+            echo "===SEPARATOR==="
+            printf "%s\n" "${checkdepends[@]}"
+
+            echo "PGP Keys: ${validpgpkeys[@]}"
+            echo "===SEPARATOR==="
+            printf "%s\n" "${validpgpkeys[@]}"
+
+            echo "Package Name: ${pkgname[@]}"
+            echo "===SEPARATOR==="
+            printf "%s\n" "${pkgname[@]}"
         '''
-        
+
         try:
+            # Run the bash script and capture stdout and stderr for debugging
             result = self._run_command(['bash', '-c', parse_script])
-            
-            # Ensure result.stdout is a string
-            output = result.stdout if isinstance(result.stdout, str) else str(result.stdout)
-            
-            # Split the output by the separator
-            sections = output.split("===SEPARATOR===\n")
+
+            # Log the raw PKGBUILD output and any error
+            self.logger.debug(f"Raw PKGBUILD output: {result.stdout}")
+            self.logger.debug(f"Raw PKGBUILD error: {result.stderr}")
+
+            # Split by separator and process the sections
+            sections = result.stdout.split("===SEPARATOR===")
+
+            # Log the number of sections and the sections themselves for debugging
+            self.logger.debug(f"Number of sections: {len(sections)}")
+            self.logger.debug(f"Sections: {sections}")
 
             if len(sections) < 6:
                 self.logger.warning(f"Unexpected number of sections: {len(sections)}")
                 return {}
 
-            # If sources is a file object, read its content and log it
-            if isinstance(pkg_info.get('sources', [])[0], _io.TextIOWrapper):
-                with pkg_info['sources'][0] as file:
-                    file_content = file.read()  # Read the entire content of the file
-                    self.logger.debug(f"File content of sources: {file_content}")
-
-                    
-            # Prepare the result dictionary
+            # Return the parsed dependencies and other fields
             return {
-                'sources': [s for s in sections[0].splitlines() if s],
-                'depends': [s for s in sections[1].splitlines() if s] if len(sections) > 1 else [],
-                'makedepends': [s for s in sections[2].splitlines() if s] if len(sections) > 2 else [],
-                'checkdepends': [s for s in sections[3].splitlines() if s] if len(sections) > 3 else [],
-                'pgpkeys': [s for s in sections[4].splitlines() if s] if len(sections) > 4 else [],
-                'packages': [s for s in sections[5].splitlines() if s] if len(sections) > 5 else []
+                'depends': [s for s in sections[0].splitlines() if s],
+                'makedepends': [s for s in sections[1].splitlines() if s],
+                'checkdepends': [s for s in sections[2].splitlines() if s],
+                'pgpkeys': [s for s in sections[3].splitlines() if s],
+                'packages': [s for s in sections[4].splitlines() if s]
             }
 
         except (subprocess.CalledProcessError, IndexError) as e:
-            raise Exception(f"Failed to parse PKGBUILD: {str(e)}")
+            self.logger.error(f"Failed to parse PKGBUILD: {str(e)}")
+            return {}
 
     def check_version_update(self) -> Optional[str]:
         """Check for package version updates using nvchecker."""

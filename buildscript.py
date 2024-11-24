@@ -75,7 +75,7 @@ class ArchPackageBuilder:
             token_file = self.build_dir / '.github_token'
             token_file.write_text(self.config.github_token)
             
-            self._run_command(['gh', 'auth', 'login', '--with-token', str(token_file)])
+            self._run_command(['gh', 'auth', 'login', '--with-token'], input_data=open(token_file).read().strip())
             token_file.unlink()  # Remove token file immediately after use
             
             self._run_command(['gh', 'auth', 'status'])

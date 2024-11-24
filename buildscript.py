@@ -63,9 +63,14 @@ class ArchPackageBuilder:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,  # Capture output as text (str)
-                input=input_data  # Pass input_data directly to stdin
+                stdin=subprocess.PIPE  # Allow input to be sent to stdin
             )
             
+            # Send input_data to the subprocess via stdin
+            if input_data:
+                process.stdin.write(input_data)
+                process.stdin.close()  # Close stdin after writing
+
             # Stream stdout and stderr to the main process's stdout and stderr
             for line in process.stdout:
                 self.logger.debug(line.strip())  # Log stdout line

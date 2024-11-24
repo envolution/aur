@@ -238,9 +238,6 @@ class ArchPackageBuilder:
             if deps := pkg_info.get(dep_type):
                 deps = [dep.strip(',') for dep in deps]
                 try:
-                    # Log the command being run
-                    self.logger.debug(f"Running command to install {dep_type}: paru -S --needed --norebuild --noconfirm --mflags \"--skipchecksums --skippgpcheck\" {', '.join(deps)}")
-                    
                     # Run the command
                     result = self._run_command(['paru', '-S', '--needed', '--norebuild', '--noconfirm',
                                                 '--mflags', '--skipchecksums', '--mflags', '--skippgpcheck', *deps])

@@ -64,15 +64,34 @@ class ArchPackageBuilder:
                 stdin=subprocess.PIPE if input_data else None,
                 text=True,
             ) as proc:
-                stdout, stderr = proc.communicate(input=input_data)
+                # Stream stdout and stderr while the command is running
+                stdout_lines = []
+                stderr_lines = []
+                for stdout_line in iter(proc.stdout.readline, ""):
+                    stdout_lines.append(stdout_line)
+                    self.logger.debug(stdout_line, end="")  # Stream stdout to logs or terminal
+                for stderr_line in iter(proc.stderr.readline, ""):
+                    stderr_lines.append(stderr_line)
+                    self.logger.debug(stderr_line, end="")  # Stream stderr to logs or terminal
+                
+                # Wait for the process to complete
+                proc.stdout.close()
+                proc.stderr.close()
+                proc.wait()
+
+                stdout = "".join(stdout_lines)
+                stderr = "".join(stderr_lines)
+
+                # Check for errors and raise if needed
                 if check and proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
+
                 return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Command failed: {e.stderr}")
             raise
 
-            
             # Send input_data to the subprocess via stdin
             if input_data:
                 process.stdin.write(input_data)

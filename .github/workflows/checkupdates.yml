@@ -165,7 +165,7 @@ jobs:
                 #sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh \
                 #  "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "${pkgbuild}/${package}" \
                 #  "Auto update $package "
-                python build_package.py \
+                python buildscript.py \
                   --github-repo "${{ github.repository }}" \
                   --github-token "$GH_TOKEN" \
                   --github-workspace "$GITHUB_WORKSPACE" \

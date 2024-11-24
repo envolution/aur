@@ -138,7 +138,7 @@ class ArchPackageBuilder:
             function join_by { local IFS="$1"; shift; echo "$*"; }
             for array in depends makedepends checkdepends validpgpkeys pkgname; do
                 if declare -p "$array" &>/dev/null; then
-                    eval "values=(\"${${array}[@]}\")"
+                    values=("${!array[@]}")  # Directly referencing the array
                 else
                     values=()
                 fi

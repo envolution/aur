@@ -57,14 +57,21 @@ class ArchPackageBuilder:
         """Run a command with optional input data and stream output to the main thread."""
         self.logger.debug(f"Running command: {' '.join(cmd)}")
         try:
-            # Start the process using subprocess.Popen
-            process = subprocess.Popen(
+            with subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,  # Capture output as text (str)
-                stdin=subprocess.PIPE  # Allow input to be sent to stdin
-            )
+                stdin=subprocess.PIPE if input_data else None,
+                text=True,
+            ) as proc:
+                stdout, stderr = proc.communicate(input=input_data)
+                if check and proc.returncode != 0:
+                    raise subprocess.CalledProcessError(proc.returncode, cmd, output=stdout, stderr=stderr)
+                return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Command failed: {e.stderr}")
+            raise
+
             
             # Send input_data to the subprocess via stdin
             if input_data:

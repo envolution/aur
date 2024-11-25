@@ -62,7 +62,7 @@ class BuildConfig:
     github_token: str
     github_workspace: str
     package_name: str
-    package_depends: str
+    depends_json: str
     pkgbuild_path: str
     commit_message: str
     build_mode: str = ""  # Options: nobuild, build, test
@@ -323,7 +323,7 @@ class ArchPackageBuilder:
             self.setup_build_environment()
             self.collect_package_files()
             
-            pkg_info = self.process_dependencies()
+            pkg_info = self.process_dependencies(self.config.depends_json)
             print(f"[debug] PACKAGE INFO--> {pkg_info}")
             self.check_version_update()
             

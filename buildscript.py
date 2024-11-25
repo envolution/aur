@@ -101,99 +101,6 @@ class ArchPackageBuilder:
         logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
         return logger
 
-    def debug_git_authentication(self):
-        # Define the SSH private key file
-        ssh_key_file = '/home/builder/.ssh/aur'
-
-        # Ensure the .ssh directory and key file have the correct permissions
-        try:
-            self.logger.info("Checking .ssh directory permissions...")
-            subprocess.run(['chmod', '700', '/home/builder/.ssh'], check=True)
-            subprocess.run(['chmod', '600', ssh_key_file], check=True)
-            self.logger.info("Permissions set correctly for .ssh directory and SSH key.")
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to set permissions: {e}")
-            return
-
-        # Set the necessary environment variables for debugging
-        env = os.environ.copy()
-        env['GIT_TRACE'] = '1'  # Enables tracing of git commands
-        env['GIT_CURL_VERBOSE'] = '1'  # Verbose curl for HTTP(S) connections
-
-        # Add SSH key to ssh-agent if necessary
-        try:
-            self.logger.info("Starting ssh-agent...")
-            subprocess.run(['eval', "$(ssh-agent -s)"], shell=True, env=env, check=True)
-            subprocess.run(['ssh-add', ssh_key_file], shell=True, env=env, check=True)
-            self.logger.info("SSH agent started and SSH key added.")
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to start ssh-agent or add key: {e}")
-            return
-
-        # Run git remote -v to see which URL is used for pushing
-        self.logger.info("\nGit remote -v:")
-        try:
-            remote_output = subprocess.run(
-                ['git', 'remote', '-v'],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True
-            )
-            self.logger.info(remote_output.stdout)
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error running 'git remote -v': {e.stderr}")
-            return
-
-        # Run git config --list to see what git configuration is used
-        self.logger.info("\nGit config --list:")
-        try:
-            config_output = subprocess.run(
-                ['git', 'config', '--list'],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True
-            )
-            self.logger.info(config_output.stdout)
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error running 'git config --list': {e.stderr}")
-            return
-
-        # Attempt to commit and push (with debugging)
-        try:
-            self.logger.info("\nAttempting git commit and push...")
-            commit_output = subprocess.run(
-                ['git', 'commit', '-m', 'Auto update: lib32-libsql-sqlite3'],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True
-            )
-            self.logger.info("Git commit successful:")
-            self.logger.info(commit_output.stdout)
-
-            # Now attempt the push command
-            self.logger.info("\nAttempting git push...")
-            push_output = subprocess.run(
-                ['git', 'push', 'origin', 'master'],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True
-            )
-            self.logger.info("Git push successful:")
-            self.logger.info(push_output.stdout)
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error during git commit or push: {e.stderr}")
-            return
-
-        self.logger.info("\nGit commit and push completed successfully.")
-
     def authenticate_github(self) -> bool:
         try:
             token_file = self.build_dir / '.github_token'
@@ -447,7 +354,7 @@ class ArchPackageBuilder:
         try:
             # Try to get existing file's SHA
             response = self.subprocess_runner.run_command([
-                'uh', 'api',
+                'gh', 'api',
                 f"/repos/{self.config.github_repo}/contents/{self.config.pkgbuild_path}/{file}",
                 '--jq', '.sha'
             ])

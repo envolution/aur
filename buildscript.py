@@ -140,7 +140,7 @@ class ArchPackageBuilder:
             json_file_path = self.config.depends_json
             try:
                 with open(json_file_path, 'r') as file:
-                    data = json.load(self.config.depends_json)
+                    data = json.load(file)
             except json.JSONDecodeError as e:
                 self.logger.error(f"Error decoding JSON: {e}")
             except FileNotFoundError:
@@ -251,8 +251,6 @@ class ArchPackageBuilder:
             self.logger.error(f"Failed to create release: {e}")
 
     def _update_github_file(self, file: str, file_path: Path):
-        self.logger.info(f"*** --> {file_path} <-- ***")
-        print(f"wtf")
         with open(file_path, 'rb') as f:
             content = base64.b64encode(f.read()).decode('utf-8')
         

@@ -91,6 +91,7 @@ jobs:
             cp ${GITHUB_WORKSPACE}/github-test.py ${site_packages}/nvchecker_source/
 
       - name: Run task
+        shell: bash
         run: |
           #!/bin/bash
           set -euo pipefail
@@ -122,15 +123,18 @@ jobs:
 
           generate_nvchecker_config() {
               local config_file="new.toml"
+              local keyfile="keyfile.toml"
               
               # Create base config
-              cat > "${config_file}" << EOF
-          [__config__]
-          oldver='aur.json'
-          newver='local.json'
+              echo "[__config__]" > "${config_file}"
+              echo "oldver='aur.json'" >> "${config_file}"
+              echo "newver='local.json'" >> "${config_file}"
+              echo "keyfile='${keyfile}'" >> "${config_file}"
 
-          EOF
-              
+              # Create keyfile and add GH_TOKEN
+              echo "[keys]" > $keyfile
+              echo "github = '$GH_TOKEN'" >> $keyfile
+
               # Append all .nvchecker.toml files
               find "${GITHUB_WORKSPACE}" -name ".nvchecker.toml" -exec sh -c 'cat {} && echo' \; >> "${config_file}"
               

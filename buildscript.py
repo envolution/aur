@@ -48,7 +48,7 @@ class SubprocessRunner:
                 stderr=process.stderr
             )
         except subprocess.CalledProcessError as e:
-            print(f"{e.stderr}")
+            self.logger.error(f"{e.stderr}")
             if check:
                 raise
             return CommandResult(
@@ -457,7 +457,7 @@ class ArchPackageBuilder:
             self.collect_package_files()
             
             pkg_info = self.process_dependencies()
-            print(f"[debug] PACKAGE INFO--> {pkg_info}")
+            self.logger.info(f"[debug] PACKAGE INFO--> {pkg_info}")
             self.check_version_update()
             
             if not self.build_package(pkg_info):
@@ -492,7 +492,7 @@ def main():
     builder = ArchPackageBuilder(config)
     result = builder.run()
     
-    print(json.dumps(result, indent=2))
+    self.logger.info(json.dumps(result, indent=2))
     sys.exit(0 if result['success'] else 1)
 
 if __name__ == '__main__':

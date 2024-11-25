@@ -272,7 +272,8 @@ jobs:
               # Build packages
               for update in "${UPDATES[@]}"; do
                   log_debug "update: $update build: $build pkgbuild: "
-                  if ! build_package "$update" "$build" "$pkgbuild"; then
+                  # TODO: we should have maintain passed here somehow
+                  if ! build_package "$update" "$build" "$GITHUB_WORKSPACE/maintain/$build/$update"; then
                       log_error "Build failed for ${update}"
                       continue
                   fi

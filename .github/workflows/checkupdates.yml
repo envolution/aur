@@ -93,105 +93,189 @@ jobs:
         run: |
           #!/bin/bash
           set -euo pipefail
-          
-          # Example environment setup
-          sudo -u builder mkdir -p /home/builder/nvchecker
-          cd /home/builder/nvchecker
-          [ -f ${GITHUB_WORKSPACE}/github_version.py ] && \
-            cp ${GITHUB_WORKSPACE}/github_version.py /home/builder/nvchecker
-          [ -f ${GITHUB_WORKSPACE}/compare_aur_local_versions.py ] && \
-            cp ${GITHUB_WORKSPACE}/compare_aur_local_versions.py /home/builder/nvchecker
 
-          python /home/builder/nvchecker/compare_aur_local_versions.py --maintainer ${AUR_MAINTAINER_NAME} --repo-root "${GITHUB_WORKSPACE}"
+          # Constants
+          BUILDER_HOME="/home/builder"
+          NVCHECKER_DIR="${BUILDER_HOME}/nvchecker"
+          DEPENDS_JSON_PATH="/tmp/depends.json"
 
-          FILES=$(find $GITHUB_WORKSPACE -name ".nvchecker.toml")
-          echo '[__config__]' > new.toml
-          echo -e "oldver='aur.json'" >> new.toml
-          echo -e "newver='local.json'\n" >> new.toml
+          # Helper Functions
+          log_debug() {
+              echo "[debug] $1"
+          }
 
-          for FILE in $FILES; do
-            cat "$FILE" >> new.toml
-            echo -e "\n" >> new.toml
-          done
-          echo "[debug] new.toml"
-          cat new.toml
-          echo "[debug] aur.json"
-          cat aur.json
-          echo "[debug] local.json"
-          cat local.json
+          log_error() {
+              echo "[error] $1"
+          }
 
-          curHOME=$HOME
-          HOME=/home/builder
-          nvchecker -c new.toml --logger json > newver.json
-          HOME=curHOME
-          cat newver.json
-          nvcmp -c new.toml
+          setup_environment() {
+              sudo -u builder mkdir -p "${NVCHECKER_DIR}"
+              cd "${NVCHECKER_DIR}"
+              
+              # Copy required Python scripts if they exist
+              for script in "github_version.py" "compare_aur_local_versions.py"; do
+                  if [ -f "${GITHUB_WORKSPACE}/${script}" ]; then
+                      cp "${GITHUB_WORKSPACE}/${script}" "${NVCHECKER_DIR}"
+                  fi
+              done
+          }
 
-          #mapfile -t DOWNGRADES < <(jq -r 'to_entries | map(select(.value.status == "downgrade") | .key) | .[]' changes.json)
-          mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json)
-          echo "[debug] List of packages with UPGRADES scheduled from REPO -> AUR:"
-          for pkg in "${UPGRADES[@]}"; do
-              echo "[debug] $pkg"
-          done
-          readarray -t NVCUPDATES < <(nvcmp -c new.toml -q)
-          echo "[debug] List of packages in with UPGRADES scheduled from NVCHECKER:"
-          for pkg in "${NVCUPDATES[@]}"; do
-              echo "[debug] $pkg"
-          done
-          UPDATES=($(echo "${UPGRADES[@]}" "${NVCUPDATES[@]}" | tr ' ' '\n' | sort -u))
-          echo "[debug] List of packages in the concatenated array:"
-          for pkg in "${concatenated_array[@]}"; do
-              echo "[debug] $pkg"
-          done
+          generate_nvchecker_config() {
+              local config_file="new.toml"
+              
+              # Create base config
+              cat > "${config_file}" << EOF
+          [__config__]
+          oldver='aur.json'
+          newver='local.json'
 
-          cd $GITHUB_WORKSPACE
-          for foundpath in ${UPDATES[@]}; do
-            subdirs=($(find . -maxdepth 3 -type d -name "${foundpath}"))
-            if [ ${#subdirs[@]} -gt 1 ]; then
-              echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}', expected exactly 1."
-              exit 1
-            elif [ ${#subdirs[@]} -eq 0 ]; then
-              echo "[debug] There are ${#subdirs[@]} subdirectories named '${foundpath}'skipping ..."
-            else
-              echo "subdirs pre split: ${subdirs} without ./ = ${subdirs:2}"
-              IFS='/' read -r -a _package <<< "${subdirs:2}"
-              echo "[debug] Packages that will attempt to update:"
-              printf '%s\n' "${UPDATES[@]}"
-              maintain=${_package[0]}
-              build=${_package[1]}
-              package=${_package[2]}
-              pkgbuild=${maintain}/${build}
-              echo "Maintain: $maintain build: $build package: $package pkgbuild: $pkgbuild"
-              if [ ${maintain} == "maintain" ]; then 
-                #sudo -u builder bash $GITHUB_WORKSPACE/buildscript.sh \
-                #  "${{ github.repository }}" "$GH_TOKEN" "$GITHUB_WORKSPACE" $build "$package" "${pkgbuild}/${package}" \
-                #  "Auto update $package "
-                echo "github-repo ${{ github.repository }} github-token GH_TOKEN github-workspace $GITHUB_WORKSPACE package-name $package pkgbuild-path ${pkgbuild}/${package} commit-message Auto build-mode $build debug"
-                sudo -u builder python buildscript.py \
+          EOF
+              
+              # Append all .nvchecker.toml files
+              find "${GITHUB_WORKSPACE}" -name ".nvchecker.toml" -exec cat {} \; >> "${config_file}"
+              
+              log_debug "Generated ${config_file}:"
+              cat "${config_file}"
+          }
+
+          run_version_checks() {
+              local original_home=$HOME
+              HOME="${BUILDER_HOME}"
+              
+              # Run nvchecker and generate comparison
+              nvchecker -c new.toml --logger json > newver.json
+              nvcmp -c new.toml
+              
+              HOME="${original_home}"
+          }
+
+          get_package_updates() {
+              # Get upgrades from changes.json
+              mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json)
+              log_debug "List of packages with UPGRADES scheduled from REPO -> AUR:"
+              printf '%s\n' "${UPGRADES[@]}"
+              
+              # Get updates from nvchecker
+              readarray -t NVCUPDATES < <(nvcmp -c new.toml -q)
+              log_debug "List of packages in with UPGRADES scheduled from NVCHECKER:"
+              printf '%s\n' "${NVCUPDATES[@]}"
+              
+              # Combine and deduplicate updates
+              UPDATES=($(printf '%s\n' "${UPGRADES[@]}" "${NVCUPDATES[@]}" | sort -u))
+          }
+
+          extract_components() {
+              local path="$1"
+              IFS='/' read -r -a components <<< "${path:2}" # Remove leading './'
+              echo "${components[@]}"
+          }
+
+          extract_dependencies() {
+              local dir="$1"
+              (
+                  cd "$dir" || exit 1
+                  source ./PKGBUILD
+                  declare -p depends makedepends checkdepends 2>/dev/null || true
+              )
+          }
+
+          process_package_dependencies() {
+              local package="$1"
+              local update_dir="$2"
+              local depends_json="$3"
+              
+              # Extract dependencies
+              local deps_output
+              deps_output=$(extract_dependencies "${update_dir}")
+              
+              # Reset and evaluate dependency variables
+              unset depends makedepends checkdepends
+              eval "$deps_output"
+              
+              # Set default empty arrays if variables are unset
+              depends=("${depends[@]:-}")
+              makedepends=("${makedepends[@]:-}")
+              checkdepends=("${checkdepends[@]:-}")
+              
+              # Convert to JSON
+              echo "$depends_json" | jq \
+                  --arg package "${package}" \
+                  --argjson depends "$(printf '%s\n' "${depends[@]}" | jq -R . | jq -s .)" \
+                  --argjson makedepends "$(printf '%s\n' "${makedepends[@]}" | jq -R . | jq -s .)" \
+                  --argjson checkdepends "$(printf '%s\n' "${checkdepends[@]}" | jq -R . | jq -s .)" \
+                  '.[$package] = {depends: $depends, makedepends: $makedepends, checkdepends: $checkdepends}'
+          }
+
+          build_package() {
+              local package="$1"
+              local build="$2"
+              local pkgbuild="$3"
+              
+              log_debug "Building package: ${package}"
+              
+              sudo -u builder python buildscript.py \
                   --github-repo "${{ github.repository }}" \
                   --github-token "$GH_TOKEN" \
                   --github-workspace "$GITHUB_WORKSPACE" \
                   --package-name "$package" \
                   --pkgbuild-path "${pkgbuild}/${package}" \
-                  --commit-message "Auto update: " \
-                  --build-mode $build \
+                  --commit-message "Auto update: ${package}" \
+                  --build-mode "$build" \
                   --debug
-              else
-                echo "[debug] skipping $package as it's not in maintain directory"
-              fi
-            fi  
+          }
 
-          done          
-          
-          # Example task execution
-          echo "Task executed at: $(date)"
-          
-          # Example error handling
-          if [ $? -ne 0 ]; then
-              echo "Task failed!"
-              exit 1
-          fi
-          
-          echo "Task completed successfully!"
+          main() {
+              setup_environment
+              
+              # Run initial version comparison
+              python "${NVCHECKER_DIR}/compare_aur_local_versions.py" \
+                  --maintainer "${AUR_MAINTAINER_NAME}" \
+                  --repo-root "${GITHUB_WORKSPACE}"
+              
+              generate_nvchecker_config
+              run_version_checks
+              get_package_updates
+              
+              # Process dependencies for all updates
+              depends_json="{}"
+              for update in "${UPDATES[@]}"; do
+                  subdirs=($(find . -maxdepth 3 -type d -name "${update}"))
+                  
+                  if [ ${#subdirs[@]} -ne 1 ]; then
+                      log_debug "Skipping '${update}': found ${#subdirs[@]} matching directories"
+                      continue
+                  fi
+                  
+                  update_dir="${subdirs[0]}"
+                  components=($(extract_components "${update_dir}"))
+                  maintain="${components[0]:-}"
+                  build="${components[1]:-}"
+                  package="${components[2]:-}"
+                  
+                  if [ -z "$package" ] || [ -z "$build" ] || [ -z "$maintain" ]; then
+                      log_error "Invalid directory structure for ${update_dir}"
+                      continue
+                  }
+                  
+                  depends_json=$(process_package_dependencies "$update" "$update_dir" "$depends_json")
+              done
+              
+              # Save dependencies
+              echo "${depends_json}" | jq . > "${DEPENDS_JSON_PATH}"
+              
+              # Build packages
+              for update in "${UPDATES[@]}"; do
+                  if ! build_package "$update" "$build" "$pkgbuild"; then
+                      log_error "Build failed for ${update}"
+                      continue
+                  fi
+              done
+              
+              log_debug "All updates processed successfully."
+          }
+
+          # Execute main function
+          main "$@"          
+
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

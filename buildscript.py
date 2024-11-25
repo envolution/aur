@@ -218,16 +218,16 @@ class ArchPackageBuilder:
 
     def collect_package_files(self):
         workspace_path = Path(self.config.github_workspace) / self.config.pkgbuild_path
-        self.logger.info(f"copying-{self.config.github_workspace}-/-{self.config.pkgbuild_path}-...")
-        
-        for file in self.TRACKED_FILES:
-            source_file = workspace_path / file
-            if source_file.is_file():
+
+        # Iterate over all files (including hidden) in the workspace
+        for source_file in workspace_path.glob('**/*'):  # **/* to include all files recursively
+            if source_file.is_file():  # Ensure it's a file (not a directory)
                 try:
-                    shutil.copy2(source_file, self.build_dir / file)
-                    self.tracked_files.append(file)
+                    destination_file = self.build_dir / source_file.relative_to(workspace_path)
+                    destination_file.parent.mkdir(parents=True, exist_ok=True)  # Create parent directories if needed
+                    shutil.copy2(source_file, destination_file)  # Copy file with metadata
                 except Exception as e:
-                    self.logger.warning(f"Failed to copy {file}: {e}")
+                    self.logger.warning(f"Failed to copy {source_file}: {e}")
 
     def process_dependencies(self) -> Tuple[bool, Dict[str, List[str]]]:
         try:

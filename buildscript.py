@@ -11,7 +11,7 @@ from pathlib import Path
 import base64
 import shutil
 import tempfile
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Tuple, Dict, Optional, Any, Union
 
 @dataclass
 class CommandResult:
@@ -62,9 +62,10 @@ class BuildConfig:
     github_token: str
     github_workspace: str
     package_name: str
+    package_depends: str
     pkgbuild_path: str
     commit_message: str
-    build_mode: str = "none"  # Options: none, build, test
+    build_mode: str = ""  # Options: nobuild, build, test
     debug: bool = False
 
 @dataclass
@@ -132,38 +133,33 @@ class ArchPackageBuilder:
                 except Exception as e:
                     self.logger.warning(f"Failed to copy {file}: {e}")
 
-    def parse_pkgbuild(self) -> Dict[str, List[str]]:
-        parse_script = '''
-            source PKGBUILD
-            function join_by { local IFS="$1"; shift; echo "$*"; }
-            for array in depends makedepends checkdepends validpgpkeys pkgname; do
-                if declare -p "$array" &>/dev/null; then
-                    values=("${!array[@]}")  # Directly referencing the array
-                else
-                    values=()
-                fi
-                join_by $'\n' "${values[@]}"
-                printf "===SEPARATOR===\n"
-            done
-        '''
-        
+    def process_dependencies(self, package_name: str, json_file_path: str) -> Tuple[bool, Dict[str, List[str]]]:
         try:
-            result = self.subprocess_runner.run_command(['bash', '-c', parse_script])
-            sections = result.stdout.split("===SEPARATOR===\n")
+            # Load the JSON data
+            data = self.load_json_file(json_file_path)
             
-            if len(sections) < 5:
-                sections += [''] * (5 - len(sections))
+            # Check if the package exists in the data
+            if not self.check_package_exists(data, package_name):
+                return True, {"package_name": package_name, "message": f"Package '{package_name}' has no dependencies."}
 
-            return {
-                'depends': [s.strip() for s in sections[0].splitlines() if s.strip()],
-                'makedepends': [s.strip() for s in sections[1].splitlines() if s.strip()],
-                'checkdepends': [s.strip() for s in sections[2].splitlines() if s.strip()],
-                'pgpkeys': [s.strip() for s in sections[3].splitlines() if s.strip()],
-                'packages': [s.strip() for s in sections[4].splitlines() if s.strip()]
-            }
+            # Get package data and prepare dependencies
+            package_data = data[package_name]
+            combined_dependencies = self.prepare_dependencies(package_data)
+            
+            # Prepare and run the subprocess command
+            command = [
+                'paru', '-S', '--needed', '--norebuild', '--noconfirm',
+                '--mflags', '--skipchecksums', '--mflags', '--skippgpcheck'
+            ] + combined_dependencies
+            
+            if self.run_subprocess(command):
+                return True, {"package_name": package_name, "message": f"Dependencies for package '{package_name}' installed successfully."}
+            
+            return False, {"package_name": package_name, "error": "Subprocess failed during dependency installation."}
+        
         except Exception as e:
-            self.logger.error(f"Failed to parse PKGBUILD: {str(e)}")
-            return {}
+            self.logger.error(f"Error processing package '{package_name}': {str(e)}")
+            return False, {"package_name": package_name, "error": str(e)}
 
     def check_version_update(self) -> Optional[str]:
         nvchecker_path = self.build_dir / '.nvchecker.toml'
@@ -199,18 +195,6 @@ class ArchPackageBuilder:
     def build_package(self, pkg_info: Dict[str, List[str]]) -> bool:
         if self.config.build_mode not in ['build', 'test']:
             return True
-
-        # Install dependencies
-        for dep_type in ['depends', 'makedepends', 'checkdepends']:
-            if deps := pkg_info.get(dep_type):
-                try:
-                    self.subprocess_runner.run_command([
-                        'paru', '-S', '--needed', '--norebuild', '--noconfirm',
-                        '--mflags', '--skipchecksums', '--mflags', '--skippgpcheck',
-                        *[dep.strip(',') for dep in deps]
-                    ])
-                except subprocess.CalledProcessError:
-                    self.logger.warning(f"Failed to install some {dep_type}")
 
         try:
             # Build package
@@ -339,7 +323,8 @@ class ArchPackageBuilder:
             self.setup_build_environment()
             self.collect_package_files()
             
-            pkg_info = self.parse_pkgbuild()
+            pkg_info = self.process_dependencies()
+            print(f"[debug] PACKAGE INFO--> {pkg_info}")
             self.check_version_update()
             
             if not self.build_package(pkg_info):
@@ -362,10 +347,11 @@ def main():
     parser.add_argument('--github-token', required=True, help='GitHub authentication token')
     parser.add_argument('--github-workspace', required=True, help='GitHub workspace directory')
     parser.add_argument('--package-name', required=True, help='Package name')
+    parser.add_argument('--depends-json', required=True, help='Path to JSON containing package names and their dependencies')
     parser.add_argument('--pkgbuild-path', required=True, help='Path to PKGBUILD directory')
     parser.add_argument('--commit-message', required=True, help='Git commit message')
     parser.add_argument('--build-mode', choices=['none', 'build', 'test'],
-                       default='none', help='Build mode: none, build, or test')
+                       default='none', help='Build mode: nobuild, build, or test')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
 
     args = parser.parse_args()

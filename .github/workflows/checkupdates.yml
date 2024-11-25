@@ -97,7 +97,7 @@ jobs:
           # Constants
           BUILDER_HOME="/home/builder"
           NVCHECKER_DIR="${BUILDER_HOME}/nvchecker"
-          DEPENDS_JSON_PATH="/tmp/depends.json"
+          DEPENDS_JSON_PATH="${NVCHECKER_DIR}/depends.json"
 
           # Helper Functions
           log_debug() {
@@ -211,6 +211,7 @@ jobs:
               local package="$1"
               local build="$2"
               local pkgbuild="$3"
+              local depjson=$DEPENDS_JSON_PATH
               
               log_debug "Building package: ${package}"
               
@@ -219,7 +220,8 @@ jobs:
                   --github-token "$GH_TOKEN" \
                   --github-workspace "$GITHUB_WORKSPACE" \
                   --package-name "$package" \
-                  --pkgbuild-path "${pkgbuild}/${package}" \
+                  --depends-json "$depjson" \
+                  --pkgbuild-path "${pkgbuild} \
                   --commit-message "Auto update: ${package}" \
                   --build-mode "$build" \
                   --debug

@@ -273,7 +273,7 @@ class ArchPackageBuilder:
                 source_file_path = workspace_path / source
                 if source_file_path.is_file():
                     source_info['file'] = str(source_file_path)
-                    self.tracked_files.append(source_file_path)  # Add to tracked files
+                    self.tracked_files.append(source)  # Add to tracked files
                     self.logger.info(f"Source file exists: {source_file_path}")
                 else:
                     source_info['file'] = None
@@ -469,6 +469,7 @@ class ArchPackageBuilder:
             return False
 
         try:
+            self.logger.info(f"sources currently tracked before push {self.tracked_files}")
             self.subprocess_runner.run_command(['git', 'add', *self.tracked_files])
             
             if self._has_changes():
@@ -509,6 +510,7 @@ class ArchPackageBuilder:
             try:
                 self.subprocess_runner.run_command(['gh', 'auth', 'status'])
             except subprocess.CalledProcessError:
+                self.logger.info("Logging into github...")
                 if not self.authenticate_github():
                     raise Exception("GitHub authentication failed")
 

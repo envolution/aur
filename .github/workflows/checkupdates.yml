@@ -69,17 +69,17 @@ jobs:
 
       - name: Setup SSH key
         run: |
-          sudo -u builder mkdir -p /home/builder/.ssh
-          sudo -u builder echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > /home/builder/.ssh/aur
-          sudo -u builder ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
-          sudo -u builder cat /home/builder/.ssh/known_hosts
-          sudo -u builder cat >> /home/builder/.ssh/config << EOF
-          Host aur.archlinux.org
-                IdentityFile /home/builder/.ssh/aur
-                User aur
-          EOF
-          chmod -R 600 /home/builder/.ssh
+          mkdir -p /home/builder/.ssh
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > /home/builder/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
+          echo "Host aur.archlinux.org" >> /home/builder/.ssh/config 
+          echo "IdentityFile /home/builder/.ssh/aur" >> /home/builder/.ssh/config 
+          echo "User aur" >> /home/builder/.ssh/config 
+          chown -R builder:builder /home/builder/.ssh
           chmod 700 /home/builder/.ssh
+          chmod 600 /home/builder/.ssh/aur
+          chmod 644 /home/builder/.ssh/known_hosts
+          chmod 600 /home/builder/.ssh/config
           echo "[debug] SSH Permissions Files"
           ls -latr /home/builder/.ssh
 

@@ -492,7 +492,7 @@ def main():
     builder = ArchPackageBuilder(config)
     result = builder.run()
     
-    self.logger.info(json.dumps(result, indent=2))
+    print(json.dumps(result, indent=2))
     sys.exit(0 if result['success'] else 1)
 
 if __name__ == '__main__':

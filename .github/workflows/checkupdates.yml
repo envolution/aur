@@ -150,18 +150,23 @@ jobs:
           }
 
           get_package_updates() {
+              local UPGRADES=()
+              local NVCUPDATES=()
+              
               # Get upgrades from changes.json
               mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json)
               log_debug "List of packages with UPGRADES scheduled from REPO -> AUR:"
-              printf '%s\n' "${UPGRADES[@]}"
+              printf '%s\n' "${UPGRADES[@]:-}"
               
               # Get updates from nvchecker
               readarray -t NVCUPDATES < <(nvcmp -c new.toml -q)
               log_debug "List of packages in with UPGRADES scheduled from NVCHECKER:"
-              printf '%s\n' "${NVCUPDATES[@]}"
+              printf '%s\n' "${NVCUPDATES[@]:-}"
               
               # Combine and deduplicate updates
-              UPDATES=($(printf '%s\n' "${UPGRADES[@]}" "${NVCUPDATES[@]}" | sort -u))
+              # Use printf to handle empty arrays properly
+              UPDATES=($(printf '%s\n' "${UPGRADES[@]:-}" "${NVCUPDATES[@]:-}" | sort -u))
+              declare -g UPDATES
           }
 
           extract_components() {
@@ -182,28 +187,25 @@ jobs:
           process_package_dependencies() {
               local package="$1"
               local update_dir="$2"
-              local depends_json="$3"
+              local deps_output
               
               # Extract dependencies
-              local deps_output
               deps_output=$(extract_dependencies "${update_dir}")
               
               # Reset and evaluate dependency variables
               unset depends makedepends checkdepends
               eval "$deps_output"
               
-              # Set default empty arrays if variables are unset
-              depends=("${depends[@]:-}")
-              makedepends=("${makedepends[@]:-}")
-              checkdepends=("${checkdepends[@]:-}")
+              # Convert arrays to JSON, handling empty arrays
+              local depends_json
+              depends_json=$(jq -n \
+                  --arg pkg "$package" \
+                  --arg deps "$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
+                  --arg mkdeps "$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
+                  --arg chkdeps "$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
+                  '{($pkg): {depends: ($deps|fromjson), makedepends: ($mkdeps|fromjson), checkdepends: ($chkdeps|fromjson)}}')
               
-              # Convert to JSON
-              echo "$depends_json" | jq \
-                  --arg package "${package}" \
-                  --argjson depends "$(printf '%s\n' "${depends[@]}" | jq -R . | jq -s .)" \
-                  --argjson makedepends "$(printf '%s\n' "${makedepends[@]}" | jq -R . | jq -s .)" \
-                  --argjson checkdepends "$(printf '%s\n' "${checkdepends[@]}" | jq -R . | jq -s .)" \
-                  '.[$package] = {depends: $depends, makedepends: $makedepends, checkdepends: $checkdepends}'
+              echo "$depends_json"
           }
 
           build_package() {
@@ -237,8 +239,10 @@ jobs:
               get_package_updates
               
               # Process dependencies for all updates
-              depends_json="{}"
+              local final_depends_json="{}"
+              
               for update in "${UPDATES[@]}"; do
+                  local subdirs
                   subdirs=($(find . -maxdepth 3 -type d -name "${update}"))
                   
                   if [ ${#subdirs[@]} -ne 1 ]; then
@@ -246,22 +250,26 @@ jobs:
                       continue
                   fi
                   
-                  update_dir="${subdirs[0]}"
+                  local update_dir="${subdirs[0]}"
+                  local components
                   components=($(extract_components "${update_dir}"))
-                  maintain="${components[0]:-}"
-                  build="${components[1]:-}"
-                  package="${components[2]:-}"
+                  local maintain="${components[0]:-}"
+                  local build="${components[1]:-}"
+                  local package="${components[2]:-}"
                   
                   if [ -z "$package" ] || [ -z "$build" ] || [ -z "$maintain" ]; then
                       log_error "Invalid directory structure for ${update_dir}"
                       continue
-                  }
+                  fi
                   
-                  depends_json=$(process_package_dependencies "$update" "$update_dir" "$depends_json")
+                  # Process dependencies and merge with existing JSON
+                  local pkg_deps_json
+                  pkg_deps_json=$(process_package_dependencies "$update" "$update_dir")
+                  final_depends_json=$(echo "$final_depends_json" "$pkg_deps_json" | jq -s 'add')
               done
               
               # Save dependencies
-              echo "${depends_json}" | jq . > "${DEPENDS_JSON_PATH}"
+              echo "${final_depends_json}" | jq . > "${DEPENDS_JSON_PATH}"
               
               # Build packages
               for update in "${UPDATES[@]}"; do
@@ -275,7 +283,6 @@ jobs:
           }
 
           # Execute main function
-          main "$@"          
-
+          main "$@"        
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -36,7 +36,7 @@ jobs:
             openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg \
             pyalpm python-awesomeversion python-packaging python-lxml \
             python-jq python-gobject python-requests libnotify nvchecker \
-            binutils multilib-devel rustup
+            binutils
 
       - name: Setup non-root user for AUR
         run: |

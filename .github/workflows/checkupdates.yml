@@ -177,8 +177,11 @@ jobs:
           extract_dependencies() {
               local dir="$1"
               (
+                  echo "hi 1"
                   source "${GITHUB_WORKSPACE}/${dir}/PKGBUILD"
+                  echo "hi 2"
                   declare -p depends makedepends checkdepends 2>/dev/null || true
+                  echo "hi 3"
               )
           }
 

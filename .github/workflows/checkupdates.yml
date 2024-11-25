@@ -39,6 +39,7 @@ jobs:
             binutils multilib-devel
 
       - name: Setup non-root user for AUR
+        shell: bash
         run: |
           # Create build user with sudo access
           useradd -m builder

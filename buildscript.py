@@ -99,6 +99,65 @@ class ArchPackageBuilder:
         logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
         return logger
 
+    def debug_git_authentication(self):
+        # Define the SSH private key file
+        ssh_key_file = '/home/builder/.ssh/aur'
+
+        # Set the necessary environment variables for debugging
+        env = os.environ.copy()
+        env['GIT_TRACE'] = '1'
+        env['GIT_CURL_VERBOSE'] = '1'
+
+        # Ensure the private key has the correct permissions
+        subprocess.run(['chmod', '700', '/home/builder/.ssh'], check=True)
+        subprocess.run(['chmod', '600', ssh_key_file], check=True)
+
+        # Add SSH key to ssh-agent if needed
+        subprocess.run(['eval', "$(ssh-agent -s)"], shell=True, env=env, check=True)
+        subprocess.run(['ssh-add', ssh_key_file], shell=True, env=env, check=True)
+
+        # Run git remote -v to see which URL is used for pushing
+        print("Git remote -v:")
+        remote_output = subprocess.run(
+            ['git', 'remote', '-v'],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        print(remote_output.stdout)
+
+        # Run git config --list to see what git configuration is used
+        print("\nGit config --list:")
+        config_output = subprocess.run(
+            ['git', 'config', '--list'],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        print(config_output.stdout)
+
+        # Attempt to commit and push (with debugging)
+        try:
+            print("\nAttempting git commit and push...")
+            commit_output = subprocess.run(
+                ['git', 'commit', '-m', 'Auto update: lib32-libsql-sqlite3'],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True
+            )
+            print(commit_output.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"Error during git commit: {e.stderr}")
+            return None
+
+        return commit_output
+
     def authenticate_github(self) -> bool:
         try:
             token_file = self.build_dir / '.github_token'
@@ -198,8 +257,8 @@ class ArchPackageBuilder:
             if new_version:
                 self._update_pkgbuild_version(new_version)
                 self.result.version = new_version
-                return new_version
-                
+            return new_version
+            
         except Exception as e:
             self.logger.error(f"Version check failed: {e}")
             return None
@@ -299,6 +358,7 @@ class ArchPackageBuilder:
             
             if self._has_changes():
                 commit_msg = f"{self.config.commit_message}: {self.result.version or ''}"
+                self.debug_git_authentication()
                 self.subprocess_runner.run_command(['git', 'commit', '-m', commit_msg])
                 self.subprocess_runner.run_command(['git', 'push', 'origin', 'master'])
                 self.result.changes_detected = True

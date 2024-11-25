@@ -47,6 +47,7 @@ class SubprocessRunner:
                 stderr=process.stderr
             )
         except subprocess.CalledProcessError as e:
+            print(f"{e.stderr}")
             if check:
                 raise
             return CommandResult(

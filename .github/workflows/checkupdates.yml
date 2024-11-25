@@ -211,7 +211,7 @@ jobs:
                   --arg mkdeps "$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
                   --arg chkdeps "$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
                   --arg sources "$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
-                  '{($pkg): {depends: ($deps|fromjson), makedepends: ($mkdeps|fromjson), checkdepends: ($chkdeps|fromjson)}}')
+                  '{($pkg): {depends: ($deps|fromjson), makedepends: ($mkdeps|fromjson), checkdepends: ($chkdeps|fromjson), sources: ($sources|fromjson)}}')
               
               echo "$depends_json"
           }

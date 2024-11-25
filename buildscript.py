@@ -153,8 +153,15 @@ class ArchPackageBuilder:
 
             # Get package data and prepare dependencies
             package_data = data[package_name]
-            combined_dependencies = self.prepare_dependencies(package_data)
-            
+            combined_dependencies = (
+                package_data.get("depends", []) +
+                package_data.get("makedepends", []) +
+                package_data.get("checkdepends", [])
+            )
+
+            # Filter out empty or invalid dependencies
+            combined_dependencies = [dep for dep in combined_dependencies if dep]
+
             # Prepare and run the subprocess command
             command = [
                 'paru', '-S', '--needed', '--norebuild', '--noconfirm',

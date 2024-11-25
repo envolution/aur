@@ -111,7 +111,7 @@ jobs:
           setup_environment() {
               sudo -u builder mkdir -p "${NVCHECKER_DIR}"
               cd "${NVCHECKER_DIR}"
-              
+              sudo -u builder paru -S --needed --norebuild --noconfirm --mflags --skipchecksums --mflags --skippgpcheck cargo lib32-tcl-ar lib32-zlib lib32-glibc
               # Copy required Python scripts if they exist
               for script in "github_version.py" "compare_aur_local_versions.py" "buildscript.py"; do
                   if [ -f "${GITHUB_WORKSPACE}/${script}" ]; then

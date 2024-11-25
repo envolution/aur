@@ -217,6 +217,7 @@ class ArchPackageBuilder:
 
     def collect_package_files(self):
         workspace_path = Path(self.config.github_workspace) / self.config.pkgbuild_path
+        self.logger.info(f"copying-{self.config.github_workspace}-/-{self.config.pkgbuild_path}-/-{file}-...")
         
         for file in self.TRACKED_FILES:
             source_file = workspace_path / file
@@ -313,7 +314,7 @@ class ArchPackageBuilder:
         except Exception as e:
             self.logger.error(f"Version check failed: {e}")
 
-        return None
+        return None    
 
     def _update_pkgbuild_version(self, new_version: str):
         pkgbuild_path = self.build_dir / 'PKGBUILD'
@@ -328,6 +329,7 @@ class ArchPackageBuilder:
         try:
             # Build package
             self.subprocess_runner.run_command(['makepkg', '-s', '--noconfirm'])
+            self.subprocess_runner.run_command(['makepkg', '--printsrcinfo'], stdout='.SRCINFO')
             
             # Install package
             packages = sorted(Path('.').glob('*.pkg.tar.zst'))

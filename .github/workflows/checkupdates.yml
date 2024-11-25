@@ -237,10 +237,10 @@ jobs:
               generate_nvchecker_config
               run_version_checks
               get_package_updates
-              
+              echo "1"
               # Process dependencies for all updates
               local final_depends_json="{}"
-              
+              echo "2"
               for update in "${UPDATES[@]}"; do
                   local subdirs
                   subdirs=($(find "${GITHUB_WORKSPACE}" -maxdepth 3 -type d -name "${update}" -exec realpath --relative-to="${GITHUB_WORKSPACE}" {} +))
@@ -266,7 +266,7 @@ jobs:
                   pkg_deps_json=$(process_package_dependencies "$update" "$update_dir")
                   final_depends_json=$(echo "$final_depends_json" "$pkg_deps_json" | jq -s 'add')
               done
-              
+              echo "3"
               # Save dependencies
               echo "${final_depends_json}" | jq . > "${DEPENDS_JSON_PATH}"
               

@@ -187,7 +187,7 @@ jobs:
               local dir="$1"
               (
                   source "${GITHUB_WORKSPACE}/${dir}/PKGBUILD"
-                  declare -p depends makedepends checkdepends 2>/dev/null || true
+                  declare -p depends makedepends checkdepends source 2>/dev/null || true
               )
           }
 
@@ -210,6 +210,7 @@ jobs:
                   --arg deps "$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
                   --arg mkdeps "$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
                   --arg chkdeps "$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
+                  --arg sources "$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
                   '{($pkg): {depends: ($deps|fromjson), makedepends: ($mkdeps|fromjson), checkdepends: ($chkdeps|fromjson)}}')
               
               echo "$depends_json"

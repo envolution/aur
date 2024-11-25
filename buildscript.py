@@ -280,22 +280,40 @@ class ArchPackageBuilder:
             result = self.subprocess_runner.run_command(
                 ['nvchecker', '-c', '.nvchecker.toml', '--logger', 'json']
             )
-            version_info = json.loads(result.stdout)
-            self.logger.warning(f"{version_info}")
-            new_version = next(
-                (item['version'] for item in version_info 
-                if item.get('logger_name') == 'nvchecker.core'),
-                None
-            )
-            
-            if new_version:
-                self._update_pkgbuild_version(new_version)
-                self.result.version = new_version
+
+            # Log the raw stdout for debugging purposes
+            self.logger.debug(f"Raw NVChecker output: {result.stdout}")
+
+            # Process each line in stdout
+            new_version = None
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    continue  # Skip empty lines
+
+                try:
+                    # Parse each line as JSON
+                    entry = json.loads(line)
+
+                    # Check if the entry matches our criteria
+                    if isinstance(entry, dict) and entry.get('logger_name') == 'nvchecker.core':
+                        new_version = entry.get('version')
+                        if new_version:
+                            self._update_pkgbuild_version(new_version)
+                            self.result.version = new_version
+                            break  # Stop processing further lines once version is found
+                except json.JSONDecodeError as e:
+                    self.logger.warning(f"Skipping invalid JSON line: {line}. Error: {e}")
+                    continue  # Ignore lines that are not valid JSON
+
             return new_version
-            
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Command failed: {e}")
         except Exception as e:
             self.logger.error(f"Version check failed: {e}")
-            return None
+
+        return None
 
     def _update_pkgbuild_version(self, new_version: str):
         pkgbuild_path = self.build_dir / 'PKGBUILD'

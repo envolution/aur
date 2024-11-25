@@ -273,6 +273,14 @@ jobs:
               
               # Build packages
               for update in "${UPDATES[@]}"; do
+                  local subdirs
+                  local components
+                  subdirs=($(find "${GITHUB_WORKSPACE}" -maxdepth 3 -type d -name "${update}" -exec realpath --relative-to="${GITHUB_WORKSPACE}" {} +))
+                  local update_dir="${subdirs[0]}"
+                  components=($(extract_components "${update_dir}"))
+                  local maintain="${components[0]:-}"
+                  local build="${components[1]:-}"
+                  local package="${components[2]:-}"                  
                   log_debug "maintain: $maintain update: $update build: $build"
                   # TODO: we should have maintain passed here somehow
                   if ! build_package "$update" "$build" "$GITHUB_WORKSPACE/$maintain/$build/$update"; then

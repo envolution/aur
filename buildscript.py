@@ -106,7 +106,7 @@ class ArchPackageBuilder:
 
         # Ensure the .ssh directory and key file have the correct permissions
         try:
-            self.logging.info("Checking .ssh directory permissions...")
+            self.logger.info("Checking .ssh directory permissions...")
             subprocess.run(['chmod', '700', '/home/builder/.ssh'], check=True)
             subprocess.run(['chmod', '600', ssh_key_file], check=True)
             self.logger.info("Permissions set correctly for .ssh directory and SSH key.")
@@ -415,7 +415,6 @@ class ArchPackageBuilder:
             
             if self._has_changes():
                 commit_msg = f"{self.config.commit_message}: {self.result.version or ''}"
-                self.debug_git_authentication()
                 self.subprocess_runner.run_command(['git', 'commit', '-m', commit_msg])
                 self.subprocess_runner.run_command(['git', 'push', 'origin', 'master'])
                 self.result.changes_detected = True

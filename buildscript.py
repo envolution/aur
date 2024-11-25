@@ -140,7 +140,7 @@ class ArchPackageBuilder:
             json_file_path = self.config.depends_json
             try:
                 with open(json_file_path, 'r') as file:
-                    data = self.load_json_file(self.config.depends_json)
+                    data = json.load(self.config.depends_json)
             except json.JSONDecodeError as e:
                 self.logger.error(f"Error decoding JSON: {e}")
             except FileNotFoundError:

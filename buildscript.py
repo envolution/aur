@@ -87,7 +87,7 @@ class ArchPackageBuilder:
         self.config = config
         self.logger = self._setup_logger()
         self.build_dir = Path(tempfile.mkdtemp(prefix=f"build-{config.package_name}-"))
-        self.tracked_files: List[str] = []
+        self.tracked_files: List[str] = self.TRACKED_FILES.copy()
         self.result = BuildResult(success=True, package_name=config.package_name)
         self.subprocess_runner = SubprocessRunner(self.logger)
 
@@ -473,6 +473,7 @@ class ArchPackageBuilder:
 
     def commit_and_push(self) -> bool:
         if not self.tracked_files:
+            self.logger.error("There are no tracked files")
             return False
 
         try:

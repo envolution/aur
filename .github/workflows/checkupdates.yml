@@ -36,7 +36,7 @@ jobs:
             openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg \
             pyalpm python-awesomeversion python-packaging python-lxml \
             python-jq python-gobject python-requests libnotify nvchecker \
-            binutils
+            binutils multilib-devel
 
       - name: Setup non-root user for AUR
         run: |
@@ -111,7 +111,7 @@ jobs:
           setup_environment() {
               sudo -u builder mkdir -p "${NVCHECKER_DIR}"
               cd "${NVCHECKER_DIR}"
-              sudo -u builder paru -S --needed --norebuild --noconfirm --mflags --skipchecksums --mflags --skippgpcheck cargo lib32-libsql-sqlite3
+              sudo -u builder paru -S --needed --norebuild --noconfirm --mflags --skipchecksums --mflags --skippgpcheck lib32-tcl-ar cargo lib32-libsql-sqlite3
               # Copy required Python scripts if they exist
               for script in "github_version.py" "compare_aur_local_versions.py" "buildscript.py"; do
                   if [ -f "${GITHUB_WORKSPACE}/${script}" ]; then

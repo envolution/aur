@@ -171,7 +171,7 @@ jobs:
 
           extract_components() {
               local path="$1"
-              IFS='/' read -r -a components <<< "${path:2}" # Remove leading './'
+              IFS='/' read -r -a components <<< "${path}"
               echo "${components[@]}"
           }
 

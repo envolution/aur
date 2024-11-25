@@ -148,7 +148,7 @@ class ArchPackageBuilder:
 
             self.logger.warning(f"Loaded JSON data: {data}") 
             # Check if the package exists in the data
-            if not self.check_package_exists(data, package_name):
+            if package_name not in data:
                 return True, {"package_name": package_name, "message": f"Package '{package_name}' has no dependencies."}
 
             # Get package data and prepare dependencies

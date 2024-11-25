@@ -99,7 +99,7 @@ class ArchPackageBuilder:
         logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
         return logger
 
-    def debug_git_authentication():
+    def debug_git_authentication(self):
         # Define the SSH private key file
         ssh_key_file = '/home/builder/.ssh/aur'
 

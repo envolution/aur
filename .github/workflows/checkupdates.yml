@@ -271,7 +271,7 @@ jobs:
               
               # Build packages
               for update in "${UPDATES[@]}"; do
-                  log_debug "update: $update build: $build pkgbuild: $pkgbuild"
+                  log_debug "update: $update build: $build pkgbuild: "
                   if ! build_package "$update" "$build" "$pkgbuild"; then
                       log_error "Build failed for ${update}"
                       continue

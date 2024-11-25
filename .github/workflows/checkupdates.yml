@@ -221,7 +221,7 @@ jobs:
                   --github-workspace "$GITHUB_WORKSPACE" \
                   --package-name "$package" \
                   --depends-json "$depjson" \
-                  --pkgbuild-path "${pkgbuild} \
+                  --pkgbuild-path "${pkgbuild}" \
                   --commit-message "Auto update: ${package}" \
                   --build-mode "$build" \
                   --debug

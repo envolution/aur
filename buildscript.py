@@ -302,7 +302,7 @@ class ArchPackageBuilder:
             except FileNotFoundError:
                 self.logger.error(f"File not found: {json_file_path}")                    
 
-            self.logger.warning(f"Loaded JSON data: {data}") 
+            self.logger.debug(f"Loaded JSON data: {data}") 
             # Check if the package exists in the data
             if package_name not in data:
                 return True, {"package_name": package_name, "message": f"Package '{package_name}' has no dependencies."}
@@ -447,7 +447,7 @@ class ArchPackageBuilder:
         try:
             # Try to get existing file's SHA
             response = self.subprocess_runner.run_command([
-                'gh', 'api',
+                'uh', 'api',
                 f"/repos/{self.config.github_repo}/contents/{self.config.pkgbuild_path}/{file}",
                 '--jq', '.sha'
             ])

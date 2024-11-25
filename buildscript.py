@@ -330,7 +330,9 @@ class ArchPackageBuilder:
         try:
             # Build package
             self.subprocess_runner.run_command(['makepkg', '-s', '--noconfirm'])
-            self.subprocess_runner.run_command(['makepkg', '--printsrcinfo'], stdout='.SRCINFO')
+            result = self.subprocess_runner.run_command(['makepkg', '--printsrcinfo'])
+            with open('.SRCINFO', 'w') as srcinfo_file:
+                srcinfo_file.write(result.stdout)
             
             # Install package
             packages = sorted(Path('.').glob('*.pkg.tar.zst'))

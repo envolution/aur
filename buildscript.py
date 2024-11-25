@@ -285,15 +285,9 @@ class ArchPackageBuilder:
         return True, {"package_name": package_name, "sources": processed_sources}
 
     def _is_non_file_type(self, source):
-        # Strip whitespace and check if the source is a simple file (no ':' or '/')
-        source = source.strip()
-        
-        # Empty or whitespace-only sources are not files
-        if not source:
-            return False
-
-        # Return True if the source is a non-file (likely a URL or remote path)
-        return ':' not in source and '/' not in source
+        # If the source contains ':' or '/' it's not a file (e.g., URL or path)
+        if ':' in source or '/' in source:
+            return True  # It's a non-file type (e.g., URL or path)
 
     def process_dependencies(self) -> Tuple[bool, Dict[str, List[str]]]:
         try:

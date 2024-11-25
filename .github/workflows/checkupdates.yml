@@ -178,8 +178,7 @@ jobs:
           extract_dependencies() {
               local dir="$1"
               (
-                  cd "$dir" || exit 1
-                  source ./PKGBUILD
+                  source $dir/PKGBUILD
                   declare -p depends makedepends checkdepends 2>/dev/null || true
               )
           }

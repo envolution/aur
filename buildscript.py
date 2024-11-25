@@ -137,7 +137,14 @@ class ArchPackageBuilder:
         try:
             # Load the JSON data
             package_name = self.config.package_name
-            data = self.load_json_file(self.config.depends_json)
+            json_file_path = self.config.depends_json
+            try:
+                with open(json_file_path, 'r') as file:
+                    data = self.load_json_file(self.config.depends_json)
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Error decoding JSON: {e}")
+            except FileNotFoundError:
+                self.logger.error(f"File not found: {json_file_path}")                    
             
             # Check if the package exists in the data
             if not self.check_package_exists(data, package_name):

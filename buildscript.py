@@ -187,6 +187,7 @@ class ArchPackageBuilder:
                 ['nvchecker', '-c', '.nvchecker.toml', '--logger', 'json']
             )
             version_info = json.loads(result.stdout)
+            self.logger.warning(f"{version_info}")
             new_version = next(
                 (item['version'] for item in version_info 
                 if item.get('logger_name') == 'nvchecker.core'),

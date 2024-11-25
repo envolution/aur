@@ -6,6 +6,7 @@ import logging
 import os
 import subprocess
 import sys
+import re
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import base64
@@ -385,7 +386,7 @@ class ArchPackageBuilder:
     def _update_pkgbuild_version(self, new_version: str):
         pkgbuild_path = self.build_dir / 'PKGBUILD'
         content = pkgbuild_path.read_text()
-        updated_content = content.replace('pkgver=', f'pkgver={new_version}')
+        updated_content = re.sub(r'^\s*pkgver=\s*.*$', f'pkgver={new_version}', content, flags=re.MULTILINE, count=1)
         pkgbuild_path.write_text(updated_content)
 
     def build_package(self, pkg_info: Dict[str, List[str]]) -> bool:

@@ -389,7 +389,11 @@ class ArchPackageBuilder:
 
         try:
             # Build package
+            self.logger.info("updating PKGINFO pkgsums")
+            self.subprocess_runner.run_command(['updpkgsums'])
+            self.logger.info("beginning makebuild")
             self.subprocess_runner.run_command(['makepkg', '-s', '--noconfirm'])
+            self.logger.info("updating .SRCINFO")
             result = self.subprocess_runner.run_command(['makepkg', '--printsrcinfo'])
             with open('.SRCINFO', 'w') as srcinfo_file:
                 srcinfo_file.write(result.stdout)

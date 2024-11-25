@@ -145,7 +145,8 @@ class ArchPackageBuilder:
                 self.logger.error(f"Error decoding JSON: {e}")
             except FileNotFoundError:
                 self.logger.error(f"File not found: {json_file_path}")                    
-            
+
+            self.logger.warning(f"Loaded JSON data: {data}") 
             # Check if the package exists in the data
             if not self.check_package_exists(data, package_name):
                 return True, {"package_name": package_name, "message": f"Package '{package_name}' has no dependencies."}

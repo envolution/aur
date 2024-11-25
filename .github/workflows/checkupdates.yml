@@ -80,6 +80,8 @@ jobs:
           EOF
           chmod -R 600 /home/builder/.ssh
           chmod 700 /home/builder/.ssh
+          echo "[debug] SSH Permissions Files"
+          ls -latr /home/builder/.ssh
 
       - name: Configure Git
         run: |

@@ -229,6 +229,64 @@ class ArchPackageBuilder:
                 except Exception as e:
                     self.logger.warning(f"Failed to copy {source_file}: {e}")
 
+    def process_package_sources(self):
+        workspace_path = Path(self.config.github_workspace) / self.config.pkgbuild_path
+        package_name = self.config.package_name
+        json_file_path = self.config.depends_json
+
+        # Load the JSON data
+        try:
+            with open(json_file_path, 'r') as file:
+                data = json.load(file)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Error decoding JSON from {json_file_path}: {e}")
+            return False, {"package_name": package_name, "error": f"Error decoding JSON: {e}"}
+        except FileNotFoundError:
+            self.logger.error(f"File not found: {json_file_path}")
+            return False, {"package_name": package_name, "error": f"File not found: {json_file_path}"}
+
+        self.logger.info(f"Loaded JSON data for package '{package_name}'")
+
+        # Check if the package exists in the data
+        if package_name not in data:
+            self.logger.warning(f"Package '{package_name}' not found in JSON data.")
+            return True, {"package_name": package_name, "message": f"Package '{package_name}' has no sources."}
+
+        # Get package data and sources
+        packagedata = data[package_name]
+        sources = packagedata.get('sources', [])
+
+        if not sources:
+            self.logger.warning(f"No sources found for package '{package_name}'.")
+            return True, {"package_name": package_name, "message": f"Package '{package_name}' has no sources."}
+
+        # Process each source
+        processed_sources = []
+        for source in sources:
+            source_info = {}
+            if self._is_non_file_type(source):
+                # Handle non-file types (likely URLs)
+                source_info['url'] = source
+                self.logger.info(f"Source is a non-file type (URL): {source}")
+            else:
+                # Check if it's a file in the workspace
+                source_file_path = workspace_path / source
+                if source_file_path.is_file():
+                    source_info['file'] = str(source_file_path)
+                    self.tracked_files.append(source_file_path)  # Add to tracked files
+                    self.logger.info(f"Source file exists: {source_file_path}")
+                else:
+                    source_info['file'] = None
+                    self.logger.warning(f"Source file does not exist in the workspace: {source}")
+
+            processed_sources.append(source_info)
+
+        return True, {"package_name": package_name, "sources": processed_sources}
+
+    def _is_non_file_type(self, source):
+        # Check if the source does not contain ':' or '/' (non-file type check)
+        return ':' not in source and '/' not in source
+
     def process_dependencies(self) -> Tuple[bool, Dict[str, List[str]]]:
         try:
             # Load the JSON data
@@ -463,7 +521,8 @@ class ArchPackageBuilder:
             
             if not self.build_package(pkg_info):
                 raise Exception("Package build failed")
-                
+
+            self.process_package_sources() 
             self.commit_and_push()
             
             return asdict(self.result)

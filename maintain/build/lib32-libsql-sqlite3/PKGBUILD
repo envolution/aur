@@ -8,7 +8,7 @@ pkgrel=3
 pkgdesc='libsql sqlite3 compatibility libraries and executables - 32bit libraries'
 url='https://turso.tech/libsql'
 license=(MIT)
-makedepends=('cargo' lib32-tcl-ar 'lib32-zlib' lib32-glibc multilib-devel rustup)
+makedepends=(cargo lib32-tcl-ar lib32-zlib lib32-glibc lib32-readline multilib-devel rustup)
 #This does not play well as a sqlite3 replacement
 #if thic changes in future, the initial PKGBUILD can be used
 #provides=(sqlite sqlite3 'libsqlite3.so')

@@ -168,7 +168,7 @@ class ArchPackageBuilder:
                 '--mflags', '--skipchecksums', '--mflags', '--skippgpcheck'
             ] + combined_dependencies
             
-            if self.run_subprocess(command):
+            if self.subprocess_runner(command):
                 return True, {"package_name": package_name, "message": f"Dependencies for package '{package_name}' installed successfully."}
             
             return False, {"package_name": package_name, "error": "Subprocess failed during dependency installation."}

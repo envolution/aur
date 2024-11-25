@@ -278,7 +278,7 @@ class ArchPackageBuilder:
                     self.logger.info(f"Source file exists: {source_file_path}")
                 else:
                     source_info['file'] = None
-                    self.logger.warning(f"Source file does not exist in the workspace: {source}")
+                    self.logger.info(f"Skipping over non file source: {source}")
 
             processed_sources.append(source_info)
 
@@ -478,7 +478,10 @@ class ArchPackageBuilder:
             return False
 
         try:
-            self.logger.info(f"sources currently tracked before push {self.tracked_files}")
+            self.logger.info(f"sources currently tracked: {self.tracked_files}")
+            # Iterate over self.tracked_files and check if each file exists
+            self.tracked_files = [file for file in self.tracked_files if Path(file).is_file()]
+            self.logger.info(f"after trimming files we can't find locally: {self.tracked_files}")
             self.subprocess_runner.run_command(['git', 'add', *self.tracked_files])
             
             if self._has_changes():

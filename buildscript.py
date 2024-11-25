@@ -252,6 +252,7 @@ class ArchPackageBuilder:
 
     def _update_github_file(self, file: str, file_path: Path):
         self.logger.info(f"*** --> {file_path} <-- ***")
+        print(f"wtf")
         with open(file_path, 'rb') as f:
             content = base64.b64encode(f.read()).decode('utf-8')
         

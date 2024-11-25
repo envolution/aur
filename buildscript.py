@@ -133,9 +133,10 @@ class ArchPackageBuilder:
                 except Exception as e:
                     self.logger.warning(f"Failed to copy {file}: {e}")
 
-    def process_dependencies(self, package_name: str) -> Tuple[bool, Dict[str, List[str]]]:
+    def process_dependencies(self) -> Tuple[bool, Dict[str, List[str]]]:
         try:
             # Load the JSON data
+            package_name = self.config.package_name
             data = self.load_json_file(self.config.depends_json)
             
             # Check if the package exists in the data

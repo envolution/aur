@@ -132,7 +132,7 @@ jobs:
           EOF
               
               # Append all .nvchecker.toml files
-              find "${GITHUB_WORKSPACE}" -name ".nvchecker.toml" -exec cat {} \; >> "${config_file}"
+              find "${GITHUB_WORKSPACE}" -name ".nvchecker.toml" -exec -c 'cat {} && echo' \; >> "${config_file}"
               
               log_debug "Generated ${config_file}:"
               cat "${config_file}"

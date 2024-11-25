@@ -218,7 +218,7 @@ class ArchPackageBuilder:
 
     def collect_package_files(self):
         workspace_path = Path(self.config.github_workspace) / self.config.pkgbuild_path
-        self.logger.info(f"copying-{self.config.github_workspace}-/-{self.config.pkgbuild_path}-/-{file}-...")
+        self.logger.info(f"copying-{self.config.github_workspace}-/-{self.config.pkgbuild_path}-...")
         
         for file in self.TRACKED_FILES:
             source_file = workspace_path / file

@@ -80,7 +80,7 @@ class BuildResult:
 
 class ArchPackageBuilder:
     RELEASE_BODY = "To install, run: sudo pacman -U PACKAGENAME.pkg.tar.zst"
-    TRACKED_FILES = ['PKGBUILD', '.nvchecker.toml']
+    TRACKED_FILES = ['PKGBUILD', '.SRCINFO', '.nvchecker.toml']
 
     def __init__(self, config: BuildConfig):
         self.config = config

@@ -78,6 +78,7 @@ jobs:
                 IdentityFile /home/builder/.ssh/aur
                 User aur
           EOF
+          chmod -R 600 /home/builder/.ssh
 
       - name: Configure Git
         run: |

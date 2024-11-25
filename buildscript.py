@@ -13,6 +13,7 @@ import shutil
 import tempfile
 from typing import List, Tuple, Dict, Optional, Any, Union
 
+logging.basicConfig(level=logging.INFO)
 @dataclass
 class CommandResult:
     command: List[str]

@@ -94,8 +94,8 @@ jobs:
           [ -f ${GITHUB_WORKSPACE}/github-graphql.py ] && \
             cp ${GITHUB_WORKSPACE}/github-graphql.py ${site_packages}/nvchecker_source/
           echo "[keys]" > /home/builder/keyfile
-          echo "github='${GH_TOKEN}'" > /home/builder/keyfile
-          echo "github-graphql='${GH_TOKEN}'" > /home/builder/keyfile
+          echo "github='${GH_TOKEN}'" >> /home/builder/keyfile
+          echo "github-graphql='${GH_TOKEN}'" >> /home/builder/keyfile
           chmod 644 /home/builder/keyfile
           ls -latr /home/builder/keyfile
           cat /home/builder/keyfile

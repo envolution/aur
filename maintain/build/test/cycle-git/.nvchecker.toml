@@ -1,6 +1,0 @@
-[cycle-git]
-source="github-test-two"
-github="metlov/cycle"
-use_latest_release=true
-prefix="v"
-

@@ -1,6 +1,0 @@
-[openscad-nopscadlib-git]
-source="github-test-two"
-github="nophead/NopSCADlib"
-use_max_tag=true
-prefix="v"
-

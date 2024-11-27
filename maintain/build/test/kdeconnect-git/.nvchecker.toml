@@ -1,6 +1,0 @@
-[kdeconnect-git]
-source="github-test-two"
-github="KDE/kdeconnect-kde"
-prefix="v"
-use_max_tag=true
-

@@ -1,5 +1,0 @@
-[montage-git]
-source="github-test-two"
-github="Caltech-IPAC/Montage"
-use_max_tag=true
-prefix="v"

@@ -1,6 +1,0 @@
-[openfortivpn-git]
-source="github-test-two"
-github="adrienverge/openfortivpn"
-use_max_tag=true
-prefix="v"
-

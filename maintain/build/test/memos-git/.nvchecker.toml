@@ -1,6 +1,0 @@
-[memos-git]
-source="github-test-two"
-github="usememos/memos"
-prefix="v"
-use_max_tag=true
-

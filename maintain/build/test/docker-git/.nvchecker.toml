@@ -1,6 +1,0 @@
-[docker-git]
-source="github-test-two"
-github="moby/moby"
-use_latest_release=true
-prefix="v"
-

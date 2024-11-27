@@ -1,5 +1,0 @@
-[gnome-shell-git]
-source="github-test-two"
-github="GNOME/gnome-shell"
-use_max_tag=true
-

@@ -3,3 +3,5 @@ source="github-graphql"
 github="Caltech-IPAC/Montage"
 use_max_tag=true
 prefix="v"
+use_commit_number=true
+use_commit_hash=true

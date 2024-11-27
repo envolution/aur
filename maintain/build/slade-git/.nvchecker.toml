@@ -2,4 +2,6 @@
 source="github-graphql"
 github="sirjuddington/SLADE"
 use_latest_release=true
+use_commit_number=true
+use_commit_hash=true
 

@@ -1,0 +1,10 @@
+[openbabel-git]
+
+source="github-graphql"
+use_latest_release=true
+prefix="openbabel-"
+from_pattern="-"
+to_pattern="."
+use_commit_number=true
+use_commit_hash=true
+github="openbabel/openbabel"

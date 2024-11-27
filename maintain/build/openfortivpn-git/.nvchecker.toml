@@ -3,4 +3,6 @@ source="github-graphql"
 github="adrienverge/openfortivpn"
 use_max_tag=true
 prefix="v"
+use_commit_number=true
+use_commit_hash=true
 

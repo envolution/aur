@@ -3,4 +3,6 @@ source="github-graphql"
 github="KDE/kdeconnect-kde"
 prefix="v"
 use_max_tag=true
+use_commit_number=true
+use_commit_hash=true
 

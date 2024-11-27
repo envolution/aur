@@ -2,4 +2,5 @@
 source="github-graphql"
 github="vlang/ved"
 use_latest_release=true
-
+use_commit_number=true
+use_commit_hash=true

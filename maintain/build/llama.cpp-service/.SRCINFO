@@ -1,0 +1,20 @@
+pkgbase = llama.cpp-service
+	pkgdesc = Systemd service files and /etc/ configuration for Llama.cpp Server
+	pkgver = 1.1
+	pkgrel = 1
+	install = llama.cpp-service.install
+	arch = any
+	license = MIT
+	depends = systemd
+	optdepends = llama.cpp-server-tray: Companion system tray app for llama.cpp-server-service
+	backup = etc/llama.cpp-service/llama-server.conf
+	source = llama.cpp.service
+	source = llama.cpp.socket
+	source = llama-server.conf.sample
+	source = llama-server.env
+	sha256sums = b22a3e8a855eb17a1b62fb351e35d8139b249358dfc11668d5d06cca8ce2b547
+	sha256sums = 56ccc5e5894cca0f6142eacd509782187ade6aa22d16cdd3dfa124ec19232fb3
+	sha256sums = 8610d11eb5ef719d5a814acb0ed5cda6d05ca8a2f2fb8c4f0065ec35f123346d
+	sha256sums = 1b1a18bdf343b97ed70ebc2b64af20517dc88d1d3540886f3817779c1dda344f
+
+pkgname = llama.cpp-service

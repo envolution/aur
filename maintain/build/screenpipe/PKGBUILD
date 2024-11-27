@@ -1,7 +1,7 @@
 # Maintainer: envolution
 # Contributor: Tony Benoy <me@tonybenoy.com>
 pkgname=screenpipe
-pkgver=0.1.98
+pkgver=0.2.4
 pkgrel=1
 pkgdesc="24/7 Screen and Audio Capture with AI-powered tools"
 arch=('x86_64')

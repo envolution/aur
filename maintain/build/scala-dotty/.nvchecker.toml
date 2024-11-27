@@ -1,4 +1,4 @@
 [scala-dotty]
-source="github"
+source="github-graphql"
 github="scala/scala3"
 use_latest_release=true

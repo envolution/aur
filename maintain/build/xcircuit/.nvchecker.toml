@@ -1,4 +1,4 @@
 [xcircuit]
-source="github"
+source="github-graphql"
 github="RTimothyEdwards/XCircuit"
 use_max_tag=true

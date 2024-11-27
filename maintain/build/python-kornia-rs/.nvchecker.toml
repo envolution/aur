@@ -1,5 +1,5 @@
 [python-kornia-rs]
-source="github"
+source="github-graphql"
 github="kornia/kornia-rs"
 use_latest_release=true
 prefix="v"

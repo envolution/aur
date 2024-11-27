@@ -1,4 +1,4 @@
 [canorus]
-source="github"
+source="github-graphql"
 github="canorusmusic/canorus"
 use_latest_release=true

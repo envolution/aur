@@ -10,6 +10,11 @@ arch=('any')
 url="https://github.com/envolution/llama.cpp-server-tray"
 license=('MIT')
 depends=('pyside6' 'python')
+makedepends=(
+  'python-build'
+  'python-installer'
+  'python-wheel'
+)
 options=(!strip !debug)
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/envolution/llama.cpp-server-tray/archive/refs/tags/${pkgver}.tar.gz")
 sha256sums=('9f095e5f1ddb8636e1da083d95ebf5933c5834d7174598a1242caf24607f6cd9')

@@ -96,6 +96,9 @@ jobs:
           echo "[keys]" > /home/builder/keyfile
           echo "github='${GH_TOKEN}'" > /home/builder/keyfile
           echo "github-graphql='${GH_TOKEN}'" > /home/builder/keyfile
+          chmod 644 /home/builder/keyfile
+          ls -latr /home/builder/keyfile
+          cat /home/builder/keyfile
 
       - name: Run task
         shell: bash

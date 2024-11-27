@@ -1,0 +1,6 @@
+[remmina-git]
+source="github-test-two"
+github="FreeRDP/Remmina"
+use_max_tag=true
+prefix="v"
+

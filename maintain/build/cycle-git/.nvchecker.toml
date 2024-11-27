@@ -1,3 +1,6 @@
 [cycle-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py metlov/cycle --releases -strip v"
+source="github-graphql"
+github="metlov/cycle"
+use_latest_release=true
+prefix="v"
+

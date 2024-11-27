@@ -1,3 +1,5 @@
 [gnome-shell-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py GNOME/gnome-shell --tags"
+source="github-graphql"
+github="GNOME/gnome-shell"
+use_max_tag=true
+

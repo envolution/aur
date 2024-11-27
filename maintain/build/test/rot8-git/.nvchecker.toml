@@ -1,0 +1,6 @@
+[rot8-git]
+source="github-test-two"
+github="efernau/rot8"
+use_latest_release=true
+prefix="v"
+

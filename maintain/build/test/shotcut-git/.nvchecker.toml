@@ -1,0 +1,6 @@
+[shotcut-git]
+source="github-test-two"
+github="mltframework/shotcut"
+prefix="v"
+use_latest_release=true
+

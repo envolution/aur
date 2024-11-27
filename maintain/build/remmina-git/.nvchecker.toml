@@ -1,3 +1,6 @@
 [remmina-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py FreeRDP/Remmina --tags -strip v"
+source="github-graphql"
+github="FreeRDP/Remmina"
+use_max_tag=true
+prefix="v"
+

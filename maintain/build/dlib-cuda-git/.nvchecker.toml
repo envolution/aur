@@ -1,3 +1,6 @@
 [dlib-cuda-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py davisking/dlib --releases -strip v"
+source="github-graphql"
+github="davisking/dlib"
+use_latest_release=true
+prefix="v"
+

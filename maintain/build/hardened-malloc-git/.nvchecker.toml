@@ -1,3 +1,5 @@
 [hardened-malloc-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py grapheneos/hardened_malloc --releases"
+source="github-graphql"
+github="grapheneos/hardened_malloc"
+use_latest_release=true
+

@@ -1,3 +1,5 @@
 [ved-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py vlang/ved --releases"
+source="github-graphql"
+github="vlang/ved"
+use_latest_release=true
+

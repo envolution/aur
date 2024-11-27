@@ -1,3 +1,5 @@
 [slade-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py sirjuddington/SLADE --releases"
+source="github-graphql"
+github="sirjuddington/SLADE"
+use_latest_release=true
+

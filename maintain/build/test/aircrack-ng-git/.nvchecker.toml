@@ -1,0 +1,5 @@
+[aircrack-ng-git]
+source="github-test-two"
+github="aircrack-ng/aircrack-ng"
+use_latest_release=true
+

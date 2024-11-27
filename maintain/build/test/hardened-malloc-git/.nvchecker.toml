@@ -1,0 +1,5 @@
+[hardened-malloc-git]
+source="github-test-two"
+github="grapheneos/hardened_malloc"
+use_latest_release=true
+

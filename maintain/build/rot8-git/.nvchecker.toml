@@ -1,3 +1,6 @@
 [rot8-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py efernau/rot8 --releases -strip v"
+source="github-graphql"
+github="efernau/rot8"
+use_latest_release=true
+prefix="v"
+

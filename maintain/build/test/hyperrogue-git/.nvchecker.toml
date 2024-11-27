@@ -1,0 +1,6 @@
+[hyperrogue-git]
+source="github-test-two"
+github="zenorogue/hyperrogue"
+prefix="v"
+use_latest_release=true
+

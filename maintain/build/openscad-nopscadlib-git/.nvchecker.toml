@@ -1,3 +1,6 @@
 [openscad-nopscadlib-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py nophead/NopSCADlib --tags -strip v"
+source="github-graphql"
+github="nophead/NopSCADlib"
+use_max_tag=true
+prefix="v"
+

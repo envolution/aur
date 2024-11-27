@@ -1,3 +1,6 @@
 [clamav-git]
-source="cmd"
-cmd="~/nvchecker/github_version.py Cisco-Talos/clamav -strip clamav- --releases"
+source="github-graphql"
+github="Cisco-Talos/clamav"
+prefix="clamav-"
+use_latest_release=true
+

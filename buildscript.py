@@ -247,7 +247,7 @@ class ArchPackageBuilder:
 
         try:
             result = self.subprocess_runner.run_command(
-                ['nvchecker', '-c', '.nvchecker.toml', '--logger', 'json']
+                ['nvchecker', '-c', '.nvchecker.toml', '-k', '/home/builder/keyfile', '--logger', 'json']
             )
 
             # Log the raw stdout for debugging purposes

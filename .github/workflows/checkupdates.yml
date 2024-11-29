@@ -157,6 +157,8 @@ jobs:
               HOME="${BUILDER_HOME}"
               
               # Run nvchecker and generate comparison
+              ls -la /home/builder/keyfile
+              cat /home/builder/keyfile
               nvchecker -c new.toml -k /home/builder/keyfile --logger json | tee newver.json
               nvcmp -c new.toml
               

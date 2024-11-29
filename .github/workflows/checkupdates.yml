@@ -222,7 +222,9 @@ jobs:
               local depjson=$DEPENDS_JSON_PATH
               
               log_debug "Building package: ${package}"
-              
+              echo "[debug] currently in $(pwd)"
+              ls
+              echo "[debug] ========================================================================"
               sudo -u builder python buildscript.py \
                   --github-repo "${{ github.repository }}" \
                   --github-token "$GH_TOKEN" \

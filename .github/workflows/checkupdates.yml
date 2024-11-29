@@ -139,7 +139,6 @@ jobs:
               echo "[__config__]" > "${config_file}"
               echo "oldver='aur.json'" >> "${config_file}"
               echo "newver='local.json'" >> "${config_file}"
-              echo "keyfile='${keyfile}'" >> "${config_file}"
 
               # Create keyfile and add GH_TOKEN
               echo "[keys]" > $keyfile

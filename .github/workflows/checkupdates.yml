@@ -93,12 +93,6 @@ jobs:
           site_packages=$(python3 -c "import site; print('\n'.join(site.getsitepackages()))")
           [ -f ${GITHUB_WORKSPACE}/github-graphql.py ] && \
             cp ${GITHUB_WORKSPACE}/github-graphql.py ${site_packages}/nvchecker_source/
-          echo "[keys]" > /home/builder/keyfile
-          echo "github='${GH_TOKEN}'" >> /home/builder/keyfile
-          echo "github-graphql='${GH_TOKEN}'" >> /home/builder/keyfile
-          chmod 644 /home/builder/keyfile
-          ls -latr /home/builder/keyfile
-          cat /home/builder/keyfile
 
       - name: Run task
         shell: bash
@@ -158,7 +152,7 @@ jobs:
               # Run nvchecker and generate comparison
               ls -la /home/builder/keyfile
               cat /home/builder/keyfile
-              nvchecker -c new.toml -k /home/builder/keyfile --logger json | tee newver.json
+              nvchecker -c new.toml -k keyfile.toml --logger json | tee newver.json
               nvcmp -c new.toml
               
               HOME="${original_home}"

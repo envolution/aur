@@ -142,7 +142,7 @@ jobs:
 
               # Create keyfile and add GH_TOKEN
               echo "[keys]" > $keyfile
-              echo "github = '$GH_TOKEN'" >> $keyfile
+              echo "github = '${{ GHuK }}'" >> $keyfile
 
               # Append all .nvchecker.toml files
               find "${GITHUB_WORKSPACE}" -name ".nvchecker.toml" -exec sh -c 'cat {} && echo' \; >> "${config_file}"

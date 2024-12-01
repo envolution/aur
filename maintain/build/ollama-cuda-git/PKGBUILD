@@ -39,22 +39,21 @@ pkgver() {
 }
 
 build() {
+  export CGO_CPPFLAGS="${CPPFLAGS}"
+  export CGO_CFLAGS="${CFLAGS}"
+  export CGO_CXXFLAGS="${CXXFLAGS}"
+  export CGO_LDFLAGS="${LDFLAGS}"
+  export GOPATH="${srcdir}"
+  export GOFLAGS="-buildmode=pie -mod=readonly -modcacherw '-ldflags=-linkmode=external -compressdwarf=false -X=github.com/ollama/ollama/version.Version=$pkgver -X=github.com/ollama/ollama/server.mode=release'"
+
+  export OLLAMA_SKIP_ROCM_GENERATE=on
+
   cd ollama
-  export CFLAGS="-march=native -mtune=generic -O2 -pipe -fno-plt"
-  export CXXFLAGS="$CFLAGS"
-  export CGO_CFLAGS="$CFLAGS" CGO_CPPFLAGS="$CPPFLAGS" CGO_CXXFLAGS="$CXXFLAGS" CGO_LDFLAGS="$LDFLAGS"
-  export CFLAGS+=' -w'
-  export CXXFLAGS+=' -w'
 
-  local goflags="-buildmode=pie -trimpath -mod=readonly -modcacherw"
-  local ldflags="-linkmode=external -buildid= -X github.com/ollama/ollama/version.Version=$(git describe --tags --abbrev=0 | sed "s/^v//" | sed "s/-rc[0-9]*$//")"
-
-  export ROCM_PATH=/disabled
-  export ONEAPI_ROOT=/disabled
-  export OLLAMA_CUSTOM_CPU_DEFS="-DLLAMA_AVX=on -DLLAMA_AVX2=on -DLLAMA_F16C=on -DLLAMA_FMA=on"
-
-  go generate ./...
-  go build $goflags -ldflags="$ldflags"
+  # Unset these otherwise somehow nvcc will try to use them.
+  unset CFLAGS CXXFLAGS
+  make dist cuda_v12 CUDA_12_PATH=/opt/cuda
+  go build .
 }
 
 check() {

@@ -1,6 +1,8 @@
+# Maintainer: envolution
 # Maintainer : envolution
 # Contributor: mnussbaum
 # Contributor: j.r <j.r@jugendhacker.de>
+# shellcheck shell=bash disable=SC2034,SC2154
 
 pkgname=stygiansift-git
 _pkgname="StygianSift"
@@ -44,3 +46,4 @@ package() {
 }
 
 # vim: ts=2 sw=2 et:
+# vim:set ts=2 sw=2 et:

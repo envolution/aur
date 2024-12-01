@@ -1,0 +1,52 @@
+# Maintainer: envolution
+# Contributor: Stefan Zwanenburg <stefan [AT] zwanenburg [DOT] info>
+# shellcheck shell=bash disable=SC2034,SC2154
+pkgname=frawk
+pkgver=0.4.7
+pkgrel=1
+epoch=
+pkgdesc="a small programming language for writing short programs processing textual data. To a first approximation, it is an implementation of the AWK language; many common Awk programs produce equivalent output when passed to frawk."
+arch=('any')
+url="https://github.com/ezrosent/frawk"
+license=('MIT' 'Apache')
+depends=('llvm-libs')
+makedepends=('cargo' 'llvm' 'gcc')
+source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate" modrs_llvm.patch)
+b2sums=('4d4cd1a4b8fe044a5c5ea3ef22b5e9d333dd05639ee76905998d3d95c91c10e323231404c8bcac69efed8f0dbd20dee1307e5fafbf8fb0c21fc5c424f74a32ed'
+        'e79d66d1958fa8572bddf32c4648df6e0e4bc7deecd0d6b33afedd652e8074e995e9deb4f1e9e5811609ea7bd7c68dd283c9e8e7382aa427faa650f9611bc79c')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  patch -Np1 -i ../modrs_llvm.patch
+  rm -rf .cargo/config
+  sed -i '/^\[dependencies\.clap\]/{n;s/version = ".*"/version = "3.2.25"/}' Cargo.toml
+  echo -e '\n[dependencies]\nahash = "=0.8.7"' >>Cargo.toml
+  sed -i '/^\[dependencies\.llvm-sys\]/,/^\[/s/version = "[^"]*"/version = "181.2.0"/' Cargo.toml
+  #  sed -i 's|use llvm_sys::transforms::pass_manager_builder::*|use llvm_sys::transforms::pass_manager_builder::LLVMPassManagerBuilderRef;|' src/codegen/llvm/mod.rs
+  #  sed -i 's|LLVMBuildCall|LLVMBuildCall2|g' src/codegen/llvm/mod.rs
+  #  sed -i 's|LLVMBuildGEP|LLVMBuildGEP2|g' src/codegen/llvm/mod.rs
+
+  #  echo -e '\n[patch.crates-io]\nahash = { version = "=0.8.7" }' >>Cargo.toml
+  cargo update
+  cargo fetch --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export LLVM_CONFIG=/usr/bin/llvm-config
+  export RUSTUP_TOOLCHAIN=nightly
+  export CARGO_TARGET_DIR=target
+  cargo build --release
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=nightly
+  cargo test --frozen
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm0755 -t "$pkgdir/usr/bin" "target/release/$pkgname"
+}
+# vim:set ts=2 sw=2 et:

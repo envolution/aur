@@ -1,0 +1,219 @@
+--- a/src/codegen/llvm/mod.rs	2006-07-23 21:21:28.000000000 -0400
++++ b/src/codegen/llvm/mod.rs_patched	2024-12-01 16:11:03.117832938 -0500
+@@ -407,13 +407,14 @@
+                 let int_ty = self.tmap.get_ty(Ty::Int);
+                 arg_vs.push(LLVMConstInt(int_ty, *append as u64, 0));
+             }
+-            LLVMBuildCall(
+-                self.f.builder,
+-                printf_fn,
+-                arg_vs.as_mut_ptr(),
+-                arg_vs.len() as libc::c_uint,
+-                c_str!(""),
+-            );
++            pub fn LLVMBuildCall2(
++                builder: LLVMBuilderRef,
++                ty: *mut LLVMType, // missing argument
++                Fn: LLVMValueRef,
++                args: *mut LLVMValueRef,
++                nargs: libc::c_uint,
++                Name: *const libc::c_char
++            ) -> LLVMValueRef;
+         }
+         Ok(())
+     }
+@@ -427,7 +428,7 @@
+             for a in args.iter().cloned() {
+                 arg_vs.push(self.get_val(a)?);
+             }
+-            let resv = LLVMBuildCall(
++            let resv = LLVMBuildCall2(
+                 self.f.builder,
+                 sprintf_fn,
+                 arg_vs.as_mut_ptr(),
+@@ -451,7 +452,7 @@
+                 let int_ty = self.tmap.get_ty(Ty::Int);
+                 args_v.push(LLVMConstInt(int_ty, *fspec as u64, /*sign_extend=*/ 0));
+             }
+-            LLVMBuildCall(
++            LLVMBuildCall2(
+                 self.f.builder,
+                 print_fn,
+                 args_v.as_mut_ptr(),
+@@ -523,7 +524,7 @@
+             let istate = self.get_iter(iter)?;
+             let cur = LLVMBuildLoad(self.f.builder, istate.cur_index, c_str!(""));
+             let indices = &mut [cur];
+-            let res_loc = LLVMBuildGEP(
++            let res_loc = LLVMBuildGEP2(
+                 self.f.builder,
+                 istate.iter_ptr,
+                 indices.as_mut_ptr(),
+@@ -665,7 +666,7 @@
+                 _ => unreachable!(),
+             };
+             let map_ty = tmap.get_ty(ty);
+-            let v = LLVMBuildCall(
++            let v = LLVMBuildCall2(
+                 builder,
+                 intrinsics.get(func),
+                 ptr::null_mut(),
+@@ -715,7 +716,7 @@
+ impl<'a, 'b> Generator<'a, 'b> {
+     pub unsafe fn optimize(&mut self, mains: impl Iterator<Item = LLVMValueRef>) -> Result<()> {
+         // Based on optimize_module in weld, in turn based on similar code in the LLVM opt tool.
+-        use llvm_sys::transforms::pass_manager_builder::*;
++        use llvm_sys::transforms::pass_manager_builder::LLVMPassManagerBuilderRef;*;
+         let mpm = LLVMCreatePassManager();
+         let fpm = LLVMCreateFunctionPassManagerForModule(self.module);
+ 
+@@ -982,7 +983,7 @@
+         }
+         // Pass the runtime last.
+         args[main_info.num_args - 1] = LLVMGetParam(decl, 0);
+-        LLVMBuildCall(
++        LLVMBuildCall2(
+             builder,
+             main_info.val,
+             args.as_mut_ptr(),
+@@ -995,13 +996,13 @@
+             if let Ty::Str = ty {
+                 // drop the reference directly
+                 // TODO replace with this line with a call to drop_str
+-                LLVMBuildCall(builder, self.drop_str, &mut local, 1, c_str!(""));
++                LLVMBuildCall2(builder, self.drop_str, &mut local, 1, c_str!(""));
+             } else {
+                 // issue the load, then call drop.
+                 debug_assert!(ty.is_array());
+                 let drop_fn = self.intrinsics.map_drop_fn(ty).unwrap();
+ 
+-                LLVMBuildCall(
++                LLVMBuildCall2(
+                     builder,
+                     drop_fn,
+                     &mut LLVMBuildLoad(builder, local, c_str!("")),
+@@ -1312,7 +1313,7 @@
+             Str => self.intrinsics.get(intrinsic!(ref_str)),
+             _ => return,
+         };
+-        LLVMBuildCall(self.f.builder, func, &mut val, 1, c_str!(""));
++        LLVMBuildCall2(self.f.builder, func, &mut val, 1, c_str!(""));
+     }
+ 
+     unsafe fn drop_val(&mut self, mut val: LLVMValueRef, ty: Ty) {
+@@ -1322,12 +1323,12 @@
+             Str => self.drop_str,
+             _ => return,
+         };
+-        LLVMBuildCall(self.f.builder, func, &mut val, 1, c_str!(""));
++        LLVMBuildCall2(self.f.builder, func, &mut val, 1, c_str!(""));
+     }
+ 
+     unsafe fn call_builtin(&mut self, f: BuiltinFunc, args: &mut [LLVMValueRef]) -> LLVMValueRef {
+         let fv = f.get_val(self.module, self.tmap);
+-        LLVMBuildCall(
++        LLVMBuildCall2(
+             self.f.builder,
+             fv,
+             args.as_mut_ptr(),
+@@ -1343,7 +1344,7 @@
+         args: &mut [LLVMValueRef],
+     ) -> LLVMValueRef {
+         let f = self.intrinsics.get(func);
+-        LLVMBuildCall(
++        LLVMBuildCall2(
+             builder,
+             f,
+             args.as_mut_ptr(),
+@@ -1495,7 +1496,7 @@
+                 let rt_ix = argvs.len() - 1;
+                 debug_assert_eq!(rt_ix + 1, target.num_args);
+                 argvs[rt_ix] = self.runtime_val();
+-                let resv = LLVMBuildCall(
++                let resv = LLVMBuildCall2(
+                     self.f.builder,
+                     target.val,
+                     argvs.as_mut_ptr(),
+@@ -1597,11 +1598,11 @@
+             let mut index = [zero, LLVMConstInt(u32_ty, i as u64, /*sign_extend=*/ 0)];
+ 
+             // Store a u32 code representing the type into the current index.
+-            let ty_ptr = LLVMBuildGEP(builder, types_array, index.as_mut_ptr(), 2, c_str!(""));
++            let ty_ptr = LLVMBuildGEP2(builder, types_array, index.as_mut_ptr(), 2, c_str!(""));
+             let tval = LLVMConstInt(u32_ty, t as u32 as u64, /*sign_extend=*/ 0);
+             LLVMBuildStore(builder, tval, ty_ptr);
+ 
+-            let arg_ptr = LLVMBuildGEP(builder, args_array, index.as_mut_ptr(), 2, c_str!(""));
++            let arg_ptr = LLVMBuildGEP2(builder, args_array, index.as_mut_ptr(), 2, c_str!(""));
+             // Translate `i` to the param of the generated function.
+             let offset = 2;
+             let argval = LLVMGetParam(f, i as libc::c_uint + offset);
+@@ -1614,8 +1615,8 @@
+             LLVMBuildStore(builder, cast_val, arg_ptr);
+         }
+         let mut start_index = [zero, zero];
+-        let args_ptr = LLVMBuildGEP(builder, args_array, start_index.as_mut_ptr(), 2, c_str!(""));
+-        let tys_ptr = LLVMBuildGEP(
++        let args_ptr = LLVMBuildGEP2(builder, args_array, start_index.as_mut_ptr(), 2, c_str!(""));
++        let tys_ptr = LLVMBuildGEP2(
+             builder,
+             types_array,
+             start_index.as_mut_ptr(),
+@@ -1640,7 +1641,7 @@
+                     LLVMGetParam(f, arg_lltys.len() as libc::c_uint - 2),
+                     LLVMGetParam(f, arg_lltys.len() as libc::c_uint - 1),
+                 ];
+-                LLVMBuildCall(
++                LLVMBuildCall2(
+                     builder,
+                     intrinsic,
+                     args.as_mut_ptr(),
+@@ -1659,7 +1660,7 @@
+                     tys_ptr,
+                     len_v,
+                 ];
+-                LLVMBuildCall(
++                LLVMBuildCall2(
+                     builder,
+                     intrinsic,
+                     args.as_mut_ptr(),
+@@ -1677,7 +1678,7 @@
+                     tys_ptr,
+                     len_v,
+                 ];
+-                let resv = LLVMBuildCall(
++                let resv = LLVMBuildCall2(
+                     builder,
+                     intrinsic,
+                     args.as_mut_ptr(),
+@@ -1732,18 +1733,18 @@
+ 
+         for i in 0..n_args {
+             let mut index = [zero, LLVMConstInt(u32_ty, i as u64, /*sign_extend=*/ 0)];
+-            let arg_ptr = LLVMBuildGEP(builder, args_array, index.as_mut_ptr(), 2, c_str!(""));
++            let arg_ptr = LLVMBuildGEP2(builder, args_array, index.as_mut_ptr(), 2, c_str!(""));
+             // We are storing index `i` in the array, which is going to be argument `i + 1`
+             let argval = LLVMGetParam(f, i as libc::c_uint + 1);
+             LLVMBuildStore(builder, argval, arg_ptr);
+         }
+         let mut start_index = [zero, zero];
+-        let args_ptr = LLVMBuildGEP(builder, args_array, start_index.as_mut_ptr(), 2, c_str!(""));
++        let args_ptr = LLVMBuildGEP2(builder, args_array, start_index.as_mut_ptr(), 2, c_str!(""));
+         let len_v = LLVMConstInt(int_ty, len as u64, /*sign_extend=*/ 0);
+         if is_stdout {
+             let intrinsic = self.intrinsics.get(intrinsic!(print_all_stdout));
+             let mut args = [LLVMGetParam(f, 0), args_ptr, len_v];
+-            LLVMBuildCall(
++            LLVMBuildCall2(
+                 builder,
+                 intrinsic,
+                 args.as_mut_ptr(),
+@@ -1756,7 +1757,7 @@
+             let out_v = LLVMGetParam(f, 1 + len);
+             let spec_v = LLVMGetParam(f, 1 + len + 1);
+             let mut args = [LLVMGetParam(f, 0), args_ptr, len_v, out_v, spec_v];
+-            LLVMBuildCall(
++            LLVMBuildCall2(
+                 builder,
+                 intrinsic,
+                 args.as_mut_ptr(),

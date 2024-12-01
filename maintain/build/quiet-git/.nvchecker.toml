@@ -1,0 +1,4 @@
+[quiet-git]
+source="cmd"
+cmd="echo r280+gb64a058ed"
+#this probably isn't getting edited, don't waste api tokens querying

@@ -1,0 +1,32 @@
+pkgbase = openbabel-git
+	pkgdesc = A library designed to interconvert between many file formats used in molecular modeling and computational chemistry
+	pkgver = 3.1.1+r6093+g00d3595fd
+	pkgrel = 1
+	url = https://openbabel.org/wiki/Main_Page
+	arch = x86_64
+	license = GPL
+	makedepends = boost
+	makedepends = cmake
+	makedepends = coordgen
+	makedepends = eigen
+	makedepends = maeparser
+	makedepends = python-setuptools
+	makedepends = rapidjson
+	makedepends = swig
+	makedepends = wxwidgets-gtk3
+	source = openbabel::git+https://github.com/openbabel/openbabel.git#branch=master
+	sha256sums = SKIP
+
+pkgname = openbabel-git
+	depends = cairo
+	depends = coordgen
+	depends = libxml2
+	optdepends = wxwidgets-gtk3: GUI interface
+	provides = openbabel
+	conflicts = openbabel
+
+pkgname = python-openbabel-git
+	depends = openbabel
+	depends = python
+	provides = python-openbabel
+	conflicts = python-openbabel

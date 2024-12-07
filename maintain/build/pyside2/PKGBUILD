@@ -1,4 +1,7 @@
-# Contributor: envolution
+# Maintainer: envolution
+# Contributor: Antonio Rojas <arojas@archlinux.org>
+# Contributor: Felix Yan <felixonmars@archlinux.org>
+#
 pkgname=(
   pyside2
   pyside2-tools
@@ -8,14 +11,15 @@ pkgname=(
 pkgbase=pyside2
 pkgver=5.15.16
 pkgrel=1
-pkgdesc="CPython bindings generator for C++ libraries"
+pkgdesc="CPython bindings generator for C++ libraries - with Debian backport patches"
 arch=(x86_64)
 url="https://wiki.qt.io/Qt_for_Python"
-license=('LGPL')
+license=('LGPL-3.0-or-later')
 depends=(cmake python-setuptools python-wheel llvm clang
   qt5-multimedia qt5-tools qt5-sensors qt5-charts qt5-webengine qt5-datavis3d
   qt5-websockets qt5-speech qt5-3d qt5-svg qt5-script qt5-scxml qt5-x11extras
   qt5-quickcontrols2 qt5-serialport qt5-remoteobjects qt5-xmlpatterns)
+
 source=(
   "https://download.qt.io/official_releases/QtForPython/pyside2/PySide2-${pkgver}-src/pyside-setup-opensource-src-${pkgver}.tar.xz"
   update-sip-import.patch
@@ -36,8 +40,8 @@ source=(
   shiboken2-clang-Record-scope-resolution-of-arguments-func.patch
   shiboken2-clang-Suppress-class-scope-look-up-for-paramete.patch
   shiboken2-clang-Write-scope-resolution-for-all-parameters.patch
-  Modify-sendCommand-signatures.patch
-)
+  Modify-sendCommand-signatures.patch)
+
 sha256sums=('6d3ed6fd17275ea74829ab56df9c2e7641bfca6b5b201cf244998fa81cf07360'
   'ff03c7cf0c6c8307d9b175b85a9a8b98fcc846a79f845763f79cd3956b03379f'
   '8ae7bdbb575d644a6f07ffa78a8ced9e571772da21bcd5ccb022bb822b564861'

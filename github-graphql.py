@@ -14,7 +14,10 @@ async def get_github_token(conf: Entry, host: str, keymanager: KeyManager) -> Op
 
 def create_rich_result(conf, commits, sha, **kwargs) -> RichResult:
     if conf.get('use_commit_number', False):
-        kwargs['version'] += f"+r{str(commits)}"
+        if conf.get('use_commit_clean', False):
+            kwargs['version'] = f"r{str(commits)}"           
+        else:
+            kwargs['version'] += f"+r{str(commits)}"
     if conf.get('use_commit_hash', False):
         kwargs['version'] += f"+g{sha[:9]}"
     return RichResult(**kwargs)

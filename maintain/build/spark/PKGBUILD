@@ -18,7 +18,7 @@ makedepends=(maven)
 options=('!strip')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/igniterealtime/Spark/archive/refs/tags/v${pkgver}.tar.gz" spark.desktop)
 sha512sums=('8c0356276652c69d8922a9c05ceb432007b22741c57f32f5aba1d27389775bd7de99cd05f5def54d179bc6b40d1d1e1e3b2f3f2ae6903c556471b976c0b3a9b5'
-  '46b22743f95336daf3b61b857b7f93687d47499949afb21371797a4d9c22fef18f13b7df6ea74d68e6179c09293b696bab58a3e50a97d37e513bfd6d9cad6614')
+            '46b22743f95336daf3b61b857b7f93687d47499949afb21371797a4d9c22fef18f13b7df6ea74d68e6179c09293b696bab58a3e50a97d37e513bfd6d9cad6614')
 
 prepare() {
   sed -i '/<\/plugins>/i \

@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+import os
+import sys
+import subprocess
+import json
+import shutil
+
+def run_command(command):
+    """Helper function to run a shell command and handle errors."""
+    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        print(f"Error: {result.stderr.decode().strip()}")
+        sys.exit(1)
+    return result.stdout.decode().strip()
+
+def aurpush(commit_message):
+    """Main function to replicate aurpush behavior in Python."""
+    
+    # Collect the current directory name and maintainer string
+    current_directory = os.path.basename(os.getcwd())
+    maintainer_string = "# Maintainer: envolution"
+    target_dir = os.path.expanduser(f"~/github/envolution/aur/maintain/build/{current_directory}")
+    
+    # Check for commit message
+    if not commit_message:
+        print("Error: Missing commit message. Usage: aurpush [commit message]")
+        sys.exit(1)
+    
+    # Check for PKGBUILD file
+    if not os.path.isfile("PKGBUILD"):
+        print("Error: PKGBUILD file not found in the current directory.")
+        sys.exit(1)
+    
+    # Verify maintainer string in PKGBUILD
+    with open("PKGBUILD", "r") as pkgbuild:
+        first_line = pkgbuild.readline().strip()
+        if first_line != maintainer_string:
+            print("Error: First line of PKGBUILD does not contain the correct maintainer string.")
+            sys.exit(1)
+    
+    # Check for .git directory
+    if not os.path.isdir(".git"):
+        print("Error: .git directory not found. This is not a Git repository.")
+        sys.exit(1)
+
+    # Update package checksums
+    run_command("updpkgsums")
+    
+    # Generate .SRCINFO
+    run_command("makepkg --printsrcinfo > .SRCINFO")
+
+    # Call pkgbuild_files to get the list of files in JSON format
+    try:
+        result = subprocess.run(['pkgbuild_files'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        source_files = json.loads(result.stdout.decode().strip())
+    except subprocess.CalledProcessError as e:
+        print(f"Error calling pkgbuild_files: {e.stderr.decode().strip()}")
+        sys.exit(1)
+
+    # Stage the files returned by pkgbuild_files
+    for file in source_files:
+        if os.path.isfile(file):
+            run_command(f"git add {file}")
+        else:
+            print(f"Warning: {file} does not exist locally, skipping git add.")
+
+    # Commit changes
+    run_command(f'git commit -m "{commit_message}"')
+
+    # Push changes to the remote repository
+    run_command("git push")
+
+    print("PKGBUILD update and push completed successfully.")
+    
+    # Prompt to move files
+    move_files = input(f"Move files to {target_dir}? [y/N]: ").strip().lower()
+    if move_files == "y":
+        os.makedirs(target_dir, exist_ok=True)
+        for file in source_files:
+            shutil.move(file, os.path.join(target_dir, file))
+            print(f"{file} moved to {target_dir}.")
+    else:
+        print("Files not moved.")
+
+if __name__ == "__main__":
+    # Example usage: pass the commit message as an argument
+    if len(sys.argv) < 2:
+        print("Error: Missing commit message.")
+        sys.exit(1)
+    
+    commit_message = " ".join(sys.argv[1:])
+    aurpush(commit_message)
+

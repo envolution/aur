@@ -1,0 +1,64 @@
+#!/bin/env python
+import os
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+
+def aurclone(pkgname):
+    """Clone a repository to a temporary directory, asking for overwrite if directory exists."""
+    
+    # Generate a temporary directory path based on the package name and timestamp
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    temp_dir = f"/tmp/{timestamp}_{pkgname}"
+
+    # Check if a directory with a similar name already exists in /tmp/
+    existing_dirs = [d for d in os.listdir('/tmp/') if d.endswith(f"_{pkgname}")]
+    
+    if existing_dirs:
+        # If directory exists, ask user if they want to overwrite
+        print(f"Directory already exists: /tmp/{existing_dirs[0]}", file=sys.stderr)
+        print(f"Overwrite? [y/N]", file=sys.stderr)
+        overwrite = input().strip().lower()
+        if overwrite == 'y':
+            # Remove the existing directory and continue
+            shutil.rmtree(f"/tmp/{existing_dirs[0]}")
+            print(f"Removed existing directory: /tmp/{existing_dirs[0]}", file=sys.stderr)
+        else:
+            print("Skipping cloning operation.", file=sys.stderr)
+            return
+
+    # Create the new temporary directory
+    try:
+        os.makedirs(temp_dir)
+        print(f"Directory created: {temp_dir}", file=sys.stderr)
+    except OSError as e:
+        print(f"Error creating directory {temp_dir}: {e}", file=sys.stderr)
+        return
+
+    # Change to the new directory
+    os.chdir(temp_dir)
+    
+    # Clone the repository using git
+    try:
+        repo_url = f"ssh://aur@aur.archlinux.org/{pkgname}.git"
+        print(f"Cloning to: {repo_url}", file=sys.stderr)
+        subprocess.check_call(["git", "clone", repo_url])
+        print(f"Repository cloned successfully into {temp_dir}", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"Error cloning repository: {e}", file=sys.stderr)
+        return
+
+    # Change into the cloned directory
+    os.chdir(pkgname)
+    print(f"Changed into directory: {pkgname}", file=sys.stderr)
+
+if __name__ == "__main__":
+    # Example usage: pass the package name as an argument
+    if len(sys.argv) < 2:
+        print("Error: Missing package name.", file=sys.stderr)
+        sys.exit(1)
+    
+    pkgname = sys.argv[1]
+    aurclone(pkgname)
+    print(os.getcwd())

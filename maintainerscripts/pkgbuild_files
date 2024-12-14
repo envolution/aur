@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+import os
+import sys
+import json
+import shlex
+import subprocess
+
+def is_valid_filename(filename: str, optional=False) -> bool:
+    """
+    Check if a string contains only valid filename characters and whether the file exists locally.
+    This function excludes strings containing '/', ':', or other non-file characters, and
+    raises an error if the file is missing locally unless the file is optional.
+    """
+    # Exclude strings that contain characters likely part of a URL or path
+    if '/' in filename or ':' in filename:
+        print(f"{filename} is being skipped", file=sys.stderr)
+        return False
+    
+    # Check if the file exists locally
+    if not os.path.isfile(filename):
+        if optional:
+            print(f"Optional file missing: {filename} in {os.getcwd()}. Skipping.", file=sys.stderr)
+            return False
+        else:
+            raise FileNotFoundError(f"Local file missing: {filename} in {os.getcwd()}")
+    
+    return True
+
+def get_sources_from_pkgbuild(pkgbuild_path):
+    """
+    Source the PKGBUILD file and extract the 'source' array values.
+    """
+    # Correct the f-string by escaping the braces inside the command
+    command = f"bash -c 'source {pkgbuild_path} && printf \"%s\\n\" ${{source[@]}}'"
+
+    # Use shlex.split to safely parse the command
+    command_parts = shlex.split(command)
+    
+    # Execute the command and capture the output
+    proc = subprocess.Popen(command_parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
+
+    # Check if there was an error
+    if proc.returncode != 0:
+        print(f"Error sourcing PKGBUILD: {stderr.decode().strip()}", file=sys.stderr)
+        return []
+
+    # Decode the result and split it by lines
+    source_files = stdout.decode().strip().splitlines()
+
+    # Return the list of source files
+    return source_files
+
+def main():
+    # Set the path to the PKGBUILD file
+    pkgbuild_path = 'PKGBUILD'  # Adjust the path if needed
+    additional_sources = ['.nvchecker.toml', 'PKGBUILD', '.SRCINFO']
+    optional_sources = ['.nvchecker.toml', '.SRCINFO']
+
+    # Get the files from the PKGBUILD source array
+    source_files = get_sources_from_pkgbuild(pkgbuild_path)
+    source_files += additional_sources
+
+    # Print out the valid files from the source array
+    valid_files = []
+    for file in source_files:
+        # Check if the file is valid and exists, ignoring optional sources that are missing
+        if file in optional_sources:
+            if is_valid_filename(file, optional=True):
+                valid_files.append(file)
+        else:
+            if is_valid_filename(file):
+                valid_files.append(file)
+
+    # Print the valid files
+    if valid_files:
+        print("Valid files found in the PKGBUILD source array:", file=sys.stderr)
+        json_string = json.dumps(valid_files, indent=4)
+        sys.stdout.write(json_string)
+        print("", file=sys.stderr)
+    else:
+        print("No valid files found in the PKGBUILD source array.", file=sys.stderr)
+
+if __name__ == "__main__":
+    main()

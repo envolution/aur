@@ -1,4 +1,4 @@
-[gforth]
+[xephem]
 source="github-graphql"
-github="forthy42/gforth"
+github="XEphem/XEphem"
 use_max_tag=true

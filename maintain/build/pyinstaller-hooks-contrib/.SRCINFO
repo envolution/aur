@@ -1,7 +1,7 @@
 pkgbase = pyinstaller-hooks-contrib
 	pkgdesc = Community maintained hooks for PyInstaller
 	pkgver = 2024.10
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/pyinstaller/pyinstaller-hooks-contrib
 	arch = any
 	license = Apache-2.0 OR GPL-2.0-or-later

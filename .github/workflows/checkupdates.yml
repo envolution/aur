@@ -292,10 +292,11 @@ jobs:
                   local build="${components[1]:-}"
                   local package="${components[2]:-}"                  
                   log_debug "maintain: $maintain update: $update build: $build"
-                  # TODO: we should have maintain passed here somehow
-                  if ! build_package "$update" "$build" "$maintain/$build/$update"; then
-                      log_error "Build failed for ${update}"
-                      continue
+                  if [ "$maintain" = "maintain" ]; then
+                    if ! build_package "$update" "$build" "$maintain/$build/$update"; then
+                        log_error "Build failed for ${update}"
+                        continue
+                    fi
                   fi
               done
               

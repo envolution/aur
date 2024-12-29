@@ -1,6 +1,4 @@
 [gforth]
-source="cmd"
-cmd="echo 0.7.3"
-#source="github-graphql"
-#github="forthy42/gforth"
-#use_max_tag=true
+source="github-graphql"
+github="forthy42/gforth"
+use_max_tag=true

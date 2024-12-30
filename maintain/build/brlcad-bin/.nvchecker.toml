@@ -1,5 +1,5 @@
 [brlcad-bin]
-source="github-graphql"
+source="github"
 github="BRL-CAD/brlcad"
 use_latest_release=true
 prefix="rel-"

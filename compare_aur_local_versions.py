@@ -70,7 +70,9 @@ process_pkgbuild() {
         return 1
     fi
 
-    if [[ "$(declare -p pkgname 2>/dev/null)" =~ "declare -a" ]]; then
+    if  [[ -n $pkgbase ]]; then
+        local name=$pkgbase
+    elif [[ "$(declare -p pkgname 2>/dev/null)" =~ "declare -a" ]]; then
         local name=${pkgname[0]}
     else
         local name=$pkgname

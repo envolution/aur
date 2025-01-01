@@ -63,7 +63,7 @@ declare -A processed_pkgbuilds
 
 process_pkgbuild() {
     local pkgbuild=$1
-    unset pkgname pkgver pkgrel
+    unset pkgname pkgver pkgrel pkgbase
 
     if ! source "$pkgbuild" 2>/dev/null; then
         echo "Error sourcing $pkgbuild" >&2

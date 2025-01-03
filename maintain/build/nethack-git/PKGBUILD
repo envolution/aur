@@ -1,12 +1,7 @@
 # Maintainer: envolution
+# Contributor: Joshua Ward <joshuaward@myoffice.net.au>
+# Contributor: Eric Biggers <ebiggers3@gmail.com>
 # shellcheck shell=bash disable=SC2034,SC2154
-#
-# PKGBUILD for the development version of NetHack
-#    Maintainer: Joshua Ward <joshuaward@myoffice.net.au>
-#    Contributer: Eric Biggers <ebiggers3@gmail.com>
-#
-# Based on the PKGBUILD for nethack 3.6.0
-#
 
 pkgname=nethack-git
 pkgver=3.6.7_Released+r9120+g55561da63
@@ -19,7 +14,7 @@ depends=('ncurses' 'gzip' 'gdb')
 makedepends=(git)
 source=('git+https://github.com/NetHack/NetHack.git#branch=NetHack-3.6' nethack.tmpfiles)
 sha256sums=('SKIP'
-            '5c68417ff1cf76705a2bf7dc9fa1900156792808cb528d62f53e337030c40ea4')
+  '5c68417ff1cf76705a2bf7dc9fa1900156792808cb528d62f53e337030c40ea4')
 conflicts=('nethack')
 provides=('nethack')
 

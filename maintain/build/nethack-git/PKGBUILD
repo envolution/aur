@@ -14,7 +14,7 @@ depends=('ncurses' 'gzip' 'gdb')
 makedepends=(git)
 source=('git+https://github.com/NetHack/NetHack.git#branch=NetHack-3.6' nethack.tmpfiles)
 sha256sums=('SKIP'
-  '5c68417ff1cf76705a2bf7dc9fa1900156792808cb528d62f53e337030c40ea4')
+            '5c68417ff1cf76705a2bf7dc9fa1900156792808cb528d62f53e337030c40ea4')
 conflicts=('nethack')
 provides=('nethack')
 

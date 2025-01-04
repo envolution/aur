@@ -1,4 +1,0 @@
-[wxwidgets-gtk3-noegl]
-source="git"
-git="https://github.com/wxWidgets/wxWidgets.git"
-prefix='v'

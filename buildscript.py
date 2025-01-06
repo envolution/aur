@@ -417,7 +417,8 @@ class ArchPackageBuilder:
 
     def cleanup(self):
         try:
-            shutil.rmtree(self.build_dir)
+            # shutil.rmtree(self.build_dir)
+            subprocess.run(['sudo', 'rm', '-rf', str(self.build_dir)], check=True)
         except Exception as e:
             self.logger.warning(f"Failed to clean up build directory: {e}")
 

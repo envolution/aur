@@ -1,0 +1,27 @@
+pkgbase = python-speechrecognition
+	pkgdesc = Google-powered speech recognition for Python
+	pkgver = 3.13.0
+	pkgrel = 1
+	url = https://github.com/Uberi/speech_recognition
+	arch = any
+	license = MIT
+	checkdepends = python-pocketsphinx
+	checkdepends = python-pytest
+	makedepends = git
+	makedepends = python-build
+	makedepends = python-installer
+	makedepends = python-setuptools
+	makedepends = python-wheel
+	depends = flac
+	depends = python-audioop
+	depends = python-pyaudio
+	depends = python-requests
+	depends = python-standard-aifc
+	optdepends = pocketsphinx
+	optdepends = python-vosk
+	optdepends = python-whisper
+	provides = python-speech_recognition
+	source = git+https://github.com/Uberi/speech_recognition.git#tag=3.13.0
+	sha256sums = d562c9cb54fba559076db39659cbe9b49e1f77062706cbbdb7175dab746f6292
+
+pkgname = python-speechrecognition

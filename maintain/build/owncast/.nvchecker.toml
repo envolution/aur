@@ -1,5 +1,5 @@
 [owncast]
-source="github-graphql"
+source="github"
 github="owncast/owncast"
 use_latest_release=true
 prefix="v"

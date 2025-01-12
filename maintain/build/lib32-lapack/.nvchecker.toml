@@ -1,5 +1,5 @@
 [lib32-lapack]
-source="github-graphql"
+source="github"
 github="Reference-LAPACK/lapack"
 use_latest_release=true
 prefix="v"

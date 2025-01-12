@@ -347,6 +347,70 @@ class ArchPackageBuilder:
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Failed to create release: {e}")
 
+    def commit_and_push(self) -> bool:
+        """
+        Commits tracked files and pushes them to the remote repository.
+        Only processes files in the current directory.
+        Returns True if changes were committed and pushed, False otherwise.
+        """
+        if not self.tracked_files:
+            self.logger.error("There are no tracked files")
+            return False
+
+        self.logger.info(f"Sources currently tracked: {self.tracked_files}")
+        
+        # Verify tracked files exist and are accessible
+        existing_files = []
+        for file in self.tracked_files:
+            file_path = Path(file)
+            if file_path.is_file():
+                existing_files.append(file)
+                self.logger.debug(f"Found tracked file: {file}")
+            else:
+                self.logger.warning(f"Tracked file not found: {file}")
+        
+        if not existing_files:
+            self.logger.error("No tracked files exist in the current directory")
+            return False
+        
+        self.tracked_files = existing_files
+        self.logger.info(f"Valid tracked files: {self.tracked_files}")
+        
+        try:
+            # Add files to git
+            self.logger.debug("Adding files to git staging area")
+            self.subprocess_runner.run_command(['git', 'add', *self.tracked_files])
+            
+            # Check for changes and commit if necessary
+            if not self._has_changes():
+                self.logger.debug("No changes detected")
+                return False
+                
+            # Commit changes
+            self.logger.debug("Changes detected, committing")
+            commit_msg = f"{self.config.commit_message}: {self.result.version or ''}"
+            self.subprocess_runner.run_command(['git', 'commit', '-m', commit_msg])
+            
+            # Push to remote
+            self.logger.debug("Pushing to remote repository")
+            self.subprocess_runner.run_command(['git', 'push', 'origin', 'master'])
+            self.result.changes_detected = True
+            
+            # Update GitHub files
+            for file in self.tracked_files:
+                file_path = self.build_dir / file
+                if file_path.is_file():
+                    self.logger.debug(f"Updating GitHub file: {file}")
+                    self._update_github_file(file, file_path)
+                else:
+                    self.logger.warning(f"File missing when updating GitHub: {file}")
+            
+            return True
+        
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Git operation failed: {e}")
+            return False
+
     def _update_github_file(self, file: str, file_path: Path):
         with open(file_path, 'rb') as f:
             content = base64.b64encode(f.read()).decode('utf-8')
@@ -376,103 +440,7 @@ class ArchPackageBuilder:
                 '-f', f"message=Added {file}",
                 '-f', f"content={content}"
             ])
-
-    def commit_and_push(self) -> bool:
-        if not self.tracked_files:
-            self.logger.error("There are no tracked files")
-            return False
-        try:
-            self.logger.info(f"Sources currently tracked: {self.tracked_files}")
             
-            # Log current working directory and its contents
-            cwd = os.getcwd()
-            self.logger.debug(f"Current working directory: {cwd}")
-            
-            # Log directory contents with permissions
-            for root, dirs, files in os.walk(cwd):
-                self.logger.debug(f"\nDirectory: {root}")
-                for file in files:
-                    file_path = Path(root) / file
-                    try:
-                        stats = file_path.stat()
-                        permissions = oct(stats.st_mode)[-3:]  # Get last 3 digits of octal permissions
-                        self.logger.debug(f"File: {file}, Permissions: {permissions}, Size: {stats.st_size} bytes")
-                    except Exception as e:
-                        self.logger.warning(f"Cannot access file {file}: {e}")
-
-            # Check each tracked file's existence and log details
-            existing_files = []
-            for file in self.tracked_files:
-                file_path = Path(file)
-                if file_path.is_file():
-                    existing_files.append(file)
-                    self.logger.debug(f"Found tracked file: {file}")
-                else:
-                    self.logger.warning(f"Tracked file not found: {file}")
-            
-            self.tracked_files = existing_files
-            self.logger.info(f"After trimming files we can't find locally: {self.tracked_files}")
-            
-            # Run git status with verbose output
-            try:
-                status_output = self.subprocess_runner.run_command(['git', 'status', '--verbose'], capture_output=True)
-                self.logger.debug(f"Git status output:\n{status_output.stdout.decode()}")
-            except subprocess.CalledProcessError as e:
-                self.logger.warning(f"Failed to get git status: {e}")
-
-            # Add files with logging
-            self.logger.debug("Attempting to add files to git")
-            self.subprocess_runner.run_command(['git', 'add', *self.tracked_files])
-            
-            if self._has_changes():
-                self.logger.debug("Changes detected, preparing to commit")
-                commit_msg = f"{self.config.commit_message}: {self.result.version or ''}"
-                
-                # Log staged files before commit
-                try:
-                    staged_files = self.subprocess_runner.run_command(
-                        ['git', 'diff', '--cached', '--name-only'],
-                        capture_output=True
-                    )
-                    self.logger.debug(f"Files staged for commit:\n{staged_files.stdout.decode()}")
-                except subprocess.CalledProcessError as e:
-                    self.logger.warning(f"Failed to get staged files: {e}")
-                
-                self.subprocess_runner.run_command(['git', 'commit', '-m', commit_msg])
-                
-                # Log remote information before push
-                try:
-                    remote_info = self.subprocess_runner.run_command(
-                        ['git', 'remote', '-v'],
-                        capture_output=True
-                    )
-                    self.logger.debug(f"Git remote configuration:\n{remote_info.stdout.decode()}")
-                except subprocess.CalledProcessError as e:
-                    self.logger.warning(f"Failed to get remote info: {e}")
-                
-                self.logger.debug("Attempting to push to remote")
-                self.subprocess_runner.run_command(['git', 'push', 'origin', 'master'])
-                self.result.changes_detected = True
-                
-                # Update GitHub files with logging
-                for file in self.tracked_files:
-                    file_path = self.build_dir / file
-                    if file_path.is_file():
-                        self.logger.debug(f"Updating GitHub file: {file}")
-                        self._update_github_file(file, file_path)
-                    else:
-                        self.logger.warning(f"File missing when updating GitHub: {file}")
-                        
-                return True
-            
-            self.logger.debug("No changes detected")
-            return False
-            
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to commit and push: {e}")
-            self.logger.debug(f"Command that failed: {e.cmd}")
-            self.logger.debug(f"Error output: {e.stderr.decode() if e.stderr else 'No error output'}")
-            return False
 
     def _has_changes(self) -> bool:
         result = self.subprocess_runner.run_command(

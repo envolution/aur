@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Categories=Graphics;Utility;
+Name=Stability Matrix
+Comment=Package and checkpoint manager for Stable Diffusion.
+Icon=zone.lykos.stabilitymatrix
+Exec=sh -c 'cd /opt/stabilitymatrix && export APPIMAGE=/opt/stabilitymatrix/StabilityMatrix.Avalonia && /opt/stabilitymatrix/StabilityMatrix.Avalonia'
+TryExec=/opt/stabilitymatrix/StabilityMatrix.Avalonia
+Terminal=false
+NoDisplay=false

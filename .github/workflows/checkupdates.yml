@@ -118,7 +118,7 @@ jobs:
               sudo -u builder mkdir -p "${NVCHECKER_DIR}"
               cd "${NVCHECKER_DIR}"
               # Copy required Python scripts if they exist
-              for script in "github_version.py" "compare_aur_local_versions.py" "buildscript.py"; do
+              for script in "compare_aur_local_versions.py" "buildscript.py"; do
                   if [ -f "${GITHUB_WORKSPACE}/${script}" ]; then
                       cp "${GITHUB_WORKSPACE}/${script}" "${NVCHECKER_DIR}"
                   fi

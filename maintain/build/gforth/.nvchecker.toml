@@ -1,4 +1,4 @@
 [gforth]
-source="github-graphql"
-github="forthy42/gforth"
-use_max_tag=true
+source="regex"
+url="https://ftp.gnu.org/gnu/gforth/"
+regex='gforth-([0-9.]+)\.tar\.gz'

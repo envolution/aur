@@ -1,0 +1,18 @@
+pkgbase = arpack++
+	pkgdesc = an object-oriented version of the ARPACK package - updated fork
+	pkgver = 2.4.0
+	pkgrel = 1
+	url = https://github.com/m-reuter/arpackpp
+	arch = any
+	license = BSD-3-Clause
+	depends = glibc
+	depends = arpack
+	depends = lapack
+	depends = blas
+	optdepends = superlu: Supernodal sparse direct solver
+	optdepends = suitesparse: efficient sparse matrix ops via umfpack and cholmod
+	options = !strip
+	source = arpack++-2.4.0.tar.gz::https://github.com/m-reuter/arpackpp/archive/refs/tags/2.4.0.tar.gz
+	md5sums = 50bffc44de364253f21c9bb6858e84cb
+
+pkgname = arpack++

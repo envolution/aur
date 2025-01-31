@@ -1,45 +1,79 @@
 # Maintainer: envolution
+# Contributor: schlmm - packaging suggestions
 # Contributor: éclairevoyant
 # shellcheck shell=bash disable=SC2034,SC2154
 
 pkgname=owncast
-pkgver=0.2.0
-pkgrel=1
+pkgver=0.2.1
+pkgrel=4
+_npmver=hydrogen
 pkgdesc='Self-hosted live video streaming (chat included)'
-url="https://github.com/owncast/$pkgname"
 arch=(x86_64)
 license=(MIT)
-depends=(glibc ffmpeg)
-makedepends=(git go)
+depends=(glibc)
+makedepends=(git go npm nvm)
 source=(
-  "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+  "$pkgname-$pkgver.tar.gz::https://github.com/owncast/owncast/archive/refs/tags/v${pkgver}.tar.gz"
   owncast.tempfiles.conf
   owncast.users.conf
   owncast.service
+  nginx.sample.conf
 )
-b2sums=('3290319be8b46ad4aeef69366793b2ad0bb341afaed87d6aa81025decd329905968452429bc492e3682f544aac07366d0051011d76edb217b6c836999f064b17'
-  '4cfc8fff50a032f849eea3ff2b1193f5d1cf3c2f5ed995621c63b2cf273af4298271941f27f2aa3c6bc96d2cc3262da1f65f3d251f973aa5fe0cbbfe824f0042'
-  '157be9c742c578f9096b32b877dae28627783f55bf6c5ca575bfa60b8b329c3096e4e1ebacc2b1eac7f6804fa6692dac89360d4160921f867a1a3f14954b3d4a'
-  '4466d8017f264a7b7be432418ac6ba76c610459754ca85f10403a8f4577227588c26911738e3726349c3cdf1c041219a3c4d6840bfa4959f965678dfb97343ef')
-options=(emptydirs)
+sha256sums=('99be2d22136304e14febeb3ff29cc5e38abb0c2ded59b408531564c59d9849cf'
+            'bba4d75a41a90d778928439bc8e1c21b359dcc45d0b909ba5171ac2fb2c05a3b'
+            'd822e9e1e4d6fb58c76ebcb2d5e30e4d4d79c7599c135365163c4f6074e33cb2'
+            '07b76935dec80397e0a5f8db4bc64dc7fec5c620388e1971e2961b7b6eeb352c'
+            '608a36e7ac62b07d08091d547f909571ecf9cc33e8fc1578d64d064f61183675')
+
+options=(emptydirs !strip)
 install=$pkgname.install
 
+_ensure_local_nvm() {
+  which nvm >/dev/null 2>&1 && nvm deactivate && nvm unload
+  export NVM_DIR="${srcdir}/.nvm"
+  source /usr/share/nvm/init-nvm.sh || [[ $? != 1 ]]
+}
+
+prepare() {
+  #select npm version
+  _ensure_local_nvm
+  nvm install --lts=${_npmver}
+
+  #prepare web bundle
+  rm -rf bundleWeb && mkdir -p bundleWeb
+  cd "${pkgname}-${pkgver}"
+  cp build/web/bundleWeb.sh "$srcdir/bundleWeb"
+
+  sed -i "/rev-parse.*show-toplevel/c\
+cd \"${srcdir}/${pkgname}-${pkgver}\"\\
+rm -rf web/node_modules web/package-lock.json" "$srcdir/bundleWeb/bundleWeb.sh"
+
+  #build with verbosity
+  sed -i 's/npm.*silent.*install.*/npm install/' "$srcdir/bundleWeb/bundleWeb.sh"
+}
+
 build() {
-  cd $pkgname-$pkgver
-  go build \
-    -trimpath \
-    -buildmode=pie \
-    -mod=readonly \
-    -modcacherw \
-    -ldflags "-s -w -X main.version=$pkgver -linkmode external -extldflags \"${LDFLAGS}\"" \
-    .
+  #build frontend
+  bundleWeb/bundleWeb.sh
+
+  cd "$pkgname-$pkgver"
+  # Build backend
+  export CGO_CPPFLAGS="${CPPFLAGS}"
+  export CGO_CFLAGS="${CFLAGS}"
+  export CGO_CXXFLAGS="${CXXFLAGS}"
+  export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=readonly -modcacherw"
+  go build -o "${pkgname}" -ldflags "-extldflags '${LDFLAGS}' -s -w -X main.version=${pkgver}"
 }
 
 package() {
   install -vDm644 $pkgname.service "$pkgdir/usr/lib/systemd/system/$pkgname.service"
   install -vDm644 $pkgname.users.conf "$pkgdir/usr/lib/sysusers.d/$pkgname.conf"
   install -vDm644 $pkgname.tempfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$pkgname.conf"
+  install -vDm644 nginx.sample.conf -t "$pkgdir/usr/share/$pkgname/"
+
   cd $pkgname-$pkgver
+  install -vdm755 "$pkgdir/usr/share/webapps/$pkgname"
+  cp -R static/web/. "$pkgdir/usr/share/webapps/$pkgname"
   install -vDm755 $pkgname -t "$pkgdir/usr/bin/"
   install -vDm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname/"
 }

@@ -2,30 +2,51 @@
 # Contributor: Ankit Bhatia <ankbhatia19@gmail.com>
 # shellcheck shell=bash disable=SC2034,SC2154
 
-pkgbase='python-ultralytics'
 pkgname=('python-ultralytics')
-_module='ultralytics'
-pkgver=8.3.60
-_src_folder=${_module}-${pkgver}
+_pkgname='ultralytics'
+pkgver=8.3.70
+_pkgdir=${_pkgname}-${pkgver}
 pkgrel=2
 pkgdesc="Ultralytics YOLOv8 for SOTA object detection, multi-object tracking, instance segmentation, pose estimation and image classification."
 url="https://github.com/ultralytics/ultralytics"
-depends=('python-matplotlib' 'python-opencv' 'python-pillow' 'python-requests' 'python-scipy' 'python-pytorch' 'python-torchvision' 'python-tqdm' 'python-psutil' 'python-py-cpuinfo' 'python-thop' 'python-pandas' 'python-seaborn' 'python-lapx')
+depends=(
+  'python-matplotlib'
+  'python-opencv'
+  'python-pillow'
+  'python-requests'
+  'python-scipy'
+  'python-pytorch'
+  'python-torchvision'
+  'python-tqdm'
+  'python-psutil'
+  'python-py-cpuinfo'
+  'python-thop'
+  'python-pandas'
+  'python-seaborn'
+  'python-lapx'
+  'python-sentry_sdk'
+  'python-flatbuffers'
+  'yt-dlp'
+  'python-onnx')
 makedepends=('python-build' 'python-installer' 'python-wheel')
+checkdepends=(ipython)
 license=('AGPL-3.0-or-later')
 arch=('any')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/ultralytics/ultralytics/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('264b3ffd295093f3dab7f8cfeca9d8c0ee6a2a73c4238971211f99f436cc8f6d')
+sha256sums=('8ebeb974721e2d850b62da34a59840b03f5d1f7e2e7daf04996183e44477f376')
 
 build() {
-  cd "${srcdir}/${_src_folder}"
+  cd "${_pkgdir}"
   python -m build --wheel --no-isolation
 }
 
 package() {
   depends+=()
-  cd "${srcdir}/${_src_folder}"
+  cd "${_pkgdir}"
   python -m installer --destdir="${pkgdir}" dist/*.whl
-  find $pkgdir -type d -name "tests" -exec rm -rf {} + #this was leaving a new drectory under site_packages called 'tests'
+
+  # ultralytics whl leaves a drectory under site_packages called 'tests'
+  local _site_packages=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+  rm -rf "${pkgdir}${_site_packages}/tests"
 }
 # vim:set ts=2 sw=2 et:

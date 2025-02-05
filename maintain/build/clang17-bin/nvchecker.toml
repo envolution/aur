@@ -1,0 +1,4 @@
+[clang-17-bin]
+source='debianpkg'
+suite='sid'
+debianpkg='llvm-toolchain-17'

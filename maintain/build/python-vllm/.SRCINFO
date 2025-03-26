@@ -1,18 +1,37 @@
 pkgbase = python-vllm
 	pkgdesc = high-throughput and memory-efficient inference and serving engine for LLMs
-	pkgver = 0.7.3
-	pkgrel = 1
+	pkgver = 0.8.2
+	pkgrel = 2
 	url = https://github.com/vllm-project/vllm
 	arch = x86_64
 	license = Apache-2.0
 	makedepends = git
 	makedepends = gcc13
-	makedepends = cuda
-	makedepends = cuda-tools
-	depends = python-installer
-	depends = python-build
-	depends = python-setuptools
-	source = git+https://github.com/vllm-project/vllm.git#tag=v0.7.3
-	sha256sums = 16f960486a875e82883c4b91d1dd52d9dd0da0e5cb9610f2828f311ad2df013d
+	makedepends = python-installer
+	makedepends = python-setuptools
+	makedepends = python-build
+	depends = python-sympy
+	depends = numactl
+	depends = python-pytorch
+	depends = python-sphinx
+	depends = python-aiohttp
+	depends = python-cachetools
+	depends = python-uvloop
+	depends = python-fastapi
+	depends = uvicorn
+	depends = python-soundfile
+	depends = python-starlette
+	depends = python-tqdm
+	depends = python-boto3
+	depends = python-openai
+	depends = python-importlib-metadata
+	depends = python-torchvision
+	depends = python-pydantic
+	depends = python-psutil
+	depends = python-opencv
+	depends = python-py-cpuinfo
+	depends = python-huggingface-hub
+	source = git+https://github.com/vllm-project/vllm.git#tag=v0.8.2
+	sha256sums = ff2a1952f02e21a93e1e2b2d07868d73b9934c3ac95441d10fee9b0763e6fc21
 
 pkgname = python-vllm

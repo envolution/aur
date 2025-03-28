@@ -1,0 +1,14 @@
+pkgbase = trenchbroom-bin
+	pkgdesc = Level editor supporting Daikatana, D-DayNormandy, Digital Paintball 2, Half-life, Heretic 2, Hexen 2, Kingpin, Neverball, Quake, Quake 2, Quake 3, Quetoo, and Wrath.
+	pkgver = 2025.2
+	pkgrel = 1
+	url = https://trenchbroom.github.io/
+	arch = x86_64
+	license = GPL-3.0-or-later
+	provides = trenchbroom
+	conflicts = trenchbroom
+	options = !strip
+	source = https://github.com/TrenchBroom/TrenchBroom/releases/download/v2025.2/TrenchBroom-Linux-x86_64-v2025.2-Release.zip
+	sha256sums = 5cabe0cd45d92a81a7dba15ffeda8e9ddb79918dc547112cc532b5a7f8c8bf13
+
+pkgname = trenchbroom-bin

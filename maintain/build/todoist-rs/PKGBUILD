@@ -29,7 +29,7 @@ build() {
 package() {
   install -Dm755 "$srcdir/$pkgname-$pkgver/target/release/todoist" "$pkgdir/usr/bin/todoist-rs"
   install -Dm644 "$srcdir/$pkgname-$pkgver/README.md" -t "$pkgdir/usr/share/doc/$pkgname"
-  install -Dm644 "$srcdir/$pkgname-$pkgver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname-$pkgver"
+  install -Dm644 "$srcdir/$pkgname-$pkgver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname"
 }
 
 # vim:set ts=2 sw=2 et:

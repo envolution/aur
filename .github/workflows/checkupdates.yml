@@ -67,7 +67,7 @@ jobs:
           SudoLoop
           UseAsk' | sudo tee /etc/paru.conf
           #sudo -u builder paru -S python-thinc-bin-8.3.2
-          sudo -u builder pacman --noconfirm -S wget 
+          pacman --noconfirm -S wget 
           sudo -u builder wget https://gist.githubusercontent.com/envolution/b405fc8ddee813103e61a9e74d8a85c8/raw/cd6c2a19f76a53698ee67adc983e8678ed116062/gistfile1.txt
           sudo -u builder mv gistfile1.txt /tmp/PKGBUILD
           sudo -u builder makepkg --printsrcinfo > /tmp/.SRCINFO

@@ -227,7 +227,7 @@ class ArchPackageBuilder:
 
             # Prepare and run the subprocess command
             command = [
-                'paru', '-S', '--norebuild', '--noconfirm', '--skippgpcheck'
+                'paru', '-S', '--norebuild', '--noconfirm'
             ] + combined_dependencies
             
             if self.subprocess_runner.run_command(command):

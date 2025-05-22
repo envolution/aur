@@ -202,7 +202,7 @@ class ArchPackageBuilder:
             package_name = self.config.package_name
             json_file_path = self.config.depends_json
 
-            # Load JSON data
+            # Load JSON
             try:
                 with open(json_file_path, 'r') as file:
                     data = json.load(file)
@@ -232,11 +232,15 @@ class ArchPackageBuilder:
 
             resolved_packages = []
             for dep in combined_dependencies:
-                result = self.subprocess_runner.run_command(["paru", "-Q", dep], check=False)
+                # Check if package is available in repos or AUR
+                check_cmd = ["paru", "-Ssx", f"^{dep}$"]
+                result = self.subprocess_runner.run_command(check_cmd, check=False)
+
                 if result.returncode == 0:
+                    self.logger.debug(f"Dependency '{dep}' found in sync db or AUR")
                     resolved_packages.append(dep)
                 else:
-                    self.logger.debug(f"Package '{dep}' not found locally, checking AUR provides...")
+                    self.logger.debug(f"Package '{dep}' not found via sync, checking AUR provides...")
                     try:
                         response = requests.get(
                             f"https://aur.archlinux.org/rpc/v5/search/{dep}?by=provides",
@@ -259,7 +263,7 @@ class ArchPackageBuilder:
             if not resolved_packages:
                 return False, {"package_name": package_name, "error": "No valid dependencies found."}
 
-            install_cmd = ['paru', '-S', '--norebuild', '--noconfirm'] + resolved_packages
+            install_cmd = ['paru', '-S', '--norebuild', '--noconfirm', '--needed'] + resolved_packages
             install_result = self.subprocess_runner.run_command(install_cmd, check=False)
 
             if install_result.returncode == 0:

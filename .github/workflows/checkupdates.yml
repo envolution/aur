@@ -67,6 +67,8 @@ jobs:
           SudoLoop
           UseAsk' | sudo tee /etc/paru.conf
 
+          sudo -u builder paru -S --noconfirm --needed python-deadlib
+
 
       - name: Setup SSH key
         run: |

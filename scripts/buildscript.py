@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import requests
 import os
 import subprocess
 import sys
@@ -196,48 +197,81 @@ class ArchPackageBuilder:
         if ':' in source or '/' in source:
             return True  # It's a non-file type (e.g., URL or path)
 
-    def process_dependencies(self) -> Tuple[bool, Dict[str, List[str]]]:
-        try:
-            # Load the JSON data
-            package_name = self.config.package_name
-            json_file_path = self.config.depends_json
-            try:
-                with open(json_file_path, 'r') as file:
-                    data = json.load(file)
-            except json.JSONDecodeError as e:
-                self.logger.error(f"Error decoding JSON: {e}")
-            except FileNotFoundError:
-                self.logger.error(f"File not found: {json_file_path}")                    
+	def process_dependencies(self) -> Tuple[bool, Dict[str, List[str]]]:
+		try:
+			package_name = self.config.package_name
+			json_file_path = self.config.depends_json
 
-            self.logger.debug(f"Loaded JSON data: {data}") 
-            # Check if the package exists in the data
-            if package_name not in data:
-                return True, {"package_name": package_name, "message": f"Package '{package_name}' has no dependencies."}
+			# Load JSON data
+			try:
+				with open(json_file_path, 'r') as file:
+					data = json.load(file)
+			except json.JSONDecodeError as e:
+				self.logger.error(f"Error decoding JSON: {e}")
+				return False, {"package_name": package_name, "error": "Invalid JSON"}
+			except FileNotFoundError:
+				self.logger.error(f"File not found: {json_file_path}")
+				return False, {"package_name": package_name, "error": "Dependency JSON not found"}
 
-            # Get package data and prepare dependencies
-            package_data = data[package_name]
-            combined_dependencies = (
-                package_data.get("depends", []) +
-                package_data.get("makedepends", []) +
-                package_data.get("checkdepends", [])
-            )
+			self.logger.debug(f"Loaded JSON data: {data}")
 
-            # Filter out empty or invalid dependencies
-            combined_dependencies = [dep for dep in combined_dependencies if dep]
+			if package_name not in data:
+				return True, {"package_name": package_name, "message": f"Package '{package_name}' has no dependencies."}
 
-            # Prepare and run the subprocess command
-            command = [
-                'paru', '-S', '--norebuild', '--noconfirm'
-            ] + combined_dependencies
-            
-            if self.subprocess_runner.run_command(command):
-                return True, {"package_name": package_name, "message": f"Dependencies for package '{package_name}' installed successfully."}
-            
-            return False, {"package_name": package_name, "error": "Subprocess failed during dependency installation."}
-        
-        except Exception as e:
-            self.logger.error(f"Error processing package '{package_name}': {str(e)}")
-            return False, {"package_name": package_name, "error": str(e)}
+			package_data = data[package_name]
+			combined_dependencies = (
+				package_data.get("depends", []) +
+				package_data.get("makedepends", []) +
+				package_data.get("checkdepends", [])
+			)
+			combined_dependencies = [dep for dep in combined_dependencies if dep]
+			if not combined_dependencies:
+				return True, {"package_name": package_name, "message": "No dependencies to install."}
+
+			self.logger.debug(f"Initial dependencies: {combined_dependencies}")
+
+			resolved_packages = []
+			for dep in combined_dependencies:
+				result = self.subprocess_runner.run_command(["paru", "-Q", dep], check=False)
+				if result.returncode == 0:
+					resolved_packages.append(dep)
+				else:
+					self.logger.debug(f"Package '{dep}' not found locally, checking AUR provides...")
+					try:
+						response = requests.get(
+							f"https://aur.archlinux.org/rpc/v5/search/{dep}?by=provides",
+							timeout=5
+						)
+						response.raise_for_status()
+						aur_data = response.json()
+						aur_name = aur_data.get("results", [{}])[0].get("Name")
+						if aur_name:
+							self.logger.debug(f"Found AUR provider '{aur_name}' for '{dep}'")
+							resolved_packages.append(aur_name)
+						else:
+							self.logger.warning(f"No AUR provider found for missing dependency: {dep}")
+					except requests.RequestException as e:
+						self.logger.warning(f"Error querying AUR for '{dep}': {e}")
+
+			resolved_packages = sorted(set(resolved_packages))
+			self.logger.debug(f"Final resolved dependency list: {resolved_packages}")
+
+			if not resolved_packages:
+				return False, {"package_name": package_name, "error": "No valid dependencies found."}
+
+			install_cmd = ['paru', '-S', '--norebuild', '--noconfirm'] + resolved_packages
+			install_result = self.subprocess_runner.run_command(install_cmd, check=False)
+
+			if install_result.returncode == 0:
+				return True, {"package_name": package_name, "message": f"Dependencies for package '{package_name}' installed successfully."}
+			else:
+				self.logger.error(f"Dependency installation failed:\n{install_result.stderr}")
+				return False, {"package_name": package_name, "error": "Subprocess failed during dependency installation."}
+
+		except Exception as e:
+			self.logger.error(f"Error processing package '{package_name}': {str(e)}")
+			return False, {"package_name": package_name, "error": str(e)}
+
 
     def check_version_update(self) -> Optional[str]:
         nvchecker_path = self.build_dir / '.nvchecker.toml'

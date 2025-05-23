@@ -139,15 +139,14 @@ jobs:
           fi
           echo "::endgroup::"
 
-
-      - name: Run Arch Package Update and Build Task # Test run_version_checks
+      - name: Run Arch Package Update and Build Task # Test get_package_updates_list
         shell: bash
         run: |
           #!/bin/bash
           set -xeuo pipefail 
-          echo "::notice title=SCRIPT_START::Bash script for 'Run Arch Package Update and Build Task' started. set -xeuo pipefail active."
+          echo "::notice title=SCRIPT_START::Bash script for 'Run Arch Package Update and Build Task' started."
 
-          # --- Helper Functions (Definitions Only) ---
+          # --- Helper Functions ---
           _log_raw_debug() { echo "::debug::$1"; }
           _log_raw_notice() { echo "::notice title=$1::$2"; }
           _log_raw_error() { echo "::error title=$1::$2"; }
@@ -156,165 +155,150 @@ jobs:
           _log_raw_notice "HELPER_DEF" "Helper functions defined."
 
           # --- Configuration & Constants ---
-          _log_raw_notice "VARS_START" "Defining initial constants..."
-          BUILDER_HOME="/home/builder"
-          NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run" 
-          ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"
-          PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
-          _log_raw_notice "VARS_END" "Initial constants defined." # For brevity, removed individual var logs
+          _log_raw_notice "VARS_START" "Defining constants..."
+          BUILDER_HOME="/home/builder"; NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run"; ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"; PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
+          _log_raw_notice "VARS_END" "Constants defined."
 
           # --- setup_environment function ---
           setup_environment() {
-              _start_raw_group "DEBUG: setup_environment Function"
-              _log_raw_notice "SETUP_ENV_START" "Entering setup_environment function. Current PWD: $(pwd)"
-              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"
-              sudo -u builder mkdir -p "${ARTIFACTS_DIR}"
-              cd "${NVCHECKER_RUN_DIR}"
-              _log_raw_debug "Current directory after cd: $(pwd)."
-              local all_scripts_found_and_copied=true
-              for script_name_to_copy in "buildscript.py" "compare_aur_local_versions.py"; do
-                  local found_script_path
-                  found_script_path=$(find "${GITHUB_WORKSPACE}/scripts/" -name "${script_name_to_copy}" -type f -print -quit 2>/dev/null)
-                  if [ -n "${found_script_path}" ] && [ -f "${found_script_path}" ]; then
-                      _log_raw_notice "SETUP_ENV_SCRIPT_FOUND" "Script '${script_name_to_copy}' FOUND at '${found_script_path}'."
-                      if sudo -u builder cp "${found_script_path}" "${NVCHECKER_RUN_DIR}/"; then
-                          if ! sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name_to_copy}"; then
-                             _log_raw_error "SETUP_ENV_CHMOD_FAILED" "chmod +x FAILED for '${NVCHECKER_RUN_DIR}/${script_name_to_copy}'. Exit code: $?."
-                             all_scripts_found_and_copied=false
-                          fi
-                      else
-                          _log_raw_error "SETUP_ENV_COPY_FAILED" "cp FAILED for ${script_name_to_copy}. Exit code: $?."
-                          all_scripts_found_and_copied=false
-                      fi
-                  else
-                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Script '${script_name_to_copy}' NOT FOUND in '${GITHUB_WORKSPACE}/scripts/'."
-                      all_scripts_found_and_copied=false
-                  fi
+              _start_raw_group "DEBUG: setup_environment"
+              _log_raw_notice "SETUP_ENV_START" "PWD: $(pwd)"
+              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}" && sudo -u builder mkdir -p "${ARTIFACTS_DIR}"
+              cd "${NVCHECKER_RUN_DIR}"; _log_raw_debug "Now in $(pwd)."
+              local all_ok=true
+              for script in "buildscript.py" "compare_aur_local_versions.py"; do
+                  local path; path=$(find "${GITHUB_WORKSPACE}/scripts/" -name "${script}" -type f -print -quit 2>/dev/null)
+                  if [ -n "${path}" ] && [ -f "${path}" ]; then
+                      if sudo -u builder cp "${path}" ."/${script}" && sudo -u builder chmod +x ."/${script}"; then
+                         _log_raw_debug "Copied & chmodded ${script}."
+                      else _log_raw_error "SETUP_ENV_FAIL" "cp/chmod failed for ${script}"; all_ok=false; fi
+                  else _log_raw_error "SETUP_ENV_MISSING" "${script} not found."; all_ok=false; fi
               done
-              ls -la "${NVCHECKER_RUN_DIR}" | while IFS= read -r line; do _log_raw_debug "  ls dest: $line"; done
-              if ! ${all_scripts_found_and_copied}; then
-                  _log_raw_error "SETUP_ENV_FINAL_FAILURE" "CRITICAL: Script setup failed."
-                  _end_raw_group; return 1 
-              fi
-              _log_raw_notice "SETUP_ENV_END" "Exiting setup_environment successfully."
+              ls -la; if ! ${all_ok}; then _log_raw_error "SETUP_ENV_FINAL_FAIL" "Script setup failed."; _end_raw_group; return 1; fi
+              _log_raw_notice "SETUP_ENV_END" "setup_environment SUCCEEDED."
               _end_raw_group; return 0 
           }
-          _log_raw_notice "SETUP_ENV_DEF_DONE" "setup_environment defined."
 
           # --- generate_nvchecker_config function ---
           generate_nvchecker_config() {
-              _start_raw_group "DEBUG: generate_nvchecker_config Function"
-              _log_raw_notice "NVCHECKER_CONFIG_START" "Entering generate_nvchecker_config."
-              local combined_config_file="new.toml"; local keyfile="keyfile.toml"         
-              echo "[__config__]" > "${combined_config_file}"; echo "oldver = 'aur.json'" >> "${combined_config_file}"; echo "newver = 'local.json'" >> "${combined_config_file}" 
-              echo "[keys]" > "${keyfile}"; echo "github = '${{ secrets.GHuK }}'" >> "${keyfile}"
-              _log_raw_notice "NVCHECKER_CONFIG_APPEND" "Appending individual .nvchecker.toml files..."
-              local individual_nvchecker_configs=(); mapfile -t individual_nvchecker_configs < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print)
-              if [ ${#individual_nvchecker_configs[@]} -gt 0 ]; then
-                  for conf_file in "${individual_nvchecker_configs[@]}"; do cat "${conf_file}" >> "${combined_config_file}"; echo "" >> "${combined_config_file}"; done
-              else _log_raw_warning "NVCHECKER_CONFIG_NO_INDIVIDUAL_FILES" "No individual .nvchecker.toml files found."; fi
-              if chown builder:builder "${combined_config_file}" "${keyfile}"; then
-                 _log_raw_debug "Ownership change SUCCESS for nvchecker config files."
-              else _log_raw_error "NVCHECKER_CONFIG_CHOWN_FAILED" "chown FAILED. $?."; _end_raw_group; return 1; fi
-              _log_raw_notice "NVCHECKER_CONFIG_END" "Exiting generate_nvchecker_config successfully."
+              _start_raw_group "DEBUG: generate_nvchecker_config"
+              _log_raw_notice "NV_CONF_START" "Generating nvchecker config..."
+              local cfg="new.toml"; local keyf="keyfile.toml"         
+              echo "[__config__]" > "${cfg}"; echo "oldver = 'aur.json'" >> "${cfg}"; echo "newver = 'local.json'" >> "${cfg}" 
+              echo "[keys]" > "${keyf}"; echo "github = '${{ secrets.GHuK }}'" >> "${keyf}"
+              local indiv_cfg=(); mapfile -t indiv_cfg < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print)
+              if [ ${#indiv_cfg[@]} -gt 0 ]; then
+                  for cf in "${indiv_cfg[@]}"; do cat "${cf}" >> "${cfg}"; echo "" >> "${cfg}"; done
+              else _log_raw_warning "NV_CONF_NO_INDIV" "No individual .nvchecker.toml found."; fi
+              if ! chown builder:builder "${cfg}" "${keyf}"; then _log_raw_error "NV_CONF_CHOWN_FAIL" "chown FAILED. $?."; _end_raw_group; return 1; fi
+              _log_raw_notice "NV_CONF_END" "generate_nvchecker_config SUCCEEDED."
               _end_raw_group; return 0
           }
-          _log_raw_notice "NVCHECKER_CONFIG_DEF_DONE" "generate_nvchecker_config defined."
+
+          # --- run_compare_aur_local_versions (NEW - Placeholder for actual call) ---
+          run_compare_aur_local_versions() {
+              _start_raw_group "DEBUG: run_compare_aur_local_versions"
+              _log_raw_notice "COMPARE_AUR_START" "Running compare_aur_local_versions.py..."
+              # This is where you'd call:
+              # sudo -E -u builder python3 ./compare_aur_local_versions.py \
+              #    --maintainer "${AUR_MAINTAINER_NAME}" \ # Ensure AUR_MAINTAINER_NAME is available
+              #    --repo-root "${GITHUB_WORKSPACE}" \
+              #    --output-file "aur.json"
+              # For this test, we'll just create a dummy aur.json again to allow nvcmp to run.
+              # In the next iteration, we'll use the real script.
+              _log_raw_warning "COMPARE_AUR_DUMMY" "Creating dummy aur.json for this test run."
+              echo "{ \"example-package\": { \"Name\": \"example-package\", \"Version\": \"1.0-1\" } }" | sudo -u builder tee aur.json > /dev/null
+              if [ -f "aur.json" ]; then
+                  _log_raw_notice "COMPARE_AUR_DUMMY_CREATED" "Dummy aur.json created."
+                  sudo -u builder chown builder:builder aur.json # Ensure builder owns it
+              else
+                  _log_raw_error "COMPARE_AUR_DUMMY_FAIL" "Failed to create dummy aur.json."
+                  _end_raw_group; return 1
+              fi
+              _log_raw_notice "COMPARE_AUR_END" "compare_aur_local_versions (dummy) SUCCEEDED."
+              _end_raw_group; return 0
+          }
 
           # --- run_version_checks function ---
           run_version_checks() {
-              _start_raw_group "DEBUG: run_version_checks Function"
-              _log_raw_notice "VERSION_CHECKS_START" "Entering run_version_checks function."
-              # Current directory should be NVCHECKER_RUN_DIR (/home/builder/nvchecker-run)
-              _log_raw_debug "Current directory for version checks: $(pwd)"
-              _log_raw_debug "Verifying required files: new.toml, keyfile.toml"
-              if [ ! -f "new.toml" ]; then _log_raw_error "VERSION_CHECKS_MISSING_FILE" "new.toml not found!"; _end_raw_group; return 1; fi
-              if [ ! -f "keyfile.toml" ]; then _log_raw_error "VERSION_CHECKS_MISSING_FILE" "keyfile.toml not found!"; _end_raw_group; return 1; fi
-              _log_raw_debug "Required files new.toml and keyfile.toml are present."
+              _start_raw_group "DEBUG: run_version_checks"
+              _log_raw_notice "VER_CHECKS_START" "Running nvchecker & nvcmp..."
+              if [ ! -f "new.toml" ] || [ ! -f "keyfile.toml" ]; then _log_raw_error "VER_CHECKS_MISSING" "new.toml/keyfile.toml missing!"; _end_raw_group; return 1; fi
+              if [ ! -f "aur.json" ]; then _log_raw_error "VER_CHECKS_MISSING" "aur.json (from compare script) missing!"; _end_raw_group; return 1; fi
 
-              _log_raw_notice "VERSION_CHECKS_RUN_NVCHECKER" "Running nvchecker..."
-              # nvchecker should be run as 'builder' because keyfile.toml and new.toml are owned by builder.
-              # Also, nvchecker might write to a cache in builder's home directory.
-              # Using sudo -E -u builder to preserve environment and run as builder.
-              # `local.json` will be created by nvchecker.
-              local nvchecker_cmd="nvchecker -c new.toml -k keyfile.toml --logger json"
-              _log_raw_debug "Executing as builder: ${nvchecker_cmd} > local.json"
-              if sudo -E -u builder bash -c "${nvchecker_cmd}" > local.json; then
-                 _log_raw_notice "VERSION_CHECKS_NVCHECKER_SUCCESS" "nvchecker ran successfully."
-                 _log_raw_debug "Contents of local.json (new versions from nvchecker):"
-                 cat local.json | while IFS= read -r line; do _log_raw_debug "  local.json: $line"; done
-                 if [ ! -s local.json ]; then _log_raw_warning "VERSION_CHECKS_NVCHECKER_EMPTY_OUTPUT" "local.json is empty after nvchecker run."; fi
-              else
-                 local nvchecker_exit_code=$?
-                 _log_raw_error "VERSION_CHECKS_NVCHECKER_FAILED" "nvchecker command FAILED with exit code ${nvchecker_exit_code}."
-                 # Even if nvchecker fails, try to show local.json if it was created
-                 if [ -f "local.json" ]; then 
-                    _log_raw_debug "Contents of local.json (on failure):"
-                    cat local.json | while IFS= read -r line; do _log_raw_debug "  local.json: $line"; done
-                 else 
-                    _log_raw_debug "local.json was not created."
-                 fi
-                 _end_raw_group; return 1
-              fi
-
-              _log_raw_notice "VERSION_CHECKS_RUN_NVCMP" "Running nvcmp..."
-              # nvcmp also likely needs to be run as builder if it reads files owned by builder or writes to builder's cache.
-              # It reads new.toml (owned by builder) and potentially aur.json/local.json.
-              # `changes.json` will be created by nvcmp.
-              # Pre-requisite: aur.json must exist. This is created by compare_aur_local_versions.py in the original script.
-              # For THIS TEST, aur.json might not exist yet. We should create a dummy one or acknowledge this.
-              if [ ! -f "aur.json" ]; then
-                  _log_raw_warning "VERSION_CHECKS_NVCMP_NO_AUR_JSON" "File 'aur.json' not found. nvcmp might behave unexpectedly or fail. Creating dummy aur.json for this test."
-                  echo "{}" | sudo -u builder tee aur.json > /dev/null # Create dummy owned by builder
-              fi
+              local nvc_cmd="nvchecker -c new.toml -k keyfile.toml --logger json"
+              if sudo -E -u builder bash -c "${nvc_cmd}" > local.json; then
+                 _log_raw_debug "nvchecker OK. local.json content:"; cat local.json | while IFS= read -r line; do _log_raw_debug "  loc: $line"; done
+              else _log_raw_error "VER_CHECKS_NVC_FAIL" "nvchecker FAILED $?."; _end_raw_group; return 1; fi
               
               local nvcmp_cmd="nvcmp -c new.toml"
-              _log_raw_debug "Executing as builder: ${nvcmp_cmd} > changes.json"
               if sudo -E -u builder bash -c "${nvcmp_cmd}" > changes.json; then
-                 _log_raw_notice "VERSION_CHECKS_NVCMP_SUCCESS" "nvcmp ran successfully."
-                 _log_raw_debug "Contents of changes.json (comparison results):"
-                 cat changes.json | while IFS= read -r line; do _log_raw_debug "  changes.json: $line"; done
-                 if [ ! -s changes.json ]; then _log_raw_warning "VERSION_CHECKS_NVCMP_EMPTY_OUTPUT" "changes.json is empty after nvcmp run."; fi
-              else
-                 local nvcmp_exit_code=$?
-                 _log_raw_error "VERSION_CHECKS_NVCMP_FAILED" "nvcmp command FAILED with exit code ${nvcmp_exit_code}."
-                 if [ -f "changes.json" ]; then 
-                    _log_raw_debug "Contents of changes.json (on failure):"
-                    cat changes.json | while IFS= read -r line; do _log_raw_debug "  changes.json: $line"; done
-                 else
-                    _log_raw_debug "changes.json was not created."
-                 fi
-                 _end_raw_group; return 1
-              fi
-
-              _log_raw_notice "VERSION_CHECKS_END" "Exiting run_version_checks function successfully."
+                 _log_raw_debug "nvcmp OK. changes.json content:"; cat changes.json | while IFS= read -r line; do _log_raw_debug "  chg: $line"; done
+              else _log_raw_error "VER_CHECKS_NVCMP_FAIL" "nvcmp FAILED $?."; _end_raw_group; return 1; fi
+              _log_raw_notice "VER_CHECKS_END" "run_version_checks SUCCEEDED."
               _end_raw_group; return 0
           }
-          _log_raw_notice "VERSION_CHECKS_DEF_DONE" "run_version_checks function defined."
+          
+          # --- get_package_updates_list function (NEW) ---
+          get_package_updates_list() {
+              _start_raw_group "DEBUG: get_package_updates_list"
+              _log_raw_notice "GET_UPDATES_START" "Determining packages to update..."
+              # Ensure files exist before trying to parse
+              if [ ! -f "changes.json" ]; then _log_raw_error "GET_UPDATES_MISSING_CHANGES" "changes.json not found!"; _end_raw_group; return 1; fi
+              if [ ! -f "new.toml" ]; then _log_raw_error "GET_UPDATES_MISSING_NEWTOML" "new.toml not found for nvcmp -q!"; _end_raw_group; return 1; fi
 
+              local upgrades_from_changes=()
+              local updates_from_nvcmp_q=()
+              
+              # Get upgrades from changes.json (comparing new upstream versions to aur.json)
+              if [ -s "changes.json" ]; then # Check if not empty
+                  # This jq query extracts keys where the value object has a "status" of "upgrade"
+                  mapfile -t upgrades_from_changes < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2>/dev/null || true)
+              else 
+                  _log_raw_warning "GET_UPDATES_EMPTY_CHANGES" "changes.json is empty."
+              fi
+              _log_raw_debug "Packages with UPGRADES from changes.json (upstream > aur):"
+              printf '  ::debug::  - %s\n' "${upgrades_from_changes[@]:-(none)}"
+              
+              # Get updates from nvchecker's direct output (nvcmp -q query mode for new.toml)
+              # This tells which entries in new.toml found an update from their defined source.
+              mapfile -t updates_from_nvcmp_q < <(sudo -E -u builder nvcmp -c new.toml -q 2>/dev/null || true)
+              _log_raw_debug "Packages with updates found directly by NVChecker (nvcmp -q):"
+              printf '  ::debug::  - %s\n' "${updates_from_nvcmp_q[@]:-(none)}"
+              
+              local temp_updates_file; temp_updates_file=$(mktemp)
+              printf '%s\n' "${upgrades_from_changes[@]:-}" > "$temp_updates_file"
+              printf '%s\n' "${updates_from_nvcmp_q[@]:-}" >> "$temp_updates_file"
+              
+              # Declare UPDATES as a global variable for the rest of the script (outside this function)
+              mapfile -tG UPDATES < <(sort -u "$temp_updates_file") # -tG for global array (bash 4.2+)
+              # If bash < 4.2, use: declare -ga UPDATES; mapfile -t UPDATES < ...
+              # Or simply: IFS=$'\n' read -r -d '' -a UPDATES < <(sort -u "$temp_updates_file" && printf '\0')
+              rm "$temp_updates_file"
 
-          # --- Main Execution Flow (Phased) ---
+              _log_raw_notice "GET_UPDATES_FINAL_LIST" "Final list of packages to process for updates (UPDATES array):"
+              if [ ${#UPDATES[@]} -eq 0 ]; then
+                  _log_raw_notice "GET_UPDATES_NONE_FOUND" "  No packages require updates at this time."
+              else
+                  printf '  ::notice title=Update Candidate::%s\n' "${UPDATES[@]}"
+              fi
+              _log_raw_notice "GET_UPDATES_END" "Exiting get_package_updates_list successfully."
+              _end_raw_group; return 0
+          }
+
+          # --- Main Execution Flow ---
           _log_raw_notice "MAIN_EXEC_START" "Starting main execution flow..."
-          exit_code_setup_env=0; exit_code_nv_config=0; exit_code_ver_checks=0
-
-          if setup_environment; then _log_raw_notice "MAIN_EXEC_SETUP_SUCCESS" "setup_environment SUCCEEDED."
-          else exit_code_setup_env=$?; _log_raw_error "MAIN_EXEC_SETUP_FAILED" "setup_environment FAILED. $exit_code_setup_env."; exit "${exit_code_setup_env}"; fi
-
-          if generate_nvchecker_config; then _log_raw_notice "MAIN_EXEC_NVCHECKER_CONFIG_SUCCESS" "generate_nvchecker_config SUCCEEDED."
-          else exit_code_nv_config=$?; _log_raw_error "MAIN_EXEC_NVCHECKER_CONFIG_FAILED" "generate_nvchecker_config FAILED. $exit_code_nv_config."; exit "${exit_code_nv_config}"; fi
+          # For brevity, removed individual exit_code variables, set -e handles exit.
           
-          _log_raw_notice "MAIN_EXEC_VERSION_CHECKS" "Attempting to call run_version_checks..."
-          if run_version_checks; then
-            _log_raw_notice "MAIN_EXEC_VERSION_CHECKS_SUCCESS" "run_version_checks call SUCCEEDED."
-          else
-            exit_code_ver_checks=$? 
-            _log_raw_error "MAIN_EXEC_VERSION_CHECKS_FAILED" "run_version_checks call FAILED. Exit code: ${exit_code_ver_checks}. Stopping workflow."
-            exit "${exit_code_ver_checks}"
-          fi
+          setup_environment
+          generate_nvchecker_config
+          run_compare_aur_local_versions # Call the (currently dummy) aur.json generator
+          run_version_checks
+          get_package_updates_list # New call
 
-          _log_raw_notice "SCRIPT_PHASED_END" "Current test phase (up to run_version_checks) finished. Check logs."
+          _log_raw_notice "SCRIPT_PHASED_END" "Current test phase (up to get_package_updates_list) finished."
           
-          # --- get_package_updates_list and subsequent functions ARE TEMPORARILY OMITTED ---
+          # --- Subsequent functions (extract_pkgbuild_details, main loop, etc.) ARE TEMPORARILY OMITTED ---
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GHuK for nvchecker (already handled as it's a secret)
+          AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }} # Make sure this is available for compare_aur_local_versions.py

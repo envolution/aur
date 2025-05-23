@@ -120,7 +120,6 @@ jobs:
           sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
           echo "Git configuration complete."
           echo "::endgroup::"
-
       - name: Run Arch Package Update and Build Task # Full script with build step
         shell: bash
         run: |

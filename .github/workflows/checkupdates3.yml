@@ -1,0 +1,13 @@
+name: Arch Linux Task Minimal Viable Test
+on:
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  minimal-test-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simple Echo Step
+        run: |
+          echo "Minimal workflow step has started."
+          echo "If you see this, the basic YAML structure and triggering is working."
+          echo "::notice title=Minimal Test Success::Minimal workflow step executed successfully!"

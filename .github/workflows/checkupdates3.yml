@@ -127,11 +127,12 @@ jobs:
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
-          echo "::notice::Attempting to execute external script .github/scripts/main_task_script.sh"
+          echo "::notice::Attempting to execute external script main_task_script.sh"
           # Ensure the script is executable inside the container if permissions were lost
-          cp ${GITHUB_WORKSPACE}/scripts/main_task_script.sh /home/builder/nvchecker-run/
-          chmod +x /home/builder/nvchecker-run/main_task_script.sh 
-          /home/builder/nvchecker-run/main_task_script.sh 
+          mkdir -p task
+          cp ${GITHUB_WORKSPACE}/scripts/main_task_script.sh task/
+          chmod +x task/main_task_script.sh 
+          task/main_task_script.sh 
 
       - name: Upload build logs and artifacts
         if: always()

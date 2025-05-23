@@ -343,7 +343,7 @@ jobs:
           # --- Main Execution Flow ---
           _log_notice "MAIN_EXEC" "Starting main execution flow..."
           
-          echo "## Arch Package Build Summary" > "$GITHUB_STEP_SUMMARY"; echo "| Package | Version | Status | Changes | AUR Link | Build Logs |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          #echo "## Arch Package Build Summary" > "$GITHUB_STEP_SUMMARY"; echo "| Package | Version | Status | Changes | AUR Link | Build Logs |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
           if ! setup_environment; then _log_error "MAIN_FAIL" "setup_environment FAILED."; exit 1; fi
           if ! generate_nvchecker_config; then _log_error "MAIN_FAIL" "generate_nvchecker_config FAILED."; exit 1; fi

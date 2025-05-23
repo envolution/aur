@@ -1,5 +1,5 @@
 [goxel-voxel-editor-bin]
-source="github-graphql"
+source="github"
 github="guillaumechereau/goxel"
 use_latest_release=true
 prefix="v"

@@ -130,14 +130,14 @@ jobs:
           set -euo pipefail
           echo "::notice title=SCRIPT_START::Arch Package Update Task started."
 
-          ## --- Helper Functions ---
-          #_log_notice() { echo "::notice title=$1::$2"; }
-          #_log_error() { echo "::error title=$1::$2"; }
-          #_log_warning() { echo "::warning title=$1::$2"; }
-          #_log_debug() { echo "::debug::$1"; } 
-          #_start_group() { echo "::group::$1"; }
-          #_end_group() { echo "::endgroup::"; }
-          #_log_notice "HELPER_DEF" "Helper functions defined."
+          # --- Helper Functions ---
+          _log_notice() { echo "::notice title=$1::$2"; }
+          _log_error() { echo "::error title=$1::$2"; }
+          _log_warning() { echo "::warning title=$1::$2"; }
+          _log_debug() { echo "::debug::$1"; } 
+          _start_group() { echo "::group::$1"; }
+          _end_group() { echo "::endgroup::"; }
+          _log_notice "HELPER_DEF" "Helper functions defined."
 
           ## --- Configuration & Constants ---
           #_log_notice "VARS_CONSTANTS" "Defining constants..."

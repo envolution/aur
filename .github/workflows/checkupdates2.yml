@@ -1,4 +1,4 @@
-name: Arch Linux Task
+name: Grouped NVCHECKER Updates
 on:
   schedule:
     - cron: '0 */12 * * *'  # Runs every 12 hours

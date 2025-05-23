@@ -132,7 +132,7 @@ jobs:
           mkdir -p task
           cp ${GITHUB_WORKSPACE}/scripts/main_task_script.sh task/
           chmod +x task/main_task_script.sh 
-          task/main_task_script.sh 
+          ./task/main_task_script.sh 
 
       - name: Upload build logs and artifacts
         if: always()

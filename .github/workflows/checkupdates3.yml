@@ -121,14 +121,16 @@ jobs:
           echo "Git configuration complete."
           echo "::endgroup::"
 
-      - name: Run Arch Package Update and Build Task # Test JSON Generation for Packages
+      - name: Run Arch Package Update and Build Task # Debug loop and local
         shell: bash
         run: |
           #!/bin/bash
+          # Add -x temporarily if needed to find the exact line for the 'local' error
+          # set -xeuo pipefail 
           set -euo pipefail 
           echo "::notice title=SCRIPT_START::Arch Package Update Task started."
 
-          # --- Helper Functions ---
+          # --- Helper Functions --- (Assume these are correct as per last version)
           _log_notice() { echo "::notice title=$1::$2"; }
           _log_error() { echo "::error title=$1::$2"; }
           _log_warning() { echo "::warning title=$1::$2"; }
@@ -137,12 +139,12 @@ jobs:
           _end_group() { echo "::endgroup::"; }
           _log_notice "HELPER_DEF" "Helper functions defined."
 
-          # --- Configuration & Constants ---
+          # --- Configuration & Constants --- (Assume correct)
           _log_notice "VARS_CONSTANTS" "Defining constants..."
           BUILDER_HOME="/home/builder"; NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run"; ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"; PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
           _log_notice "VARS_CONSTANTS" "BUILDER_HOME=${BUILDER_HOME}, NVCHECKER_RUN_DIR=${NVCHECKER_RUN_DIR}, PACKAGE_DETAILS_JSON_PATH=${PACKAGE_DETAILS_JSON_PATH}"
-
-          # --- Function Definitions ---
+          
+          # --- Function Definitions --- (Keep all previously working functions as they were)
           setup_environment() {
               _start_group "Setup Environment"; _log_notice "SETUP_ENV" "Configuring environment in ${NVCHECKER_RUN_DIR}..."
               if ! sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"; then _log_error "SETUP_FAIL" "mkdir NVCHECKER_RUN_DIR failed."; _end_group; return 1; fi
@@ -223,67 +225,46 @@ jobs:
               _log_notice "GET_UPDATES" "Package update list generation SUCCEEDED."; _end_group; return 0
           }
 
-          # --- NEW FUNCTIONS BEING TESTED ---
-          extract_path_components() { # Renamed from extract_components for clarity
-              # Input: relative path like "maintain/build/packagename"
-              # Output: space separated string "maintain build packagename"
+          extract_path_components() { 
               _log_debug "extract_path_components input: $1"
-              local path_to_parse="$1"
-              local relative_path="${path_to_parse#${GITHUB_WORKSPACE}/}" # Remove workspace prefix if present
-              relative_path="${relative_path%/}";  relative_path="${relative_path#/}" # Trim slashes
+              local path_to_parse="$1"; local relative_path="${path_to_parse#${GITHUB_WORKSPACE}/}"
+              relative_path="${relative_path%/}";  relative_path="${relative_path#/}" 
               IFS='/' read -r -a components_array <<< "${relative_path}"
               _log_debug "extract_path_components output: ${components_array[*]}"
-              echo "${components_array[@]}" # Return space-separated list
+              echo "${components_array[@]}" 
           }
 
-          extract_pkgbuild_details() { # Renamed from extract_dependencies
-              # Input: absolute path to directory containing PKGBUILD
-              _log_debug "extract_pkgbuild_details input: $1"
+          extract_pkgbuild_details() { 
+              _log_debug "extract_pkgbuild_details input (absolute PKGBUILD dir): $1"
               local pkgbuild_dir_abs="$1" 
-              if [ ! -f "${pkgbuild_dir_abs}/PKGBUILD" ]; then
-                  _log_error "EXTRACT_DETAILS_FAIL" "PKGBUILD not found in ${pkgbuild_dir_abs}"; return 1;
-              fi
-              # Source PKGBUILD in a subshell to get 'depends', 'makedepends', 'checkdepends', 'source' arrays
-              ( # Start subshell
-                  # shellcheck source=/dev/null
-                  source "${pkgbuild_dir_abs}/PKGBUILD"
-                  declare -p depends makedepends checkdepends source 2>/dev/null || true # Print array declarations
-              ) || { _log_error "EXTRACT_DETAILS_FAIL" "Sourcing PKGBUILD or declaring arrays failed for ${pkgbuild_dir_abs}"; return 1; }
+              if [ ! -f "${pkgbuild_dir_abs}/PKGBUILD" ]; then _log_error "EXTRACT_FAIL" "PKGBUILD missing in ${pkgbuild_dir_abs}"; return 1; fi
+              ( source "${pkgbuild_dir_abs}/PKGBUILD"; declare -p depends makedepends checkdepends source 2>/dev/null || true ) || 
+              { _log_error "EXTRACT_FAIL" "Sourcing/declaring PKGBUILD vars failed for ${pkgbuild_dir_abs}"; return 1; }
           }
 
-          process_single_package_details() { # Renamed from process_package_dependencies
-              # Input: package_name (string), pkgbuild_dir_rel_to_workspace (string, e.g., "maintain/build/package_name")
-              _log_debug "process_single_package_details input: package_name='$1', pkgbuild_dir_rel_to_workspace='$2'"
-              local package_name="$1" 
-              local pkgbuild_dir_rel_to_workspace="$2"
-              local pkgbuild_details_bash_declarations
+          process_single_package_details() { 
+              _log_debug "process_single_package_details: pkg='$1', rel_dir='$2'"
+              local package_name="$1"; local pkgbuild_dir_rel_to_workspace="$2"; local declarations
               
-              if ! pkgbuild_details_bash_declarations=$(extract_pkgbuild_details "${GITHUB_WORKSPACE}/${pkgbuild_dir_rel_to_workspace}"); then
-                  _log_error "PROCESS_DETAILS_FAIL" "extract_pkgbuild_details failed for ${package_name}."; return 1;
+              if ! declarations=$(extract_pkgbuild_details "${GITHUB_WORKSPACE}/${pkgbuild_dir_rel_to_workspace}"); then
+                  _log_error "PROCESS_FAIL" "extract_pkgbuild_details failed for ${package_name}."
+                  # Output an empty JSON object or a specific error structure on failure
+                  jq -n --arg pkg_name_arg "$package_name" '{($pkg_name_arg): {"error": "failed to extract PKGBUILD details"}}'
+                  return 1 # Indicate failure to the caller
               fi
-              _log_debug "Bash declarations from PKGBUILD for ${package_name}: ${pkgbuild_details_bash_declarations}"
+              _log_debug "Bash declarations for ${package_name}: ${declarations}"
               
-              # Reset and evaluate dependency variables from PKGBUILD output
-              unset depends makedepends checkdepends source # Ensure clean slate
-              eval "$pkgbuild_details_bash_declarations" # This re-declares the arrays in current scope
+              unset depends makedepends checkdepends source; eval "$declarations"
               
-              # Convert bash arrays to JSON arrays
-              local depends_json makedepends_json checkdepends_json sources_json # 'local' is fine in functions
-              depends_json=$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
-              makedepends_json=$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
-              checkdepends_json=$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
-              sources_json=$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
-              _log_debug "JSON arrays for ${package_name}: depends=${depends_json}, makedepends=${makedepends_json}, checkdepends=${checkdepends_json}, sources=${sources_json}"
+              local dep_j mak_j chk_j src_j # Renamed for brevity
+              dep_j=$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              mak_j=$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              chk_j=$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              src_j=$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              #_log_debug "JSON arrays for ${package_name}: depends=${dep_j}, makedepends=${mak_j}, checkdepends=${chk_j}, sources=${src_j}"
               
-              # Construct JSON fragment for this package
-              # This output is captured by command substitution where this function is called
-              jq -n \
-                  --arg pkg_name_arg "$package_name" \
-                  --argjson deps_arg "$depends_json" \
-                  --argjson mkdeps_arg "$makedepends_json" \
-                  --argjson chkdeps_arg "$checkdepends_json" \
-                  --argjson srcs_arg "$sources_json" \
-                  '{($pkg_name_arg): {depends: $deps_arg, makedepends: $mkdeps_arg, checkdepends: $chkdeps_arg, sources: $srcs_arg}}'
+              jq -n --arg pkg "$package_name" --argjson d "$dep_j" --argjson m "$mak_j" --argjson c "$chk_j" --argjson s "$src_j" \
+                  '{($pkg): {depends: $d, makedepends: $m, checkdepends: $c, sources: $s}}'
           }
 
           # --- Main Execution Flow ---
@@ -297,74 +278,73 @@ jobs:
 
           _log_notice "MAIN_EXEC" "Pre-build phases completed. UPDATES count: ${#UPDATES[@]}"
           if [ ${#UPDATES[@]} -eq 0 ]; then
-              _log_notice "MAIN_EXEC" "No updates to process. Exiting."
-              _log_notice "SCRIPT_PHASED_END" "Workflow finished: No updates."
+              _log_notice "MAIN_EXEC_NO_UPDATES" "No updates to process. Exiting."
               exit 0
           fi
 
           _start_group "Process PKGBUILD Details for Updated Packages"
           _log_notice "JSON_GEN" "Processing PKGBUILD details for ${#UPDATES[@]} updated package(s)..."
-          local combined_pkg_details_json="{}" # Start with an empty JSON object for aggregation
+          
+          # Remove 'local' if this line (approx 181) is the culprit. It's a global for the script body.
+          combined_pkg_details_json="{}" # Was: local combined_pkg_details_json="{}"
 
           for package_to_process in "${UPDATES[@]}"; do
-              _log_notice "JSON_GEN_PKG" "Processing: ${package_to_process}"
-              # Find the directory for this package. Assumes package_name is the dir name under some structure.
-              # Example: GITHUB_WORKSPACE/category/build_type/packagename/
-              # Using a more specific find for dirs named $package_to_process containing PKGBUILD
-              local pkg_build_dirs_found=()
-              # This find pattern needs to match your repository structure accurately.
-              # Example: */maintain/build/packagename
+              _start_group "Processing Details: ${package_to_process}" # Group for each package
+              _log_notice "JSON_GEN_PKG" "Starting detail extraction for: ${package_to_process}"
+              
+              local pkg_build_dirs_found=() # This 'local' is fine (inside loop block)
               mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_process}" -type d -exec test -f "{}/PKGBUILD" \; -print)
 
               if [ ${#pkg_build_dirs_found[@]} -eq 0 ]; then
-                  _log_warning "JSON_GEN_PKG_SKIP" "No PKGBUILD directory found for '${package_to_process}' with pattern '*/maintain/build/${package_to_process}'. Skipping detail extraction."
-                  continue
+                  _log_warning "JSON_GEN_PKG_SKIP" "No PKGBUILD dir found for '${package_to_process}' with pattern '*/maintain/build/${package_to_process}'. Skipping."
+                  _end_group; continue # End package-specific group
               elif [ ${#pkg_build_dirs_found[@]} -gt 1 ]; then
-                  _log_warning "JSON_GEN_PKG_SKIP" "Multiple PKGBUILD directories found for '${package_to_process}'. Ambiguous. Skipping."
-                  printf "  ::warning file=${package_to_process}::Found at:\n"
-                  printf "  ::warning file=${package_to_process}::  - %s\n" "${pkg_build_dirs_found[@]}"
-                  continue
+                  _log_warning "JSON_GEN_PKG_SKIP" "Multiple PKGBUILD dirs found for '${package_to_process}'. Skipping."
+                  _end_group; continue # End package-specific group
               fi
               
               local package_dir_abs="${pkg_build_dirs_found[0]}"
-              # Get path relative to GITHUB_WORKSPACE for process_single_package_details
               local package_dir_rel_to_workspace="${package_dir_abs#${GITHUB_WORKSPACE}/}" 
-              _log_debug "Found PKGBUILD for ${package_to_process} at relative path: ${package_dir_rel_to_workspace}"
+              _log_debug "Found PKGBUILD for ${package_to_process} at rel path: ${package_dir_rel_to_workspace}"
 
-              local single_package_json_fragment
-              if single_package_json_fragment=$(process_single_package_details "$package_to_process" "$package_dir_rel_to_workspace"); then
-                  _log_debug "JSON fragment for ${package_to_process}: ${single_package_json_fragment}"
-                  # Merge this fragment into the main JSON object
-                  if combined_pkg_details_json=$(echo "$combined_pkg_details_json $single_package_json_fragment" | jq -s 'add'); then
-                     _log_debug "Successfully merged JSON for ${package_to_process}."
-                  else
-                     _log_error "JSON_GEN_PKG_FAIL" "jq merge failed for ${package_to_process}. Fragment was: ${single_package_json_fragment}"
-                     # Decide if this is fatal for the whole process or just skip this package
-                  fi
-              else
-                  _log_warning "JSON_GEN_PKG_FAIL" "process_single_package_details failed for ${package_to_process}. Skipping merge."
+              local single_package_json_fragment # This 'local' is fine
+              # Capture exit status of process_single_package_details
+              local process_details_succeeded=true
+              if ! single_package_json_fragment=$(process_single_package_details "$package_to_process" "$package_dir_rel_to_workspace"); then
+                  _log_warning "JSON_GEN_PKG_PROCESS_FAIL" "process_single_package_details had issues for ${package_to_process} (see errors above). Fragment might contain error info."
+                  # The function process_single_package_details now outputs a JSON with an error field on failure.
+                  # We will still try to merge this error information.
+                  process_details_succeeded=false 
               fi
+              _log_debug "JSON fragment (or error JSON) for ${package_to_process}: ${single_package_json_fragment}"
+
+              # Attempt to merge, even if there was an error in the fragment generation (it should be valid JSON with an error field)
+              local temp_merged_json
+              if temp_merged_json=$(echo "$combined_pkg_details_json $single_package_json_fragment" | jq -s 'add'); then
+                 combined_pkg_details_json="$temp_merged_json" # Update on successful merge
+                 _log_debug "Successfully merged JSON for ${package_to_process}."
+                 if ! $process_details_succeeded; then
+                     _log_warning "JSON_GEN_PKG_MERGED_ERROR" "Merged JSON for ${package_to_process}, which contained an error field."
+                 fi
+              else
+                 _log_error "JSON_GEN_PKG_MERGE_FAIL" "jq -s 'add' FAILED for ${package_to_process}. Fragment was: ${single_package_json_fragment}. Combined was: ${combined_pkg_details_json}"
+                 # This is a more critical failure - stop or skip? For now, let it continue to process other packages.
+              fi
+              _end_group # End package-specific group for ${package_to_process}
           done
 
           _log_notice "JSON_GEN" "Saving combined package details to ${PACKAGE_DETAILS_JSON_PATH}..."
-          echo "${combined_pkg_details_json}" | jq . > "${PACKAGE_DETAILS_JSON_PATH}" # Pretty print with jq
-          # Ensure builder owns this final JSON file if buildscript.py needs to read it as builder
+          echo "${combined_pkg_details_json}" | jq . > "${PACKAGE_DETAILS_JSON_PATH}"
           if sudo -u builder chown builder:builder "${PACKAGE_DETAILS_JSON_PATH}"; then
              _log_debug "chown for ${PACKAGE_DETAILS_JSON_PATH} to builder SUCCEEDED."
-          else
-             _log_warning "JSON_GEN_CHOWN_FAIL" "Failed to chown ${PACKAGE_DETAILS_JSON_PATH} to builder."
-          fi
+          else _log_warning "JSON_GEN_CHOWN_FAIL" "Failed to chown ${PACKAGE_DETAILS_JSON_PATH} to builder."; fi
           
           _log_notice "JSON_GEN_SUMMARY" "Contents of ${PACKAGE_DETAILS_JSON_PATH} (first 20 lines):"
           head -n 20 "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_notice "JSON_LINE" "  $line"; done
-          _log_debug "Full content of ${PACKAGE_DETAILS_JSON_PATH} (enable debug view):"
-          cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_debug "  $line"; done
+          _log_debug "Full content of ${PACKAGE_DETAILS_JSON_PATH} (enable debug view):"; cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_debug "  $line"; done
+          _end_group 
 
-          _end_group # End Process PKGBUILD Details
-
-          _log_notice "SCRIPT_PHASED_END" "Current test phase (up to JSON generation for packages) finished."
-          
-          # --- build_package loop OMITTED FOR NOW ---
+          _log_notice "SCRIPT_PHASED_END" "Current test phase (up to JSON generation) finished."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }} 

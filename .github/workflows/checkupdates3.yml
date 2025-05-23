@@ -123,6 +123,9 @@ jobs:
 
       - name: Run Arch Package Update and Build Task # Debugging new build section
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
         run: |
           #!/bin/bash
           set -euo pipefail 
@@ -420,9 +423,6 @@ jobs:
               exit 1
           fi
           _log_notice "MAIN_EXEC" "All tasks completed successfully."
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
 
       - name: Upload build logs and artifacts
         if: always()

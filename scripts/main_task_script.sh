@@ -63,7 +63,7 @@ setup_environment() {
   cd "${NVCHECKER_RUN_DIR}"
   _log_debug "Now in $(pwd)."
   local all_ok=true
-  for script_to_copy in "buildscript2.py" "compare_aur_local_versions.py"; do # Used buildscript2.py
+  for script_to_copy in "buildscript2.py" "compare_aur_local_versions2.py"; do # Used buildscript2.py
     local script_source_path
     script_source_path=$(find "${GITHUB_WORKSPACE}/scripts/" -name "${script_to_copy}" -type f -print -quit 2>/dev/null)
     if [ -n "${script_source_path}" ] && [ -f "${script_source_path}" ]; then
@@ -136,8 +136,8 @@ generate_nvchecker_config() {
 
 run_compare_aur_local_versions() {
   _start_group "Compare AUR vs Local Versions (Generates aur.json)"
-  _log_notice "COMPARE_AUR" "Running compare_aur_local_versions.py..."
-  local script="./compare_aur_local_versions.py"
+  _log_notice "COMPARE_AUR" "Running compare_aur_local_versions2.py..."
+  local script="./compare_aur_local_versions2.py"
   local outfile="aur.json"
   if [ ! -f "${script}" ]; then
     _log_error "COMPARE_AUR_FAIL" "${script} not found in $(pwd)!"
@@ -165,7 +165,7 @@ run_compare_aur_local_versions() {
     return 1
   fi
   rm "${stderr_log}"
-  _log_notice "COMPARE_AUR" "compare_aur_local_versions.py SUCCEEDED."
+  _log_notice "COMPARE_AUR" "compare_aur_local_versions2.py SUCCEEDED."
   _end_group
   return 0
 }

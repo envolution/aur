@@ -121,16 +121,14 @@ jobs:
           echo "Git configuration complete."
           echo "::endgroup::"
 
-      - name: Run Arch Package Update and Build Task # Isolate UPDATES loop
+      - name: Run Arch Package Update and Build Task # Fix UPDATES array and chown, re-enable PKGBUILD processing
         shell: bash
         run: |
           #!/bin/bash
-          # Try with and without -x if the error is hard to pinpoint
-          # set -xeuo pipefail 
           set -euo pipefail 
           echo "::notice title=SCRIPT_START::Arch Package Update Task started."
 
-          # --- Helper Functions --- (Assume correct)
+          # --- Helper Functions ---
           _log_notice() { echo "::notice title=$1::$2"; }
           _log_error() { echo "::error title=$1::$2"; }
           _log_warning() { echo "::warning title=$1::$2"; }
@@ -139,12 +137,12 @@ jobs:
           _end_group() { echo "::endgroup::"; }
           _log_notice "HELPER_DEF" "Helper functions defined."
 
-          # --- Configuration & Constants --- (Assume correct)
+          # --- Configuration & Constants ---
           _log_notice "VARS_CONSTANTS" "Defining constants..."
           BUILDER_HOME="/home/builder"; NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run"; ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"; PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
           _log_notice "VARS_CONSTANTS" "BUILDER_HOME=${BUILDER_HOME}, NVCHECKER_RUN_DIR=${NVCHECKER_RUN_DIR}, PACKAGE_DETAILS_JSON_PATH=${PACKAGE_DETAILS_JSON_PATH}"
           
-          # --- Function Definitions --- (Keep all previously working functions as they were)
+          # --- Function Definitions ---
           setup_environment() {
               _start_group "Setup Environment"; _log_notice "SETUP_ENV" "Configuring environment in ${NVCHECKER_RUN_DIR}..."
               if ! sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"; then _log_error "SETUP_FAIL" "mkdir NVCHECKER_RUN_DIR failed."; _end_group; return 1; fi
@@ -210,27 +208,77 @@ jobs:
           get_package_updates_list() {
               _start_group "Get Package Updates List"; _log_notice "GET_UPDATES" "Determining packages to update..."
               if [ ! -f "changes.json" ]||[ ! -f "new.toml" ]; then _log_error "GET_UPDATES_FAIL" "Missing input files."; _end_group; return 1; fi
-              local upgrades_from_changes=(); local updates_from_nvcmp_q=()
+              
+              local upgrades_from_changes=() 
+              local updates_from_nvcmp_q=()
+              
               if [ -s "changes.json" ]; then 
-                  local jq_err_log=$(mktemp)
-                  if mapfile -t upgrades_from_changes < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2> "${jq_err_log}"); then _log_debug "jq parsed changes.json."
-                  else _log_warning "GET_UPDATES" "jq for changes.json FAILED (Exit: $?). Stderr: $(cat "${jq_err_log}")"; fi; rm "${jq_err_log}"
-              else _log_warning "GET_UPDATES" "changes.json is empty."; fi; _log_debug "${#upgrades_from_changes[@]} upgrades from changes.json."
+                  local jq_err_log=$(mktemp); local jq_out_temp=$(mktemp)
+                  if jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json > "${jq_out_temp}" 2> "${jq_err_log}"; then
+                      _log_debug "jq parsed changes.json successfully."
+                      if [ -s "${jq_out_temp}" ]; then mapfile -t upgrades_from_changes < "${jq_out_temp}"; else _log_debug "jq produced no output for upgrades_from_changes."; fi
+                  else _log_warning "GET_UPDATES" "jq for changes.json FAILED (Exit: $?). Stderr: $(cat "${jq_err_log}")"; fi
+                  rm "${jq_err_log}" "${jq_out_temp}"
+              else _log_warning "GET_UPDATES" "changes.json is empty."; fi
+              _log_debug "Found ${#upgrades_from_changes[@]} upgrades from changes.json."
+              printf "  ::debug::upgrades_from_changes: [%s]\n" "$(IFS=,; echo "${upgrades_from_changes[*]}")"
+
               mapfile -t updates_from_nvcmp_q < <(sudo -E -u builder nvcmp -c new.toml -q 2>/dev/null || true)
-              _log_debug "${#updates_from_nvcmp_q[@]} updates from nvcmp -q."
-              local temp_file=$(mktemp); printf '%s\n' "${upgrades_from_changes[@]:-}" > "${temp_file}"; printf '%s\n' "${updates_from_nvcmp_q[@]:-}" >> "${temp_file}"
+              _log_debug "Found ${#updates_from_nvcmp_q[@]} updates from nvcmp -q."
+              printf "  ::debug::updates_from_nvcmp_q: [%s]\n" "$(IFS=,; echo "${updates_from_nvcmp_q[*]}")"
               
-              # Ensure UPDATES is global for subsequent use
+              local temp_file=$(mktemp)
+              if [ ${#upgrades_from_changes[@]} -gt 0 ]; then printf '%s\n' "${upgrades_from_changes[@]}" > "${temp_file}"; else >"${temp_file}"; fi
+              if [ ${#updates_from_nvcmp_q[@]} -gt 0 ]; then printf '%s\n' "${updates_from_nvcmp_q[@]}" >> "${temp_file}"; fi
+              
               declare -ga UPDATES; 
-              mapfile -t UPDATES < <(sort -u "${temp_file}"); 
+              mapfile -t UPDATES < <(sort -u "${temp_file}" | grep .) # grep . filters out empty lines
               rm "${temp_file}"
-              
+
               if [ ${#UPDATES[@]} -eq 0 ]; then _log_notice "GET_UPDATES" "No packages require updates."
               else _log_notice "GET_UPDATES" "Found ${#UPDATES[@]} package(s) to update:"; printf '  ::notice title=Update Candidate::%s\n' "${UPDATES[@]}"; fi
               _log_notice "GET_UPDATES" "Package update list generation SUCCEEDED."; _end_group; return 0
           }
 
-          # --- OMIT extract_path_components, extract_pkgbuild_details, process_single_package_details FOR THIS TEST ---
+          extract_path_components() { 
+              _log_debug "extract_path_components input: $1"
+              local path_to_parse="$1"; local relative_path="${path_to_parse#${GITHUB_WORKSPACE}/}"
+              relative_path="${relative_path%/}";  relative_path="${relative_path#/}" 
+              IFS='/' read -r -a components_array <<< "${relative_path}"
+              _log_debug "extract_path_components output: ${components_array[*]}"
+              echo "${components_array[@]}" 
+          }
+
+          extract_pkgbuild_details() { 
+              _log_debug "extract_pkgbuild_details input (absolute PKGBUILD dir): $1"
+              local pkgbuild_dir_abs="$1" 
+              if [ ! -f "${pkgbuild_dir_abs}/PKGBUILD" ]; then _log_error "EXTRACT_FAIL" "PKGBUILD missing in ${pkgbuild_dir_abs}"; return 1; fi
+              ( source "${pkgbuild_dir_abs}/PKGBUILD"; declare -p depends makedepends checkdepends source 2>/dev/null || true ) || 
+              { _log_error "EXTRACT_FAIL" "Sourcing/declaring PKGBUILD vars failed for ${pkgbuild_dir_abs}"; return 1; }
+          }
+
+          process_single_package_details() { 
+              _log_debug "process_single_package_details: pkg='$1', rel_dir='$2'"
+              local package_name="$1"; local pkgbuild_dir_rel_to_workspace="$2"; local declarations
+              
+              if ! declarations=$(extract_pkgbuild_details "${GITHUB_WORKSPACE}/${pkgbuild_dir_rel_to_workspace}"); then
+                  _log_error "PROCESS_FAIL" "extract_pkgbuild_details failed for ${package_name}."
+                  jq -n --arg pkg_name_arg "$package_name" '{($pkg_name_arg): {"error": "failed to extract PKGBUILD details"}}'
+                  return 1 
+              fi
+              _log_debug "Bash declarations for ${package_name}: ${declarations}"
+              
+              unset depends makedepends checkdepends source; eval "$declarations"
+              
+              local dep_j mak_j chk_j src_j 
+              dep_j=$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              mak_j=$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              chk_j=$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              src_j=$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              
+              jq -n --arg pkg "$package_name" --argjson d "$dep_j" --argjson m "$mak_j" --argjson c "$chk_j" --argjson s "$src_j" \
+                  '{($pkg): {depends: $d, makedepends: $m, checkdepends: $c, sources: $s}}'
+          }
 
           # --- Main Execution Flow ---
           _log_notice "MAIN_EXEC" "Starting main execution flow..."
@@ -247,65 +295,70 @@ jobs:
               exit 0
           fi
 
-          # --- DEBUGGING THE LOOP START AND UPDATES ARRAY ---
-          _start_group "DEBUG Loop and UPDATES Array"
-          _log_notice "DEBUG_UPDATES_ARRAY" "Number of elements in UPDATES: ${#UPDATES[@]}"
-          _log_notice "DEBUG_UPDATES_ARRAY" "Elements are:"
-          for item_in_updates in "${UPDATES[@]}"; do
-            _log_notice "UPDATES_ITEM" "- '${item_in_updates}'"
-          done
-          if [ "${#UPDATES[@]}" -gt 0 ] && [ -z "${UPDATES[0]}" ]; then
-            _log_warning "DEBUG_UPDATES_ARRAY" "Warning: First element of UPDATES is empty or null!"
-          fi
-          _end_group
-          # --- END DEBUGGING THE LOOP START ---
-          
-
           _start_group "Process PKGBUILD Details for Updated Packages"
           _log_notice "JSON_GEN" "Processing PKGBUILD details for ${#UPDATES[@]} updated package(s)..."
           
-          # This was the line (approx 169) that previously had a 'local' error associated with it in logs
-          # We are trying to confirm the UPDATES array is valid before this loop starts.
-          # No 'local' here now.
           combined_pkg_details_json="{}" 
 
-          _log_notice "JSON_GEN_LOOP_START" "Attempting to start loop over UPDATES array."
           for package_to_process in "${UPDATES[@]}"; do
-              # If package_to_process is empty, the logs below will show it immediately
-              _start_group "Processing Details: [${package_to_process}]" # Group for each package
-              _log_notice "JSON_GEN_PKG" "Loop iteration for package: [${package_to_process}]"
+              _start_group "Processing Details: [${package_to_process}]" 
+              _log_notice "JSON_GEN_PKG" "Starting detail extraction for: [${package_to_process}]"
 
-              if [ -z "${package_to_process}" ]; then
-                  _log_warning "JSON_GEN_PKG_EMPTY_NAME" "package_to_process is empty in this iteration. Skipping."
+              if [ -z "${package_to_process}" ]; then # Should be filtered by grep . now
+                  _log_warning "JSON_GEN_PKG_EMPTY_NAME" "package_to_process is empty. Skipping."
                   _end_group; continue
               fi
               
-              # --- For this specific test, we will NOT call the detail extraction functions ---
-              # --- We just want to see if the loop itself works and iterates correctly ---
-              _log_notice "JSON_GEN_PKG_SIMULATED" "Simulating detail extraction for [${package_to_process}]. (Actual functions omitted for this test)."
-              # local pkg_build_dirs_found=() ...
-              # mapfile -t pkg_build_dirs_found < <(find ... )
-              # ...
-              # if ! single_package_json_fragment=$(process_single_package_details ... ); then ...
-              # ...
-              # if temp_merged_json=$(echo "$combined_pkg_details_json $single_package_json_fragment" | jq -s 'add'); then ...
+              local pkg_build_dirs_found=() 
+              mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_process}" -type d -exec test -f "{}/PKGBUILD" \; -print)
+
+              if [ ${#pkg_build_dirs_found[@]} -eq 0 ]; then
+                  _log_warning "JSON_GEN_PKG_SKIP" "No PKGBUILD dir for '${package_to_process}'. Skipping."
+                  _end_group; continue 
+              elif [ ${#pkg_build_dirs_found[@]} -gt 1 ]; then
+                  _log_warning "JSON_GEN_PKG_SKIP" "Multiple PKGBUILD dirs for '${package_to_process}'. Skipping."
+                  _end_group; continue 
+              fi
               
-              _end_group # End package-specific group for ${package_to_process}
+              local package_dir_abs="${pkg_build_dirs_found[0]}"
+              local package_dir_rel_to_workspace="${package_dir_abs#${GITHUB_WORKSPACE}/}" 
+              _log_debug "Found PKGBUILD for ${package_to_process} at: ${package_dir_rel_to_workspace}"
+
+              local single_package_json_fragment 
+              local process_details_succeeded=true
+              if ! single_package_json_fragment=$(process_single_package_details "$package_to_process" "$package_dir_rel_to_workspace"); then
+                  _log_warning "JSON_GEN_PKG_PROCESS_FAIL" "process_single_package_details had issues for ${package_to_process}."
+                  process_details_succeeded=false 
+              fi
+              _log_debug "JSON fragment for ${package_to_process}: ${single_package_json_fragment}"
+
+              local temp_merged_json
+              if temp_merged_json=$(echo "$combined_pkg_details_json $single_package_json_fragment" | jq -s 'add'); then
+                 combined_pkg_details_json="$temp_merged_json" 
+                 _log_debug "Merged JSON for ${package_to_process}."
+                 if ! $process_details_succeeded; then _log_warning "JSON_GEN_PKG_MERGED_ERROR" "Merged JSON for ${package_to_process} (contained error field)."; fi
+              else
+                 _log_error "JSON_GEN_PKG_MERGE_FAIL" "jq -s 'add' FAILED for ${package_to_process}."
+              fi
+              _end_group 
           done
           _log_notice "JSON_GEN_LOOP_END" "Finished loop over UPDATES array."
 
-
-          _log_notice "JSON_GEN" "Saving (dummy) combined package details to ${PACKAGE_DETAILS_JSON_PATH}..."
+          _log_notice "JSON_GEN" "Saving combined package details to ${PACKAGE_DETAILS_JSON_PATH}..."
           echo "${combined_pkg_details_json}" | jq . > "${PACKAGE_DETAILS_JSON_PATH}"
-          if sudo -u builder chown builder:builder "${PACKAGE_DETAILS_JSON_PATH}"; then
+          # Corrected chown: run as root
+          if chown builder:builder "${PACKAGE_DETAILS_JSON_PATH}"; then
              _log_debug "chown for ${PACKAGE_DETAILS_JSON_PATH} to builder SUCCEEDED."
           else _log_warning "JSON_GEN_CHOWN_FAIL" "Failed to chown ${PACKAGE_DETAILS_JSON_PATH} to builder."; fi
           
-          _log_notice "JSON_GEN_SUMMARY" "Contents of ${PACKAGE_DETAILS_JSON_PATH} (dummy for this test):"
-          cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_notice "JSON_LINE" "  $line"; done
+          _log_notice "JSON_GEN_SUMMARY" "Contents of ${PACKAGE_DETAILS_JSON_PATH} (first 20 lines):"
+          head -n 20 "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_notice "JSON_LINE" "  $line"; done
+          _log_debug "Full content of ${PACKAGE_DETAILS_JSON_PATH} (enable debug view):"; cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_debug "  $line"; done
           _end_group 
 
-          _log_notice "SCRIPT_PHASED_END" "Current test phase (SIMULATED PKGBUILD processing) finished."
+          _log_notice "SCRIPT_PHASED_END" "Current test phase (up to JSON generation) finished."
+          
+          # --- build_package loop OMITTED FOR NOW ---
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }} 

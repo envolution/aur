@@ -121,23 +121,32 @@ jobs:
           echo "Git configuration complete."
           echo "::endgroup::"
 
-      - name: Load NVChecker Custom Source (if any)
+      - name: Run Arch Package Update and Build Task # Corrected ARTIFACTS_DIR creation
+        shell: bash
         run: |
-          set -e
-          echo "::group::Load NVChecker Custom Source"
-          CUSTOM_NV_SOURCE_SCRIPT="${GITHUB_WORKSPACE}/scripts/github-graphql.py"
-          if [ -f "${CUSTOM_NV_SOURCE_SCRIPT}" ]; then
-            SITE_PACKAGES_DIR=$(python3 -c "import site; print(site.getsitepackages()[0])")
-            NVCHECKER_CUSTOM_SOURCE_DIR="${SITE_PACKAGES_DIR}/nvchecker_source"
-            
-            echo "::notice title=NVChecker Custom Source::Copying '${CUSTOM_NV_SOURCE_SCRIPT}' to '${NVCHECKER_CUSTOM_SOURCE_DIR}'..."
-            mkdir -p "${NVCHECKER_CUSTOM_SOURCE_DIR}" 
-            cp "${CUSTOM_NV_SOURCE_SCRIPT}" "${NVCHECKER_CUSTOM_SOURCE_DIR}/"
-            echo "Custom NVChecker source loaded."
-          else
-            echo "::notice title=NVChecker Custom Source::Script not found at '${CUSTOM_NV_SOURCE_SCRIPT}'. Skipping."
-          fi
-          echo "::endgroup::"
+          #!/bin/bash
+          set -xeuo pipefail 
+          echo "::notice title=SCRIPT_START::Bash script for 'Run Arch Package Update and Build Task' started."
+
+          # --- Helper Functions ---
+          # ... (Keep your helper functions as they were) ...
+          _log_raw_debug() { echo "::debug::$1"; }
+          _log_raw_notice() { echo "::notice title=$1::$2"; }
+          _log_raw_error() { echo "::error title=$1::$2"; }
+          _start_raw_group() { echo "::group::$1"; }
+          _end_raw_group() { echo "::endgroup::"; }
+          _log_raw_notice "HELPER_DEF" "Helper functions defined."
+
+          # --- Configuration & Constants ---
+          _log_raw_notice "VARS_START" "Defining constants..."
+          BUILDER_HOME="/home/builder"
+          NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run"
+          # ARTIFACTS_DIR will be created by root, then chowned if builder needs to write directly.
+          # For now, buildscript.py (run as builder) will write to a subdir passed to it.
+          # The main artifacts dir is created by root.
+          ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts" 
+          PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
+          _log_raw_notice "VARS_END" "Constants defined."
 
           # --- setup_environment function ---
           setup_environment() {
@@ -146,18 +155,17 @@ jobs:
 
               # Create NVCHECKER_RUN_DIR as builder (in builder's home)
               _log_raw_debug "Creating NVCHECKER_RUN_DIR as builder: ${NVCHECKER_RUN_DIR}"
-              if ! sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"; then # THIS IS FINE
+              if ! sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"; then
                   _log_raw_error "SETUP_ENV_FAIL" "Failed to mkdir -p ${NVCHECKER_RUN_DIR} as builder."
                   _end_raw_group; return 1
               fi
 
               # Create ARTIFACTS_DIR as root (current user of the script)
               _log_raw_debug "Creating ARTIFACTS_DIR as root: ${ARTIFACTS_DIR}"
-              if ! mkdir -p "${ARTIFACTS_DIR}"; then # CORRECTED: Run as current user (root)
+              if ! mkdir -p "${ARTIFACTS_DIR}"; then # Script runs as root, so direct mkdir
                   _log_raw_error "SETUP_ENV_FAIL" "Failed to mkdir -p ${ARTIFACTS_DIR} as root."
                   _end_raw_group; return 1
               fi
-              # ... rest of function ...
               # If buildscript.py run as builder needs to create subdirs directly in ARTIFACTS_DIR root,
               # then chown ARTIFACTS_DIR to builder here.
               # However, buildscript.py is passed a full path like ARTIFACTS_DIR/packagename,

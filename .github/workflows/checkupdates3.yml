@@ -128,11 +128,12 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
           echo "::notice::Attempting to execute external script main_task_script.sh"
-          echo `which bash`
           # Ensure the script is executable inside the container if permissions were lost
           mkdir -p task
           cp ${GITHUB_WORKSPACE}/scripts/main_task_script.sh task/
           chmod +x task/main_task_script.sh 
+          ls -la task
+          file task/main_task_script.sh
           ./task/main_task_script.sh 
 
       - name: Upload build logs and artifacts

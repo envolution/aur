@@ -28,11 +28,10 @@ def is_valid_filename(filename: str, optional=False) -> bool:
 
 def get_sources_from_pkgbuild(pkgbuild_path):
     """
-    Source the PKGBUILD file and extract the 'source' array values and the 'install' variable.
-    The 'install' variable is added to the 'source' array if it exists.
+    Source the PKGBUILD file and extract the 'source' array values.
     """
-    # Modify the command to capture both the 'source' array and 'install' variable
-    command = f"bash -c 'source {pkgbuild_path} && printf \"%s\\n\" ${{source[@]}} && [ -n \"${{install}}\" ] && echo ${{install:-}} || true'"
+    # Correct the f-string by escaping the braces inside the command
+    command = f"bash -c 'source {pkgbuild_path} && printf \"%s\\n\" ${{source[@]}}'"
 
     # Use shlex.split to safely parse the command
     command_parts = shlex.split(command)
@@ -44,20 +43,12 @@ def get_sources_from_pkgbuild(pkgbuild_path):
     # Check if there was an error
     if proc.returncode != 0:
         print(f"Error sourcing PKGBUILD: {stderr.decode().strip()}", file=sys.stderr)
-        return []  # Return an empty source list
+        return []
 
     # Decode the result and split it by lines
-    lines = stdout.decode().strip().splitlines()
+    source_files = stdout.decode().strip().splitlines()
 
-    # The source array values are all lines except the last one
-    source_files = lines[:-1]
-
-    # Add the install value to the source files, if present
-    install_value = lines[-1] if lines else ""
-    if install_value:
-        source_files.append(install_value)
-
-    # Return the updated list of source files (including install value)
+    # Return the list of source files
     return source_files
 
 def main():

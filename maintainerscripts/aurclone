@@ -1,64 +1,87 @@
-#!/bin/env python
-import os
-import shutil
-import subprocess
-import sys
+#!/usr/bin/env python3
+from pathlib import Path
+from shutil import copy2, copytree, rmtree
+from subprocess import CalledProcessError, check_call
 from datetime import datetime
+import typer
+from rich import print
+from rich.prompt import Confirm
+from rich.console import Console
 
-def aurclone(pkgname):
-    """Clone a repository to a temporary directory, asking for overwrite if directory exists."""
-    
-    # Generate a temporary directory path based on the package name and timestamp
+app = typer.Typer()
+console = Console(stderr=True)
+
+
+def get_temp_dir(pkgname: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    temp_dir = f"/tmp/{timestamp}_{pkgname}"
+    return Path(f"/tmp/{timestamp}_{pkgname}")
 
-    # Check if a directory with a similar name already exists in /tmp/
-    existing_dirs = [d for d in os.listdir('/tmp/') if d.endswith(f"_{pkgname}")]
-    
-    if existing_dirs:
-        # If directory exists, ask user if they want to overwrite
-        print(f"Directory already exists: /tmp/{existing_dirs[0]}", file=sys.stderr)
-        print(f"Overwrite? [y/N]", file=sys.stderr)
-        overwrite = input().strip().lower()
-        if overwrite == 'y':
-            # Remove the existing directory and continue
-            shutil.rmtree(f"/tmp/{existing_dirs[0]}")
-            print(f"Removed existing directory: /tmp/{existing_dirs[0]}", file=sys.stderr)
-        else:
-            print("Skipping cloning operation.", file=sys.stderr)
+
+def check_existing_tmp(pkgname: str) -> bool:
+    return any(p.name.endswith(f"_{pkgname}") for p in Path("/tmp").iterdir())
+
+
+def remove_existing_tmp(pkgname: str):
+    for p in Path("/tmp").iterdir():
+        if p.name.endswith(f"_{pkgname}"):
+            rmtree(p)
+            console.log(f"Removed existing directory: {p}")
             return
 
-    # Create the new temporary directory
-    try:
-        os.makedirs(temp_dir)
-        print(f"Directory created: {temp_dir}", file=sys.stderr)
-    except OSError as e:
-        print(f"Error creating directory {temp_dir}: {e}", file=sys.stderr)
-        return
 
-    # Change to the new directory
-    os.chdir(temp_dir)
-    
-    # Clone the repository using git
+def clone_repo(pkgname: str, target_dir: Path) -> bool:
     try:
         repo_url = f"ssh://aur@aur.archlinux.org/{pkgname}.git"
-        print(f"Cloning to: {repo_url}", file=sys.stderr)
-        subprocess.check_call(["git", "clone", repo_url])
-        print(f"Repository cloned successfully into {temp_dir}", file=sys.stderr)
-    except subprocess.CalledProcessError as e:
-        print(f"Error cloning repository: {e}", file=sys.stderr)
+        console.log(f"Cloning from {repo_url}")
+        check_call(["git", "clone", repo_url], cwd=target_dir)
+        console.log(f"Repository cloned into {target_dir}")
+        return True
+    except CalledProcessError as e:
+        console.print(f"[red]Error cloning repository:[/red] {e}")
+        return False
+
+
+def copy_cached_files(pkgname: str, dest_dir: Path):
+    cache_dir = Path.home() / "github/envolution/aur/maintain/build" / pkgname
+    if not cache_dir.is_dir():
         return
 
-    # Change into the cloned directory
-    os.chdir(pkgname)
-    print(f"Changed into directory: {pkgname}", file=sys.stderr)
+    console.print(f"[yellow]Cached GitHub version found at {cache_dir}[/yellow]")
+
+    for item in cache_dir.iterdir():
+        dest = dest_dir / item.name
+        if item.is_dir():
+            copytree(item, dest, dirs_exist_ok=True)
+        else:
+            copy2(item, dest)
+    console.log("Cached files copied to cloned directory")
+
+
+@app.command()
+def aurclone(pkgname: str):
+    """Clone an AUR package into a temporary directory, restoring from cache if available."""
+
+    if check_existing_tmp(pkgname):
+        if not Confirm.ask(f"Temporary clone for '{pkgname}' already exists. Overwrite?"):
+            console.print("[red]Aborting clone.[/red]")
+            raise typer.Exit(1)
+        remove_existing_tmp(pkgname)
+
+    temp_dir = get_temp_dir(pkgname)
+    pkg_dir = temp_dir / pkgname
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    if not clone_repo(pkgname, temp_dir):
+        raise typer.Exit(1)
+
+    if pkg_dir.is_dir():
+        copy_cached_files(pkgname, pkg_dir)
+        console.log(f"[green]Changed into directory:[/green] {pkg_dir}")
+        print(pkg_dir)
+    else:
+        console.print(f"[red]Expected directory '{pkg_dir}' not found after cloning.[/red]")
+        raise typer.Exit(1)
+
 
 if __name__ == "__main__":
-    # Example usage: pass the package name as an argument
-    if len(sys.argv) < 2:
-        print("Error: Missing package name.", file=sys.stderr)
-        sys.exit(1)
-    
-    pkgname = sys.argv[1]
-    aurclone(pkgname)
-    print(os.getcwd())
+    app()

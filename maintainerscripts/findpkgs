@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 || ! -f "$1" ]]; then
+    echo "Usage: $0 <package-list-file>"
+    exit 1
+fi
+
+pkgfile="$1"
+
+while IFS= read -r pkgname; do
+    # Skip empty lines and comments
+    [[ -z "$pkgname" || "$pkgname" == \#* ]] && continue
+
+    echo -n "Checking $pkgname... "
+    if pacman -Ss "^${pkgname}$" >/dev/null; then
+        echo "found"
+    else
+        echo "NOT FOUND"
+    fi
+done < "$pkgfile"

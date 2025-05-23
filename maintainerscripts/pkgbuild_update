@@ -1,71 +1,129 @@
-#!/usr/bin/env python
-import argparse
+#!/usr/bin/env python3
+"""
+PKGBUILD Maintenance Tool
+
+A professional tool for automating PKGBUILD maintenance tasks including
+version updates, maintainer management, and validation.
+"""
+
 import json
 import os
 import re
 import subprocess
 from pathlib import Path
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Confirm
+from rich.table import Table
+
+# Initialize Rich console
+console = Console()
+
+# Typer app
+app = typer.Typer(
+    name="pkgbuild-tool",
+    help="Automate PKGBUILD maintenance tasks with style ✨",
+    add_completion=False,
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
 
 
-def update_pkgbuild(pkgbuild_path, maintainerstring):
+class PKGBUILDError(Exception):
+    """Custom exception for PKGBUILD-related errors."""
+    pass
+
+
+def get_current_version(pkgbuild_path: Path) -> Optional[str]:
+    """Extract the current pkgver from PKGBUILD file."""
+    try:
+        with open(pkgbuild_path, 'r') as file:
+            for line in file:
+                if line.startswith("pkgver="):
+                    return line.split("=", 1)[1].strip()
+    except FileNotFoundError:
+        raise PKGBUILDError(f"PKGBUILD file not found: {pkgbuild_path}")
+    return None
+
+
+def get_current_pkgrel(pkgbuild_path: Path) -> Optional[str]:
+    """Extract the current pkgrel from PKGBUILD file."""
+    try:
+        with open(pkgbuild_path, 'r') as file:
+            for line in file:
+                if line.startswith("pkgrel="):
+                    return line.split("=", 1)[1].strip()
+    except FileNotFoundError:
+        raise PKGBUILDError(f"PKGBUILD file not found: {pkgbuild_path}")
+    return None
+
+
+def update_pkgbuild(pkgbuild_path: Path, maintainerstring: str) -> None:
     """
     Updates the PKGBUILD file:
     - Ensures "# Maintainer: {maintainerstring}" is present at the top.
     - Converts other "# Maintainer:" lines to "# Contributor:".
     - Replaces "#vim:set" lines with "# vim:set ts=2 sw=2 et:".
     """
-
-# Define the shellcheck configuration line
     shellcheck_line = "# shellcheck shell=bash disable=SC2034,SC2154"
+    
+    try:
+        with open(pkgbuild_path, 'r') as file:
+            content = file.readlines()
+    except FileNotFoundError:
+        raise PKGBUILDError(f"PKGBUILD file not found: {pkgbuild_path}")
 
-    with open(pkgbuild_path, 'r') as file:
-        content = file.readlines()
-
-# Remove any existing # shellcheck lines
+    # Remove any existing # shellcheck lines
     content = [line for line in content if not line.startswith("# shellcheck")]
 
-# Ensure "# Maintainer: {maintainerstring}" is at the top
+    # Ensure "# Maintainer: {maintainerstring}" is at the top
     if not any(line.startswith(f"# Maintainer: {maintainerstring}") for line in content):
         content.insert(0, f"# Maintainer: {maintainerstring}\n")
 
-# Replace other "# Maintainer:" with "# Contributor:"
+    # Replace other "# Maintainer:" with "# Contributor:"
     for i, line in enumerate(content):
         if line.startswith("# Maintainer:") and not line.startswith(f"# Maintainer: {maintainerstring}"):
             content[i] = line.replace("# Maintainer:", "# Contributor:", 1)
 
-# Find the last occurrence of a Maintainer/Contributor line to insert the shellcheck line
+    # Find the last occurrence of a Maintainer/Contributor line to insert the shellcheck line
+    last_maintainer_contributor_index = -1
     for i, line in enumerate(content):
         if line.startswith(("# Maintainer:", "# Contributor:")):
             last_maintainer_contributor_index = i
 
-# Insert the shellcheck line below the last Maintainer/Contributor line
-    content.insert(last_maintainer_contributor_index + 1, shellcheck_line + "\n")
+    if last_maintainer_contributor_index >= 0:
+        content.insert(last_maintainer_contributor_index + 1, shellcheck_line + "\n")
 
-# Replace "#vim:set" lines with corrected format
+    # Replace "#vim:set" lines with corrected format
     content = [re.sub(r"^#vim:set.*", "# vim:set ts=2 sw=2 et:", line) for line in content]
     if not any(re.match(r"^# vim:set ts=2 sw=2 et:", line) for line in content):
         content.append("# vim:set ts=2 sw=2 et:\n")
 
-# Write changes back to PKGBUILD
+    # Write changes back to PKGBUILD
     with open(pkgbuild_path, 'w') as file:
         file.writelines(content)
 
 
-
-def get_nvchecker_version(pkg_name):
+def get_nvchecker_version(pkg_name: str) -> str:
     """
     Runs nvchecker to fetch the latest version of the package from stdout.
     Parses the JSON output to extract the version for the specified package.
     """
     try:
         result = subprocess.run(
-            ["nvchecker", "-c", ".nvchecker.toml","-k","/home/evo/nvchecker/keyfile.toml", "--logger", "json"],
+            ["nvchecker", "-c", ".nvchecker.toml", "-k", "/home/brian/nvchecker/keyfile.toml", "--logger", "json"],
             capture_output=True,
             text=True,
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"nvchecker failed: {e.stderr.strip()}")
+        raise PKGBUILDError(f"nvchecker failed: {e.stderr.strip()}")
+    except FileNotFoundError:
+        raise PKGBUILDError("nvchecker not found. Please install nvchecker.")
 
     # Parse JSON output to find the version
     for line in result.stdout.splitlines():
@@ -76,15 +134,16 @@ def get_nvchecker_version(pkg_name):
         except json.JSONDecodeError:
             continue
 
-    raise ValueError(f"Version for package '{pkg_name}' not found in nvchecker output.")
+    raise PKGBUILDError(f"Version for package '{pkg_name}' not found in nvchecker output.")
 
 
-def update_pkgver(pkgbuild_path, new_version):
-    """
-    Updates the first occurrence of the pkgver= line in the PKGBUILD file.
-    """
-    with open(pkgbuild_path, 'r') as file:
-        content = file.readlines()
+def update_pkgver(pkgbuild_path: Path, new_version: str) -> None:
+    """Updates the first occurrence of the pkgver= line in the PKGBUILD file."""
+    try:
+        with open(pkgbuild_path, 'r') as file:
+            content = file.readlines()
+    except FileNotFoundError:
+        raise PKGBUILDError(f"PKGBUILD file not found: {pkgbuild_path}")
 
     # Replace the first occurrence of pkgver=
     for i, line in enumerate(content):
@@ -97,81 +156,250 @@ def update_pkgver(pkgbuild_path, new_version):
         file.writelines(content)
 
 
-def validate_pkgbuild(pkgbuild_path):
+def reset_pkgrel(pkgbuild_path: Path) -> None:
+    """Resets pkgrel to 1 when version is updated."""
+    try:
+        with open(pkgbuild_path, 'r') as file:
+            content = file.readlines()
+    except FileNotFoundError:
+        raise PKGBUILDError(f"PKGBUILD file not found: {pkgbuild_path}")
+
+    # Replace the first occurrence of pkgrel=
+    for i, line in enumerate(content):
+        if line.startswith("pkgrel="):
+            content[i] = "pkgrel=1\n"
+            break
+
+    # Write changes back to PKGBUILD
+    with open(pkgbuild_path, 'w') as file:
+        file.writelines(content)
+
+
+def update_checksums() -> None:
+    """Updates all checksums in the PKGBUILD using updpkgsums."""
+    try:
+        subprocess.run(["updpkgsums"], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        raise PKGBUILDError(f"updpkgsums failed: {e.stderr.decode().strip()}")
+    except FileNotFoundError:
+        raise PKGBUILDError("updpkgsums not found. Please install pacman-contrib package.")
+
+
+def validate_pkgbuild(pkgbuild_path: Path) -> None:
     """
     Validates the PKGBUILD file:
     - Formats with shfmt.
     - Creates a backup of the original file.
     - Runs shellcheck and namcap for syntax and linting.
     """
-    # Format with shfmt
-    formatted_path = pkgbuild_path.with_suffix('.new')
-    subprocess.run(["shfmt", "-i", "2", pkgbuild_path], stdout=open(formatted_path, 'w'))
-
-    # Backup original PKGBUILD
-    backup_path = Path(f"{pkgbuild_path}.bak")
-    count = 1
-    while backup_path.exists():
-        backup_path = Path(f"{pkgbuild_path}.bak_{count}")
-        count += 1
-    pkgbuild_path.rename(backup_path)
-
-    # Replace original PKGBUILD with formatted one
-    formatted_path.rename(pkgbuild_path)
-
-    # Run shellcheck
-    subprocess.run(["shellcheck","-S", "error", pkgbuild_path], check=True)
-
-    # Run namcap
-    subprocess.run(["namcap", pkgbuild_path], check=True)
-
-
-def main():
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Automate PKGBUILD maintenance tasks.")
-    
-    # Optional argument for maintainerstring, defaulting to 'envolution'
-    parser.add_argument("--maintainerstring", default="envolution", help="The maintainer string to add to the PKGBUILD. Default is 'envolution'.")
-    
-    # Optional argument for package, defaulting to the basename of the current working directory
-    parser.add_argument("--package", default=os.path.basename(os.getcwd()), help="The package name to update with nvchecker. Default is the current directory name.")
-    
-    # Optional argument for package, defaulting to the basename of the current working directory
-    parser.add_argument("--nover", action="store_true", help="Disable version check for the package.")
-        
-
-    # Parse arguments
-    args = parser.parse_args()
-
-    # Access the parsed arguments
-    print(f"Maintainer String: {args.maintainerstring}")
-    print(f"Package: {args.package}")
-    
-    # Define paths
-    pkgbuild_path = Path("PKGBUILD")
-
-    # Perform tasks
     try:
-        print(f"Updating PKGBUILD for maintainer: {args.maintainerstring}")
-        update_pkgbuild(pkgbuild_path, args.maintainerstring)
+        # Format with shfmt
+        formatted_path = pkgbuild_path.with_suffix('.new')
+        with open(formatted_path, 'w') as f:
+            result = subprocess.run(["shfmt", "-i", "2", pkgbuild_path], stdout=f, check=True)
 
-        if args.nover:
-            print("Skipping version check.")
-            return
+        # Backup original PKGBUILD
+        backup_path = Path(f"{pkgbuild_path}.bak")
+        count = 1
+        while backup_path.exists():
+            backup_path = Path(f"{pkgbuild_path}.bak_{count}")
+            count += 1
+        
+        pkgbuild_path.rename(backup_path)
+        formatted_path.rename(pkgbuild_path)
+
+        console.print(f"[green]✓[/green] Backup created: {backup_path.name}")
+
+        # Run shellcheck
+        subprocess.run(["shellcheck", "-S", "error", pkgbuild_path], check=True)
+        console.print("[green]✓[/green] Shellcheck validation passed")
+
+        # Run namcap
+        subprocess.run(["namcap", pkgbuild_path], check=True)
+        console.print("[green]✓[/green] Namcap validation passed")
+
+    except subprocess.CalledProcessError as e:
+        raise PKGBUILDError(f"Validation failed: {e}")
+    except FileNotFoundError as e:
+        raise PKGBUILDError(f"Required tool not found: {e}")
+
+
+def display_summary_table(maintainer: str, package: str, old_version: Optional[str], new_version: Optional[str], pkgrel_reset: bool = False) -> None:
+    """Display a summary table of the operation."""
+    table = Table(title="PKGBUILD Update Summary", show_header=True, header_style="bold blue")
+    table.add_column("Property", style="cyan", no_wrap=True)
+    table.add_column("Value", style="green")
+
+    table.add_row("Maintainer", maintainer)
+    table.add_row("Package", package)
+    
+    if old_version and new_version:
+        if old_version != new_version:
+            table.add_row("Version Update", f"{old_version} → {new_version}")
+            if pkgrel_reset:
+                table.add_row("Package Release", "Reset to 1")
         else:
-            print(f"Fetching latest version for package: {args.package}")
-            version = get_nvchecker_version(args.package)
+            table.add_row("Version", f"{new_version} (no change)")
+    elif new_version:
+        table.add_row("Version", new_version)
 
-        print(f"Updating pkgver to: {version}")
-        update_pkgver(pkgbuild_path, version)
+    console.print(table)
 
-        print("Validating PKGBUILD...")
-        validate_pkgbuild(pkgbuild_path)
 
-        print("PKGBUILD update complete.")
+@app.callback()
+def main(
+    ctx: typer.Context,
+    maintainerstring: str = typer.Option(
+        "envolution",
+        "--maintainerstring", "--maintainer", "-m",
+        help="The maintainer string to add to the PKGBUILD"
+    ),
+    package: str = typer.Option(
+        None,
+        "--package", "-p",
+        help="The package name to update with nvchecker (defaults to current directory name)"
+    ),
+    skip_version: bool = typer.Option(
+        False,
+        "--nover", "--skip-version",
+        help="Skip version check for the package"
+    ),
+    skip_validation: bool = typer.Option(
+        False,
+        "--skip-validation",
+        help="Skip PKGBUILD validation (shfmt, shellcheck, namcap)"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force", "-f",
+        help="Skip confirmation prompts"
+    )
+) -> None:
+    """Update and maintain PKGBUILD files with professional tooling."""
+    
+    # If no subcommand is invoked, run update by default
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(update, maintainerstring=maintainerstring, package=package, 
+                  skip_version=skip_version, skip_validation=skip_validation, force=force)
+
+
+@app.command()
+def update(
+    maintainerstring: str = typer.Option(
+        "envolution",
+        "--maintainerstring", "--maintainer", "-m",
+        help="The maintainer string to add to the PKGBUILD"
+    ),
+    package: str = typer.Option(
+        None,
+        "--package", "-p",
+        help="The package name to update with nvchecker (defaults to current directory name)"
+    ),
+    skip_version: bool = typer.Option(
+        False,
+        "--nover", "--skip-version",
+        help="Skip version check for the package"
+    ),
+    skip_validation: bool = typer.Option(
+        False,
+        "--skip-validation",
+        help="Skip PKGBUILD validation (shfmt, shellcheck, namcap)"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force", "-f",
+        help="Skip confirmation prompts"
+    )
+) -> None:
+    """Update and maintain PKGBUILD files with professional tooling."""
+    
+    # Set default package name if not provided
+    if package is None:
+        package = os.path.basename(os.getcwd())
+
+    pkgbuild_path = Path("PKGBUILD")
+    
+    # Display header
+    console.print(Panel.fit(
+        "[bold blue]PKGBUILD Maintenance Tool[/bold blue]\n"
+        "[dim]Automating your Arch Linux package maintenance[/dim]",
+        border_style="blue"
+    ))
+
+    try:
+        # Get current version and pkgrel before making changes
+        current_version = get_current_version(pkgbuild_path) if not skip_version else None
+        current_pkgrel = get_current_pkgrel(pkgbuild_path) if not skip_version else None
+        
+        # Update PKGBUILD maintainer info
+        console.print("[dim]Updating PKGBUILD maintainer info...[/dim]")
+        update_pkgbuild(pkgbuild_path, maintainerstring)
+        console.print("[green]✓[/green] PKGBUILD maintainer info updated")
+
+        new_version = None
+        pkgrel_reset = False
+        if not skip_version:
+            # Fetch new version
+            console.print(f"[dim]Fetching latest version for {package}...[/dim]")
+            new_version = get_nvchecker_version(package)
+            
+            if current_version and current_version == new_version:
+                console.print(f"[yellow]ℹ[/yellow] Package is already at latest version: {new_version}")
+            elif current_version and current_version != new_version:
+                console.print(f"[green]✓[/green] Version updated from {current_version} to {new_version}")
+                # Reset pkgrel to 1 when version changes
+                console.print("[dim]Resetting package release to 1...[/dim]")
+                reset_pkgrel(pkgbuild_path)
+                pkgrel_reset = True
+                console.print("[green]✓[/green] Package release reset to 1")
+            else:
+                console.print(f"[green]✓[/green] Version set to: {new_version}")
+
+            # Update version in PKGBUILD
+            console.print("[dim]Updating PKGBUILD version...[/dim]")
+            update_pkgver(pkgbuild_path, new_version)
+            console.print("[green]✓[/green] PKGBUILD version updated")
+
+        if not skip_validation:
+            # Validation and checksum update
+            if not force:
+                if not Confirm.ask("[yellow]Confirm PKGBUILD and update shasums?[/yellow]"):
+                    console.print("[yellow]Validation and checksum update skipped by user.[/yellow]")
+                    return
+
+            console.print("[dim]Updating package checksums...[/dim]")
+            update_checksums()
+            console.print("[green]✓[/green] Package checksums updated")
+
+            console.print("[dim]Validating PKGBUILD...[/dim]")
+            validate_pkgbuild(pkgbuild_path)
+            console.print("[green]✓[/green] PKGBUILD validation completed")
+
+        # Display summary
+        display_summary_table(maintainerstring, package, current_version, new_version, pkgrel_reset)
+        
+        console.print(Panel.fit(
+            "[bold green]✨ PKGBUILD update completed successfully! ✨[/bold green]",
+            border_style="green"
+        ))
+
+    except PKGBUILDError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled by user.[/yellow]")
+        raise typer.Exit(1)
     except Exception as e:
-        print(f"Error: {e}")
+        console.print(f"[bold red]Unexpected error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def version() -> None:
+    """Show version information."""
+    console.print("[bold blue]PKGBUILD Maintenance Tool[/bold blue] v1.0.0")
+    console.print("A professional tool for Arch Linux package maintenance")
 
 
 if __name__ == "__main__":
-    main()
+    app()

@@ -1,93 +1,317 @@
-#!/usr/bin/env python
-import os
-import sys
-import subprocess
+#!/usr/bin/env python3
+"""
+AUR Push Tool
+
+A tool for pushing PKGBUILD updates to the Arch User Repository (AUR)
+with automated checksums, .SRCINFO generation, and file management.
+"""
+
 import json
+import os
 import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import List, Optional
 
-def run_command(command):
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt, Confirm
+from rich.table import Table
+from rich.text import Text
+
+# Initialize Rich console
+console = Console()
+
+# Typer app
+app = typer.Typer(
+    name="aur-push",
+    help="Push PKGBUILD updates to AUR with tooling ✨",
+    add_completion=False,
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
+
+
+class AURPushError(Exception):
+    """Custom exception for AUR push-related errors."""
+    pass
+
+
+def run_command(command: str, capture_output: bool = True) -> str:
     """Helper function to run a shell command and handle errors."""
-    result = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if result.returncode != 0:
-        print(f"Error: {result.stderr.decode().strip()}")
-        sys.exit(1)
-    return result.stdout.decode().strip()
+    try:
+        result = subprocess.run(
+            command, 
+            shell=True, 
+            stdout=subprocess.PIPE if capture_output else None,
+            stderr=subprocess.PIPE if capture_output else None,
+            text=True,
+            check=True
+        )
+        return result.stdout.strip() if capture_output else ""
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else f"Command failed with exit code {e.returncode}"
+        raise AURPushError(f"Command failed: {command}\nError: {error_msg}")
 
-def aurpush(commit_message):
-    """Main function to replicate aurpush behavior in Python."""
-    
-    # Collect the current directory name and maintainer string
+
+def validate_environment() -> tuple[str, str, Path]:
+    """Validate the current environment and return directory info."""
     current_directory = os.path.basename(os.getcwd())
     maintainer_string = "# Maintainer: envolution"
-    target_dir = os.path.expanduser(f"~/github/envolution/aur/maintain/build/{current_directory}")
-    
-    # Check for commit message
-    if not commit_message:
-        print("Error: Missing commit message. Usage: aurpush [commit message]")
-        sys.exit(1)
+    target_dir = Path.home() / "github" / "envolution" / "aur" / "maintain" / "build" / current_directory
     
     # Check for PKGBUILD file
-    if not os.path.isfile("PKGBUILD"):
-        print("Error: PKGBUILD file not found in the current directory.")
-        sys.exit(1)
+    if not Path("PKGBUILD").exists():
+        raise AURPushError("PKGBUILD file not found in the current directory.")
     
     # Verify maintainer string in PKGBUILD
-    with open("PKGBUILD", "r") as pkgbuild:
-        first_line = pkgbuild.readline().strip()
-        if first_line != maintainer_string:
-            print("Error: First line of PKGBUILD does not contain the correct maintainer string.")
-            sys.exit(1)
+    try:
+        with open("PKGBUILD", "r") as pkgbuild:
+            first_line = pkgbuild.readline().strip()
+            if first_line != maintainer_string:
+                raise AURPushError("First line of PKGBUILD does not contain the correct maintainer string.")
+    except FileNotFoundError:
+        raise AURPushError("PKGBUILD file not found.")
     
     # Check for .git directory
-    if not os.path.isdir(".git"):
-        print("Error: .git directory not found. This is not a Git repository.")
-        sys.exit(1)
-
-    # Update package checksums
-    run_command("updpkgsums")
+    if not Path(".git").exists():
+        raise AURPushError("Not a Git repository (.git directory not found).")
     
-    # Generate .SRCINFO
+    return current_directory, maintainer_string, target_dir
+
+
+def get_pkgbuild_files() -> List[str]:
+    """Get the list of files from pkgbuild_files command."""
+    try:
+        result = subprocess.run(
+            ['pkgbuild_files'], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            check=True,
+            text=True
+        )
+        return json.loads(result.stdout.strip())
+    except subprocess.CalledProcessError as e:
+        raise AURPushError(f"pkgbuild_files command failed: {e.stderr.strip()}")
+    except json.JSONDecodeError:
+        raise AURPushError("Failed to parse pkgbuild_files output as JSON.")
+    except FileNotFoundError:
+        raise AURPushError("pkgbuild_files command not found.")
+
+
+def update_checksums() -> None:
+    """Update package checksums using updpkgsums."""
+    try:
+        run_command("updpkgsums", capture_output=False)
+    except AURPushError:
+        # Re-raise with more specific context
+        raise AURPushError("updpkgsums failed. Please ensure pacman-contrib is installed.")
+
+
+def generate_srcinfo() -> None:
+    """Generate .SRCINFO file."""
     run_command("makepkg --printsrcinfo > .SRCINFO")
 
-    # Call pkgbuild_files to get the list of files in JSON format
-    try:
-        result = subprocess.run(['pkgbuild_files'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        source_files = json.loads(result.stdout.decode().strip())
-    except subprocess.CalledProcessError as e:
-        print(f"Error calling pkgbuild_files: {e.stderr.decode().strip()}")
-        sys.exit(1)
 
-    # Stage the files returned by pkgbuild_files
-    for file in source_files:
-        if os.path.isfile(file):
-            run_command(f"git add {file}")
-        else:
-            print(f"Warning: {file} does not exist locally, skipping git add.")
-
-    # Commit changes
-    run_command(f'git commit -m "{commit_message}"')
-
-    # Push changes to the remote repository
-    run_command("git push")
-
-    print("PKGBUILD update and push completed successfully.")
+def stage_files(source_files: List[str]) -> List[str]:
+    """Stage files for git commit and return list of staged files."""
+    staged_files = []
+    skipped_files = []
     
-    # Prompt to move files
-    move_files = input(f"Move files to {target_dir}? [y/N]: ").strip().lower()
-    if move_files == "y":
-        os.makedirs(target_dir, exist_ok=True)
-        for file in source_files:
-            shutil.move(file, os.path.join(target_dir, file))
-            print(f"{file} moved to {target_dir}.")
+    for file in source_files:
+        if Path(file).exists():
+            run_command(f"git add {file}")
+            staged_files.append(file)
+        else:
+            skipped_files.append(file)
+    
+    if skipped_files:
+        console.print(f"[yellow]⚠[/yellow] Skipped missing files: {', '.join(skipped_files)}")
+    
+    return staged_files
+
+
+def display_summary_table(package: str, staged_files: List[str], target_dir: Path) -> None:
+    """Display a summary table of the operation."""
+    table = Table(title="AUR Push Summary", show_header=True, header_style="bold blue")
+    table.add_column("Property", style="cyan", no_wrap=True)
+    table.add_column("Value", style="green")
+
+    table.add_row("Package", package)
+    table.add_row("Staged Files", f"{len(staged_files)} files")
+    table.add_row("Target Directory", str(target_dir))
+    
+    # Show staged files
+    if staged_files:
+        files_text = Text()
+        for i, file in enumerate(staged_files):
+            if i > 0:
+                files_text.append(", ")
+            files_text.append(file, style="dim")
+        table.add_row("Files", files_text)
+
+    console.print(table)
+
+
+def copy_files_to_target(source_files: List[str], target_dir: Path) -> None:
+    """Copy files to the target directory."""
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    copied_files = []
+    for file in source_files:
+        if Path(file).exists():
+            shutil.copy(file, target_dir / file)
+            copied_files.append(file)
+    
+    if copied_files:
+        console.print(f"[green]✓[/green] Moved {len(copied_files)} files to {target_dir}")
+        for file in copied_files:
+            console.print(f"  [dim]→ {file}[/dim]")
     else:
-        print("Files not moved.")
+        console.print("[yellow]⚠[/yellow] No files were copied")
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    commit_message: Optional[str] = typer.Option(
+        None,
+        "--message", "-m",
+        help="Commit message (will prompt if not provided)"
+    ),
+    skip_copy: bool = typer.Option(
+        False,
+        "--skip-copy",
+        help="Skip copying files to target directory"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force", "-f",
+        help="Skip confirmation prompts"
+    )
+) -> None:
+    """Push PKGBUILD updates to AUR with tooling."""
+    
+    # If no subcommand is invoked, run push by default
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(push, commit_message=commit_message, skip_copy=skip_copy, force=force)
+
+
+@app.command()
+def push(
+    commit_message: Optional[str] = typer.Option(
+        None,
+        "--message", "-m",
+        help="Commit message (will prompt if not provided)"
+    ),
+    skip_copy: bool = typer.Option(
+        False,
+        "--skip-copy",
+        help="Skip copying files to target directory"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force", "-f",
+        help="Skip confirmation prompts"
+    )
+) -> None:
+    """Push PKGBUILD updates to AUR repository."""
+    
+    # Display header
+    console.print(Panel.fit(
+        "[bold blue]AUR Push Tool[/bold blue]\n"
+        "[dim]Automating your AUR package updates[/dim]",
+        border_style="blue"
+    ))
+
+    try:
+        # Validate environment
+        console.print("[dim]Validating environment...[/dim]")
+        current_directory, maintainer_string, target_dir = validate_environment()
+        console.print("[green]✓[/green] Environment validation passed")
+
+        # Get commit message if not provided
+        if not commit_message:
+            commit_message = Prompt.ask(
+                "[yellow]Enter commit message[/yellow]",
+                default="Update package"
+            )
+        
+        if not commit_message.strip():
+            raise AURPushError("Commit message cannot be empty.")
+
+        # Update checksums
+        console.print("[dim]Updating package checksums...[/dim]")
+        update_checksums()
+        console.print("[green]✓[/green] Package checksums updated")
+
+        # Generate .SRCINFO
+        console.print("[dim]Generating .SRCINFO...[/dim]")
+        generate_srcinfo()
+        console.print("[green]✓[/green] .SRCINFO generated")
+
+        # Get source files
+        console.print("[dim]Getting package files...[/dim]")
+        source_files = get_pkgbuild_files()
+        console.print(f"[green]✓[/green] Found {len(source_files)} package files")
+
+        # Stage files
+        console.print("[dim]Staging files for commit...[/dim]")
+        staged_files = stage_files(source_files)
+        console.print(f"[green]✓[/green] Staged {len(staged_files)} files")
+
+        # Show summary before proceeding
+        display_summary_table(current_directory, staged_files, target_dir)
+
+        # Confirm before commit and push
+        if not force:
+            if not Confirm.ask(f"[yellow]Commit and push with message: '{commit_message}'?[/yellow]"):
+                console.print("[yellow]Operation cancelled by user.[/yellow]")
+                return
+
+        # Commit changes
+        console.print("[dim]Committing changes...[/dim]")
+        run_command(f'git commit -m "{commit_message}"')
+        console.print("[green]✓[/green] Changes committed")
+
+        # Push changes
+        console.print("[dim]Pushing to AUR repository...[/dim]")
+        run_command("git push")
+        console.print("[green]✓[/green] Changes pushed to AUR")
+
+        # Handle file copying
+        if not skip_copy:
+            if force or Confirm.ask(f"[yellow]Move files to {target_dir}?[/yellow]"):
+                console.print("[dim]Moving files to target directory...[/dim]")
+                copy_files_to_target(source_files, target_dir)
+            else:
+                console.print("[yellow]Files not copied.[/yellow]")
+
+        # Success message
+        console.print(Panel.fit(
+            "[bold green]✨ AUR push completed successfully! ✨[/bold green]",
+            border_style="green"
+        ))
+
+    except AURPushError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        raise typer.Exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled by user.[/yellow]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[bold red]Unexpected error:[/bold red] {e}")
+        raise typer.Exit(1)
+
+
+@app.command()
+def version() -> None:
+    """Show version information."""
+    console.print("[bold blue]AUR Push Tool[/bold blue] v1.0.0")
+    console.print("A tool for AUR package management")
+
 
 if __name__ == "__main__":
-    # Example usage: pass the commit message as an argument
-    if len(sys.argv) < 2:
-        print("Error: Missing commit message.")
-        sys.exit(1)
-    
-    commit_message = " ".join(sys.argv[1:])
-    aurpush(commit_message)
-
+    app()

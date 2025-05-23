@@ -536,7 +536,7 @@ class ArchPackageBuilder:
             if self.artifacts_path:
                 self.logger.info(f"Copying build artifacts to {self.artifacts_path}...")
                 # Start with PKGBUILD, .SRCINFO, and built package files
-                files_to_artifact_names = ["PKGBUILD", ".SRCINFO"] + [p.name for p in built_package_files]
+                files_to_artifact_names = ["PKGBUILD", ".SRCINFO", ".BUILDINFO"]
                 
                 # Add only *.log files
                 self.logger.debug(f"Searching for *.log files in {self.build_dir}")

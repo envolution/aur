@@ -1,13 +1,24 @@
-name: Arch Linux Task Minimal Viable Test
+name: Arch Linux Task - Test A
 on:
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
-  minimal-test-job:
+  arch-task:
     runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    env:
+        AUR_MAINTAINER_NAME: envolution
+        GIT_USERNAME: envolution
+        GIT_EMAIL: involution@gmail.com
+        ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
     steps:
-      - name: Simple Echo Step
+      - name: Container Sanity Check
+        shell: bash
         run: |
-          echo "Minimal workflow step has started."
-          echo "If you see this, the basic YAML structure and triggering is working."
-          echo "::notice title=Minimal Test Success::Minimal workflow step executed successfully!"
+          echo "::notice title=Container Test::Inside archlinux container."
+          echo "User: $(whoami)"
+          echo "pwd: $(pwd)"
+          echo "pacman --version"
+          pacman --version || echo "pacman command not found or failed"

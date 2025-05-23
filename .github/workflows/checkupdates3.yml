@@ -14,6 +14,11 @@ jobs:
         GIT_EMAIL: involution@gmail.com
         ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Good for having full history if needed later
+
       - name: Container Sanity Check
         shell: bash
         run: |

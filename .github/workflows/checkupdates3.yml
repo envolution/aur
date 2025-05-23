@@ -261,81 +261,81 @@ jobs:
           }
 
           # --- Function to call buildscript2.py ---
-          execute_build_script_py() {
-              local package_name_arg="$1" # Renamed to avoid conflict with any global 'package_name'
-              local build_type_arg="$2"
-              local pkgbuild_path_rel_arg="$3"
-              
-              _start_group "Build Script Execution: ${package_name_arg}"
-              # Current PWD should be NVCHECKER_RUN_DIR
-              local package_specific_artifact_dir="${ARTIFACTS_DIR}/${package_name_arg}" 
-              if ! sudo -u builder mkdir -p "${package_specific_artifact_dir}"; then
-                  _log_error "BUILD_SCRIPT_MKDIR_FAIL" "Failed to create artifact subdir ${package_specific_artifact_dir} for ${package_name_arg}."
-                  _end_group; return 1 # Critical failure for this package build
-              fi
+         # execute_build_script_py() {
+         #     local package_name_arg="$1" # Renamed to avoid conflict with any global 'package_name'
+         #     local build_type_arg="$2"
+         #     local pkgbuild_path_rel_arg="$3"
+         #     
+         #     _start_group "Build Script Execution: ${package_name_arg}"
+         #     # Current PWD should be NVCHECKER_RUN_DIR
+         #     local package_specific_artifact_dir="${ARTIFACTS_DIR}/${package_name_arg}" 
+         #     if ! sudo -u builder mkdir -p "${package_specific_artifact_dir}"; then
+         #         _log_error "BUILD_SCRIPT_MKDIR_FAIL" "Failed to create artifact subdir ${package_specific_artifact_dir} for ${package_name_arg}."
+         #         _end_group; return 1 # Critical failure for this package build
+         #     fi
 
-              _log_notice "BUILD_SCRIPT_PY_EXEC" "Starting buildscript2.py for package: ${package_name_arg} (Type: ${build_type_arg}, PKGBUILD Path: ${pkgbuild_path_rel_arg})"
-              
-              local build_script_executable_path="./buildscript2.py" # It's in NVCHECKER_RUN_DIR (current dir)
-              local captured_build_output_json # Variable to store stdout
-              local build_script_actual_exit_code=0
-              
-              # Temporarily redirect stderr to a file to capture it without 'set -x' pollution, then display if error
-              local build_stderr_log; build_stderr_log=$(mktemp)
+         #     _log_notice "BUILD_SCRIPT_PY_EXEC" "Starting buildscript2.py for package: ${package_name_arg} (Type: ${build_type_arg}, PKGBUILD Path: ${pkgbuild_path_rel_arg})"
+         #     
+         #     local build_script_executable_path="./buildscript2.py" # It's in NVCHECKER_RUN_DIR (current dir)
+         #     local captured_build_output_json # Variable to store stdout
+         #     local build_script_actual_exit_code=0
+         #     
+         #     # Temporarily redirect stderr to a file to capture it without 'set -x' pollution, then display if error
+         #     local build_stderr_log; build_stderr_log=$(mktemp)
 
-              # Use a subshell for the command substitution to isolate its potential failure from `set -e` on the `if` line itself
-              # if `sudo ... python3 ...` exits non-zero, command substitution yields empty string, and $? is set.
-              if ! captured_build_output_json=$(sudo -E -u builder \
-                  python3 "${build_script_executable_path}" \
-                  --github-repo "${{ github.repository }}" \
-                  --github-token "${GH_TOKEN}" \
-                  --github-workspace "${GITHUB_WORKSPACE}" \
-                  --package-name "${package_name_arg}" \
-                  --depends-json "${PACKAGE_DETAILS_JSON_PATH}" \
-                  --pkgbuild-path "${pkgbuild_path_rel_arg}" \
-                  --commit-message "CI: Auto update ${package_name_arg}" \
-                  --build-mode "${build_type_arg}" \
-                  --artifacts-dir "${package_specific_artifact_dir}" \
-                  --debug 2> "${build_stderr_log}" ) ; then
-                  build_script_actual_exit_code=$? # Capture exit code of the sudo command
-                  _log_error "BUILD_SCRIPT_PY_FAIL" "buildscript2.py for '${package_name_arg}' FAILED with exit code ${build_script_actual_exit_code}."
-              else
-                  _log_debug "buildscript2.py for '${package_name_arg}' apparently succeeded (exit code 0). STDOUT (JSON): ${captured_build_output_json}"
-              fi
-              
-              # Log stderr from buildscript2.py regardless of exit code, if not empty
-              if [ -s "${build_stderr_log}" ]; then
-                  _log_warning "BUILD_SCRIPT_PY_STDERR" "Stderr from buildscript2.py for ${package_name_arg}:"
-                  cat "${build_stderr_log}" | while IFS= read -r line; do _log_warning "PY_STDERR" "  $line"; done
-              fi
-              rm "${build_stderr_log}"
+         #     # Use a subshell for the command substitution to isolate its potential failure from `set -e` on the `if` line itself
+         #     # if `sudo ... python3 ...` exits non-zero, command substitution yields empty string, and $? is set.
+         #     if ! captured_build_output_json=$(sudo -E -u builder \
+         #         python3 "${build_script_executable_path}" \
+         #         --github-repo "${{ github.repository }}" \
+         #         --github-token "${GH_TOKEN}" \
+         #         --github-workspace "${GITHUB_WORKSPACE}" \
+         #         --package-name "${package_name_arg}" \
+         #         --depends-json "${PACKAGE_DETAILS_JSON_PATH}" \
+         #         --pkgbuild-path "${pkgbuild_path_rel_arg}" \
+         #         --commit-message "CI: Auto update ${package_name_arg}" \
+         #         --build-mode "${build_type_arg}" \
+         #         --artifacts-dir "${package_specific_artifact_dir}" \
+         #         --debug 2> "${build_stderr_log}" ) ; then
+         #         build_script_actual_exit_code=$? # Capture exit code of the sudo command
+         #         _log_error "BUILD_SCRIPT_PY_FAIL" "buildscript2.py for '${package_name_arg}' FAILED with exit code ${build_script_actual_exit_code}."
+         #     else
+         #         _log_debug "buildscript2.py for '${package_name_arg}' apparently succeeded (exit code 0). STDOUT (JSON): ${captured_build_output_json}"
+         #     fi
+         #     
+         #     # Log stderr from buildscript2.py regardless of exit code, if not empty
+         #     if [ -s "${build_stderr_log}" ]; then
+         #         _log_warning "BUILD_SCRIPT_PY_STDERR" "Stderr from buildscript2.py for ${package_name_arg}:"
+         #         cat "${build_stderr_log}" | while IFS= read -r line; do _log_warning "PY_STDERR" "  $line"; done
+         #     fi
+         #     rm "${build_stderr_log}"
 
-              # Parse JSON output from buildscript2.py for summary
-              local bs_version bs_success bs_changes_detected bs_error_msg # 'local' is fine in function
-              bs_version=$(echo "${captured_build_output_json}" | jq -r '.version // "N/A"')
-              bs_success=$(echo "${captured_build_output_json}" | jq -r '.success') 
-              bs_changes_detected=$(echo "${captured_build_output_json}" | jq -r '.changes_detected') 
-              bs_error_msg=$(echo "${captured_build_output_json}" | jq -r '.error_message // ""')
+         #     # Parse JSON output from buildscript2.py for summary
+         #     local bs_version bs_success bs_changes_detected bs_error_msg # 'local' is fine in function
+         #     bs_version=$(echo "${captured_build_output_json}" | jq -r '.version // "N/A"')
+         #     bs_success=$(echo "${captured_build_output_json}" | jq -r '.success') 
+         #     bs_changes_detected=$(echo "${captured_build_output_json}" | jq -r '.changes_detected') 
+         #     bs_error_msg=$(echo "${captured_build_output_json}" | jq -r '.error_message // ""')
 
-              if [[ -z "$bs_success" || "$bs_success" == "null" ]]; then
-                  # This can happen if captured_build_output_json is empty (e.g. script failed before printing JSON)
-                  _log_error "BUILD_SCRIPT_JSON_ERR" "Failed to parse JSON from buildscript2.py for ${package_name_arg} or output invalid. Assuming failure."
-                  bs_success="false"; bs_error_msg="${bs_error_msg:-buildscript2.py produced invalid/no JSON. Script exit code was ${build_script_actual_exit_code}.}"
-              fi
+         #     if [[ -z "$bs_success" || "$bs_success" == "null" ]]; then
+         #         # This can happen if captured_build_output_json is empty (e.g. script failed before printing JSON)
+         #         _log_error "BUILD_SCRIPT_JSON_ERR" "Failed to parse JSON from buildscript2.py for ${package_name_arg} or output invalid. Assuming failure."
+         #         bs_success="false"; bs_error_msg="${bs_error_msg:-buildscript2.py produced invalid/no JSON. Script exit code was ${build_script_actual_exit_code}.}"
+         #     fi
 
-              local status_md="❌ Failure"; if [ "$bs_success" = "true" ]; then status_md="✅ Success"; fi
-              if [ "$bs_success" = "false" ] && [ -n "$bs_error_msg" ] && [ "$bs_error_msg" != "null" ]; then
-                  status_md="${status_md}: <small>$(echo "$bs_error_msg" | sed 's/|/\\|/g; s/\n/<br>/g')</small>"
-              fi
-              local changes_md="➖ No"; if [ "$bs_changes_detected" = "true" ]; then changes_md="✔️ Yes"; fi
-              local aur_link_md="[AUR](https://aur.archlinux.org/packages/${package_name_arg})"
-              local log_link_md="See 'build-artifacts-${{ github.run_id }}' artifact (<tt>${package_name_arg}/</tt> subdir)"
-              if ! compgen -G "${package_specific_artifact_dir}/${package_name_arg}-*.log" > /dev/null; then log_link_md="N/A"; fi
-              
-              echo "| **${package_name_arg}** | ${bs_version} | ${status_md} | ${changes_md} | ${aur_link_md} | ${log_link_md} |" >> "$GITHUB_STEP_SUMMARY"
-              _end_group 
-              [ "$bs_success" = "true" ] # Return true if buildscript2.py reported success
-          }
+         #     local status_md="❌ Failure"; if [ "$bs_success" = "true" ]; then status_md="✅ Success"; fi
+         #     if [ "$bs_success" = "false" ] && [ -n "$bs_error_msg" ] && [ "$bs_error_msg" != "null" ]; then
+         #         status_md="${status_md}: <small>$(echo "$bs_error_msg" | sed 's/|/\\|/g; s/\n/<br>/g')</small>"
+         #     fi
+         #     local changes_md="➖ No"; if [ "$bs_changes_detected" = "true" ]; then changes_md="✔️ Yes"; fi
+         #     local aur_link_md="[AUR](https://aur.archlinux.org/packages/${package_name_arg})"
+         #     local log_link_md="See 'build-artifacts-${{ github.run_id }}' artifact (<tt>${package_name_arg}/</tt> subdir)"
+         #     if ! compgen -G "${package_specific_artifact_dir}/${package_name_arg}-*.log" > /dev/null; then log_link_md="N/A"; fi
+         #     
+         #     echo "| **${package_name_arg}** | ${bs_version} | ${status_md} | ${changes_md} | ${aur_link_md} | ${log_link_md} |" >> "$GITHUB_STEP_SUMMARY"
+         #     _end_group 
+         #     [ "$bs_success" = "true" ] # Return true if buildscript2.py reported success
+         # }
 
           # --- Main Execution Flow ---
           _log_notice "MAIN_EXEC" "Starting main execution flow..."

@@ -1,4 +1,4 @@
-- name: Run Arch Package Update and Build Task # Next test
+      - name: Run Arch Package Update and Build Task # Next test
         shell: bash
         run: |
           #!/bin/bash

@@ -190,27 +190,60 @@ jobs:
               _end_raw_group; return 0
           }
 
+          # --- run_compare_aur_local_versions (REAL IMPLEMENTATION - Corrected Call) ---
           run_compare_aur_local_versions() {
-              _start_group "Compare AUR vs Local Versions (Generates aur.json)"
-              _log_notice "COMPARE_AUR" "Running compare_aur_local_versions.py..."
-              local script="./compare_aur_local_versions.py"; local outfile="aur.json" 
-              if [ ! -f "${script}" ]; then _log_error "COMPARE_AUR_FAIL" "${script} not found in $(pwd)!"; _end_raw_group; return 1; fi
+              _start_raw_group "DEBUG: run_compare_aur_local_versions"
+              _log_raw_notice "COMPARE_AUR_START" "Attempting to run REAL compare_aur_local_versions.py..."
               
-              local stderr_log; stderr_log=$(mktemp)
-              if sudo -E -u builder python3 "${script}" --maintainer "${AUR_MAINTAINER_NAME}" --repo-root "${GITHUB_WORKSPACE}" --output-file "${outfile}" 2> "${stderr_log}"; then
-                  if [ -s "${outfile}" ]; then 
-                     _log_notice "COMPARE_AUR" "${outfile} generated successfully (Size: $(wc -c < "${outfile}") bytes)."
-                     _log_debug_verbose "aur.json Head: $(head -n 5 "${outfile}")"
-                     if ! sudo -u builder chown builder:builder "${outfile}"; then _log_warning "COMPARE_AUR" "Failed to chown ${outfile} to builder."; fi
-                  else _log_warning "COMPARE_AUR" "${outfile} was created but is empty."; fi
-              else
-                  local exit_c=$?
-                  _log_error "COMPARE_AUR_FAIL" "compare_aur_local_versions.py FAILED (Exit: ${exit_c}). Stderr:"
-                  cat "${stderr_log}" | while IFS= read -r line; do _log_error "PYTHON_STDERR" "  $line"; done
-                  rm "${stderr_log}"; _end_raw_group; return 1
+              local compare_script_path="./compare_aur_local_versions.py" 
+              # The python script will create aur.json (and others) in the current directory.
+              local expected_aur_json_output="aur.json" 
+
+              if [ ! -f "${compare_script_path}" ]; then
+                  _log_raw_error "COMPARE_AUR_MISSING_SCRIPT" "Python script ${compare_script_path} not found in $(pwd)!"
+                  _end_raw_group; return 1
               fi
-              rm "${stderr_log}"
-              _log_notice "COMPARE_AUR" "compare_aur_local_versions.py SUCCEEDED."
+
+              _log_raw_debug "Executing as builder: python3 ${compare_script_path} --maintainer \"${AUR_MAINTAINER_NAME}\" --repo-root \"${GITHUB_WORKSPACE}\""
+              
+              local python_stderr_file; python_stderr_file=$(mktemp)
+
+              # REMOVED --output-file from this call
+              if sudo -E -u builder python3 "${compare_script_path}" \
+                  --maintainer "${AUR_MAINTAINER_NAME}" \
+                  --repo-root "${GITHUB_WORKSPACE}" \
+                  2> "${python_stderr_file}"; then # stderr is captured to the temp file
+                  _log_raw_notice "COMPARE_AUR_PYTHON_SUCCESS" "compare_aur_local_versions.py executed successfully."
+                  
+                  # Check if the primary expected output file (aur.json) was created and is not empty
+                  if [ -s "${expected_aur_json_output}" ]; then 
+                     _log_raw_debug "Contents of generated ${expected_aur_json_output}:"
+                     head -n 20 "${expected_aur_json_output}" | while IFS= read -r line; do _log_raw_debug "  ${expected_aur_json_output}: $line"; done
+                     _log_raw_debug "  ${expected_aur_json_output}: ... (potentially more lines) Total size: $(wc -c < "${expected_aur_json_output}") bytes"
+                     # Ensure builder owns the output file(s) created by the script (which ran as builder)
+                     # This chown might be redundant if sudo -E -u builder python3 ... already creates them as builder.
+                     # But it's good for ensuring consistency if any files were accidentally created as root by sub-processes.
+                     if ! sudo -u builder chown builder:builder aur.json local.json changes.json combined.json 2>/dev/null; then 
+                         _log_raw_warning "COMPARE_AUR_CHOWN_WARN" "Could not chown one or more output files (aur.json, local.json, changes.json, combined.json) to builder. This is usually okay if they are already builder-owned."
+                     fi
+                  else
+                     _log_raw_warning "COMPARE_AUR_MISSING_EXPECTED_OUTPUT" "${expected_aur_json_output} was NOT created or is EMPTY after script execution."
+                     # Check stderr even on "success" if primary output is missing
+                     if [ -s "${python_stderr_file}" ]; then
+                        _log_raw_warning "COMPARE_AUR_PYTHON_STDERR_ON_SUCCESS_BUT_EMPTY_OUTPUT" "Stderr from python script (despite exit 0):"
+                        cat "${python_stderr_file}" | while IFS= read -r line; do _log_raw_warning "  py_stderr: $line"; done
+                     fi
+                  fi
+              else
+                  local python_exit_code=$?
+                  _log_raw_error "COMPARE_AUR_PYTHON_FAILED" "compare_aur_local_versions.py FAILED with exit code ${python_exit_code}."
+                  _log_raw_error "COMPARE_AUR_PYTHON_STDERR" "Stderr from python script:"
+                  cat "${python_stderr_file}" | while IFS= read -r line; do _log_raw_error "  py_stderr: $line"; done
+                  rm "${python_stderr_file}"
+                  _end_raw_group; return 1
+              fi
+              rm "${python_stderr_file}" # Clean up stderr file on success too
+              _log_raw_notice "COMPARE_AUR_END" "run_compare_aur_local_versions SUCCEEDED."
               _end_raw_group; return 0
           }
 

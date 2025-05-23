@@ -127,9 +127,7 @@ jobs:
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
-          #!/bin/bash
-          #set -euo pipefail 
-          set -uo pipefail 
+          set -e
           echo "::notice title=SCRIPT_START::Arch Package Update Task started."
 
           # --- Helper Functions ---
@@ -416,7 +414,7 @@ jobs:
           #         overall_build_success=false 
           #     fi
           # done
-          # _log_notice "BUILD_LOOP" "Finished build loop."
+          _log_notice "BUILD_LOOP" "Finished build loop."
           _end_group
 
           if ! $overall_build_success; then

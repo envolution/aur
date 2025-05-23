@@ -127,7 +127,8 @@ jobs:
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
-          set -euo pipefail
+          set -e
+          echo 'hello'
 
           ## --- Configuration & Constants ---
           #_log_notice "VARS_CONSTANTS" "Defining constants..."

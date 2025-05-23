@@ -1,4 +1,4 @@
-#!/bin/bah
+#!/usr/bin/env bash
 set -euo pipefail
 echo "::notice title=SCRIPT_START::Arch Package Update Task started."
 

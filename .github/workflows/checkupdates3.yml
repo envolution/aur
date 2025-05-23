@@ -344,45 +344,45 @@ jobs:
           
           #echo "## Arch Package Build Summary" > "$GITHUB_STEP_SUMMARY"; echo "| Package | Version | Status | Changes | AUR Link | Build Logs |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
-          if ! setup_environment; then _log_error "MAIN_FAIL" "setup_environment FAILED."; exit 1; fi
-          if ! generate_nvchecker_config; then _log_error "MAIN_FAIL" "generate_nvchecker_config FAILED."; exit 1; fi
-          if ! run_compare_aur_local_versions; then _log_error "MAIN_FAIL" "run_compare_aur_local_versions FAILED."; exit 1; fi
-          if ! run_version_checks; then _log_error "MAIN_FAIL" "run_version_checks FAILED."; exit 1; fi
-          if ! get_package_updates_list; then _log_error "MAIN_FAIL" "get_package_updates_list FAILED."; exit 1; fi
+          #if ! setup_environment; then _log_error "MAIN_FAIL" "setup_environment FAILED."; exit 1; fi
+          #if ! generate_nvchecker_config; then _log_error "MAIN_FAIL" "generate_nvchecker_config FAILED."; exit 1; fi
+          #if ! run_compare_aur_local_versions; then _log_error "MAIN_FAIL" "run_compare_aur_local_versions FAILED."; exit 1; fi
+          #if ! run_version_checks; then _log_error "MAIN_FAIL" "run_version_checks FAILED."; exit 1; fi
+          #if ! get_package_updates_list; then _log_error "MAIN_FAIL" "get_package_updates_list FAILED."; exit 1; fi
 
-          _log_notice "MAIN_EXEC" "Pre-build data generation completed. UPDATES count: ${#UPDATES[@]}"
-          if [ ${#UPDATES[@]} -eq 0 ]; then
-              _log_notice "MAIN_EXEC_NO_UPDATES" "No updates to process. Exiting."
-              echo "| *No updates found* | - | - | - | - | - |" >> "$GITHUB_STEP_SUMMARY"; exit 0
-          fi
+          #_log_notice "MAIN_EXEC" "Pre-build data generation completed. UPDATES count: ${#UPDATES[@]}"
+          #if [ ${#UPDATES[@]} -eq 0 ]; then
+          #    _log_notice "MAIN_EXEC_NO_UPDATES" "No updates to process. Exiting."
+          #    echo "| *No updates found* | - | - | - | - | - |" >> "$GITHUB_STEP_SUMMARY"; exit 0
+          #fi
 
-          _start_group "Process PKGBUILD Details for Updated Packages"
-          _log_notice "JSON_GEN" "Processing PKGBUILD details for ${#UPDATES[@]} updated package(s)..."
-          combined_pkg_details_json="{}" 
-          for package_to_process in "${UPDATES[@]}"; do
-              _start_group "Processing Details: [${package_to_process}]" 
-              if [ -z "${package_to_process}" ]; then _log_warning "JSON_GEN_PKG_EMPTY" "Empty pkg name. Skipping."; _end_group; continue; fi
-              pkg_build_dirs_found=() 
-              mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_process}" -type d -exec test -f "{}/PKGBUILD" \; -print)
-              if [ ${#pkg_build_dirs_found[@]} -ne 1 ]; then _log_warning "JSON_GEN_PKG_FIND_ERR" "PKGBUILD dir for '${package_to_process}' error (Found: ${#pkg_build_dirs_found[@]})."; _end_group; continue; fi
-              package_dir_abs="${pkg_build_dirs_found[0]}"; package_dir_rel_to_workspace="${package_dir_abs#${GITHUB_WORKSPACE}/}" 
-              single_package_json_fragment=""; process_details_succeeded=true
-              if ! single_package_json_fragment=$(process_single_package_details "$package_to_process" "$package_dir_rel_to_workspace"); then
-                  _log_warning "JSON_GEN_PKG_PROCESS_FAIL" "process_single_package_details issues for ${package_to_process}."; process_details_succeeded=false; fi
-              _log_debug "JSON fragment for ${package_to_process}: ${single_package_json_fragment}"
-              temp_merged_json="" 
-              if temp_merged_json=$(jq -n --argjson current "$combined_pkg_details_json" --argjson fragment "$single_package_json_fragment" '$current + $fragment'); then
-                 combined_pkg_details_json="$temp_merged_json" 
-                 if ! $process_details_succeeded; then _log_warning "JSON_GEN_PKG_MERGED_ERR" "Merged error JSON for ${package_to_process}."; fi
-              else _log_error "JSON_GEN_PKG_MERGE_FAIL" "jq merge FAILED for ${package_to_process}."; fi
-              _end_group 
-          done
-          _log_notice "JSON_GEN_LOOP_END" "Finished loop for PKGBUILD details."
-          echo "${combined_pkg_details_json}" | jq . > "${PACKAGE_DETAILS_JSON_PATH}"
-          if ! chown builder:builder "${PACKAGE_DETAILS_JSON_PATH}"; then _log_warning "JSON_GEN_CHOWN_FAIL" "Failed to chown ${PACKAGE_DETAILS_JSON_PATH}."; fi
-          _log_notice "JSON_GEN_SUMMARY" "${PACKAGE_DETAILS_JSON_PATH} (Size: $(wc -c < "${PACKAGE_DETAILS_JSON_PATH}") bytes) created."
-          _log_debug "Full content of ${PACKAGE_DETAILS_JSON_PATH}:"; cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_debug "  $line"; done
-          _end_group 
+          #_start_group "Process PKGBUILD Details for Updated Packages"
+          #_log_notice "JSON_GEN" "Processing PKGBUILD details for ${#UPDATES[@]} updated package(s)..."
+          #combined_pkg_details_json="{}" 
+          #for package_to_process in "${UPDATES[@]}"; do
+          #    _start_group "Processing Details: [${package_to_process}]" 
+          #    if [ -z "${package_to_process}" ]; then _log_warning "JSON_GEN_PKG_EMPTY" "Empty pkg name. Skipping."; _end_group; continue; fi
+          #    pkg_build_dirs_found=() 
+          #    mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_process}" -type d -exec test -f "{}/PKGBUILD" \; -print)
+          #    if [ ${#pkg_build_dirs_found[@]} -ne 1 ]; then _log_warning "JSON_GEN_PKG_FIND_ERR" "PKGBUILD dir for '${package_to_process}' error (Found: ${#pkg_build_dirs_found[@]})."; _end_group; continue; fi
+          #    package_dir_abs="${pkg_build_dirs_found[0]}"; package_dir_rel_to_workspace="${package_dir_abs#${GITHUB_WORKSPACE}/}" 
+          #    single_package_json_fragment=""; process_details_succeeded=true
+          #    if ! single_package_json_fragment=$(process_single_package_details "$package_to_process" "$package_dir_rel_to_workspace"); then
+          #        _log_warning "JSON_GEN_PKG_PROCESS_FAIL" "process_single_package_details issues for ${package_to_process}."; process_details_succeeded=false; fi
+          #    _log_debug "JSON fragment for ${package_to_process}: ${single_package_json_fragment}"
+          #    temp_merged_json="" 
+          #    if temp_merged_json=$(jq -n --argjson current "$combined_pkg_details_json" --argjson fragment "$single_package_json_fragment" '$current + $fragment'); then
+          #       combined_pkg_details_json="$temp_merged_json" 
+          #       if ! $process_details_succeeded; then _log_warning "JSON_GEN_PKG_MERGED_ERR" "Merged error JSON for ${package_to_process}."; fi
+          #    else _log_error "JSON_GEN_PKG_MERGE_FAIL" "jq merge FAILED for ${package_to_process}."; fi
+          #    _end_group 
+          #done
+          #_log_notice "JSON_GEN_LOOP_END" "Finished loop for PKGBUILD details."
+          #echo "${combined_pkg_details_json}" | jq . > "${PACKAGE_DETAILS_JSON_PATH}"
+          #if ! chown builder:builder "${PACKAGE_DETAILS_JSON_PATH}"; then _log_warning "JSON_GEN_CHOWN_FAIL" "Failed to chown ${PACKAGE_DETAILS_JSON_PATH}."; fi
+          #_log_notice "JSON_GEN_SUMMARY" "${PACKAGE_DETAILS_JSON_PATH} (Size: $(wc -c < "${PACKAGE_DETAILS_JSON_PATH}") bytes) created."
+          #_log_debug "Full content of ${PACKAGE_DETAILS_JSON_PATH}:"; cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do _log_debug "  $line"; done
+          #_end_group 
 
           # Build packages
           _start_group "Build Packages"

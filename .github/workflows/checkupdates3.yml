@@ -425,10 +425,3 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }} 
 
-      - name: Upload build logs and artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts-${{ github.run_id }}
-          path: ${{ github.workspace }}/artifacts/
-          retention-days: 7

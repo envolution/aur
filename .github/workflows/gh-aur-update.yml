@@ -136,11 +136,15 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_WORKSPACE: ${{ github.workspace }}
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUNID: ${{ github.runid }}
           GITHUB_ACTOR: ${{ github.actor }}
+          PKGBUILD_SEARCH_ROOT_SUFFIX: "maintain/"
+          SOURCE_REPO_GIT_USER_NAME: "envolution"
+          SOURCE_REPO_GIT_USER_EMAIL: "involution@gmail.com"
           DEBUG_MODE: "true"
           DRY_RUN_MODE: "true"
         run: |

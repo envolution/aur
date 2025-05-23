@@ -1,0 +1,576 @@
+name: Arch Linux Task
+on:
+  #schedule:
+  #  - cron: '0 */12 * * *'  # Runs every 12 hours
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  arch-task:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged # Required for system-level changes like useradd, pacman
+    env:
+        AUR_MAINTAINER_NAME: envolution
+        GIT_USERNAME: envolution
+        GIT_EMAIL: involution@gmail.com
+        # For GITHUB_STEP_SUMMARY
+        ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history for all tags and branches
+          # Useful if nvchecker or other tools rely on git history
+          fetch-depth: 0 
+
+      - name: Initialize pacman keyring and update system
+        run: |
+          set -e # Exit immediately if a command exits with a non-zero status.
+          echo "Initializing pacman keyring..."
+          mkdir -p /etc/pacman.d/gnupg
+          pacman-key --init
+          pacman-key --populate archlinux
+          
+          echo "Enabling multilib repository..."
+          echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+          
+          echo "Updating system and installing core dependencies..."
+          pacman -Sy --noconfirm --needed archlinux-keyring # Update keyring first
+          pacman -Syu --noconfirm # Full system update
+          
+          echo "Installing necessary packages..."
+          pacman -S --noconfirm --needed \
+            git base-devel pacman-contrib openssh github-cli jq expac \
+            ruby-rdoc ruby-pkg-config gnupg \
+            python python-pip \ # Ensure python and pip are installed
+            pyalpm python-awesomeversion python-packaging python-lxml \
+            python-gobject python-requests libnotify nvchecker \
+            binutils multilib-devel python-aiohttp clang python-jq \
+            sudo # Ensure sudo is available
+
+      - name: Setup non-root user for AUR operations
+        shell: bash
+        run: |
+          set -e
+          echo "Creating build user 'builder'..."
+          useradd -m -s /bin/bash builder # Create user with bash shell
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+
+          echo "Setting up directories for builder..."
+          install -d -o builder -g builder -m 700 /home/builder/.gnupg # Restrictive permissions for .gnupg
+          install -d -o builder -g builder -m 755 /home/builder/.cache
+          install -d -o builder -g builder -m 755 /home/builder/.local
+          install -d -o builder -g builder -m 755 /home/builder/.local/share
+          # Paru specific cache dirs if needed, paru usually creates them
+          install -d -o builder -g builder -m 755 /home/builder/.cache/paru
+          install -d -o builder -g builder -m 755 /home/builder/.local/share/paru
+
+          echo "Builder user setup complete."
+
+      - name: Install paru (AUR helper)
+        run: |
+          set -e
+          echo "Installing paru for 'builder' user..."
+          cd /tmp
+          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          cd paru-bin
+          sudo -u builder makepkg -si --noconfirm
+
+          echo "Configuring paru..."
+          # Default paru config usually works well, explicit config can be added if needed
+          # This example uses a minimal config.
+          echo -e "[options]\nBatchInstall\nBottomUp\nRemoveMake\nSudoLoop\nUseAsk" | sudo tee /etc/paru.conf > /dev/null
+          
+          # Example of installing a python dependency needed by custom scripts, if any
+          # sudo -u builder paru -S --noconfirm --needed python-deadlib 
+          echo "Paru installation and configuration complete."
+
+      - name: Setup SSH key for AUR
+        run: |
+          set -e
+          echo "Setting up SSH key for AUR access..."
+          SSH_DIR="/home/builder/.ssh"
+          mkdir -p "${SSH_DIR}"
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > "${SSH_DIR}/aur"
+          
+          # Add aur.archlinux.org to known_hosts
+          ssh-keyscan aur.archlinux.org >> "${SSH_DIR}/known_hosts"
+          
+          # Configure SSH to use the specific key for AUR
+          echo "Host aur.archlinux.org" >> "${SSH_DIR}/config"
+          echo "  IdentityFile ${SSH_DIR}/aur" >> "${SSH_DIR}/config"
+          echo "  User aur" >> "${SSH_DIR}/config" # Standard user for AUR SSH
+          echo "  StrictHostKeyChecking yes" >> "${SSH_DIR}/config" # Or 'accept-new' if preferred
+
+          chown -R builder:builder "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+          chmod 600 "${SSH_DIR}/aur"
+          chmod 600 "${SSH_DIR}/config" # Config can also contain sensitive info
+          chmod 644 "${SSH_DIR}/known_hosts" # known_hosts can be 644 or 600
+          
+          echo "SSH key setup complete. Permissions:"
+          ls -ld "${SSH_DIR}" "${SSH_DIR}/aur" "${SSH_DIR}/config" "${SSH_DIR}/known_hosts"
+
+      - name: Configure Git for builder user
+        run: |
+          set -e
+          echo "Configuring Git for 'builder' user..."
+          sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
+          sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
+          echo "Git configuration complete."
+
+      - name: Load NVChecker Custom Source (if any)
+        run: |
+          set -e
+          # This copies a custom nvchecker source type for github graphql.
+          # Ensure the script 'github-graphql.py' exists at the specified GITHUB_WORKSPACE path.
+          CUSTOM_NV_SOURCE_SCRIPT="${GITHUB_WORKSPACE}/scripts/github-graphql.py"
+          if [ -f "${CUSTOM_NV_SOURCE_SCRIPT}" ]; then
+            # Determine primary site-packages directory for Python 3
+            SITE_PACKAGES_DIR=$(python3 -c "import site; print(site.getsitepackages()[0])")
+            NVCHECKER_CUSTOM_SOURCE_DIR="${SITE_PACKAGES_DIR}/nvchecker_source"
+            
+            echo "Copying custom NVChecker source '${CUSTOM_NV_SOURCE_SCRIPT}' to '${NVCHECKER_CUSTOM_SOURCE_DIR}'..."
+            mkdir -p "${NVCHECKER_CUSTOM_SOURCE_DIR}" # Ensure target directory exists
+            cp "${CUSTOM_NV_SOURCE_SCRIPT}" "${NVCHECKER_CUSTOM_SOURCE_DIR}/"
+            echo "Custom NVChecker source loaded."
+          else
+            echo "Custom NVChecker source script not found at '${CUSTOM_NV_SOURCE_SCRIPT}'. Skipping."
+          fi
+
+      - name: Run Arch Package Update and Build Task
+        shell: bash
+        run: |
+          #!/bin/bash
+          set -euo pipefail # Exit on error, undefined variable, or pipe failure
+
+          # --- Configuration & Constants ---
+          BUILDER_HOME="/home/builder"
+          # NVCHECKER_DIR is where nvchecker configs and outputs will be stored
+          NVCHECKER_DIR="${BUILDER_HOME}/nvchecker-run" # Changed name to avoid conflict if builder has ~/.nvchecker
+          # ARTIFACTS_DIR is where logs from buildscript.py will be placed
+          ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"
+          # DEPENDS_JSON_PATH stores the consolidated dependency info for packages
+          DEPENDS_JSON_PATH="${NVCHECKER_DIR}/package_details.json" # Renamed for clarity
+
+          # --- Helper Functions ---
+          log_info() { echo "[INFO] $1"; }
+          log_debug() { echo "[DEBUG] $1"; }
+          log_error() { echo "[ERROR] $1"; }
+
+          # --- Main Script Functions ---
+          setup_environment() {
+              log_info "Setting up task environment in ${NVCHECKER_DIR}..."
+              sudo -u builder mkdir -p "${NVCHECKER_DIR}"
+              sudo -u builder mkdir -p "${ARTIFACTS_DIR}" # Ensure artifacts root dir exists
+
+              # Change to NVCHECKER_DIR for subsequent operations
+              cd "${NVCHECKER_DIR}"
+
+              log_info "Copying necessary scripts from workspace to ${NVCHECKER_DIR}..."
+              # Copy buildscript.py and compare_aur_local_versions.py
+              for script_name in "buildscript2.py" "compare_aur_local_versions.py"; do
+                  local script_path_workspace="${GITHUB_WORKSPACE}/scripts/${script_name}"
+                  if [ -f "${script_path_workspace}" ]; then
+                      sudo -u builder cp "${script_path_workspace}" "${NVCHECKER_DIR}/"
+                      log_debug "Copied ${script_name} to ${NVCHECKER_DIR}."
+                  else
+                      log_error "Required script ${script_name} not found at ${script_path_workspace}!"
+                      return 1 # Critical error
+                  fi
+              done
+              # Make scripts executable by builder if needed (Python scripts usually don't need +x if called with python3)
+              sudo -u builder chmod +x "${NVCHECKER_DIR}/buildscript2.py"
+          }
+
+          generate_nvchecker_config() {
+              log_info "Generating combined NVChecker configuration (new.toml)..."
+              local combined_config_file="new.toml"
+              local keyfile="keyfile.toml" # Keyfile for GH_TOKEN
+
+              # Base nvchecker configuration
+              echo "[__config__]" > "${combined_config_file}"
+              echo "oldver = 'aur.json'" >> "${combined_config_file}" # For nvcmp
+              echo "newver = 'local.json'" >> "${combined_config_file}" # For nvcmp
+
+              # Create keyfile with GitHub token for nvchecker sources that need it
+              # secrets.GHuK seems to be a PAT. If it's for GitHub API access.
+              echo "[keys]" > "${keyfile}"
+              echo "github = '${{ secrets.GHuK }}'" >> "${keyfile}"
+              log_debug "Generated keyfile.toml with GitHub key."
+
+              # Append all individual .nvchecker.toml files found in the repository
+              # Path GITHUB_WORKSPACE/maintain/build is an example, adjust if your structure differs
+              find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print0 | while IFS= read -r -d $'\0' file; do
+                  cat "$file" >> "${combined_config_file}"
+                  echo "" >> "${combined_config_file}" # Ensure a newline after each appended file
+              done
+              
+              log_debug "Generated combined NVChecker config (${combined_config_file}):"
+              # cat "${combined_config_file}" # Can be very long, disable for normal runs
+              sudo -u builder chown builder:builder "${combined_config_file}" "${keyfile}"
+          }
+
+          run_version_checks() {
+              log_info "Running NVChecker and nvcmp for version comparison..."
+              # Ensure nvchecker runs as builder user and can access its keyfile
+              # The keyfile path in buildscript.py is ~/nvchecker/keyfile.toml
+              # This script generates it in ${NVCHECKER_DIR}/keyfile.toml
+              # Let's ensure consistency or pass path to buildscript.
+              # buildscript.py currently uses Path.home() / "nvchecker/keyfile.toml"
+              # So, we should place keyfile there for buildscript.py, OR modify buildscript.py
+              # For now, let this nvchecker run use local keyfile, buildscript will look in its conventional place.
+              # This means we need two copies or a symlink if buildscript.py's nvchecker also needs it.
+              # The current buildscript.py nvchecker call uses its own .nvchecker.toml found in the cloned AUR repo.
+              
+              # Run nvchecker for all packages (using combined new.toml)
+              # HOME must be builder's home for nvchecker to find config/cache if it uses ~
+              # sudo -E -u builder env "HOME=${BUILDER_HOME}" nvchecker -c new.toml -k keyfile.toml --logger json | tee newver.json
+              # Simpler: just run as builder, paths are explicit.
+              sudo -u builder nvchecker -c new.toml -k keyfile.toml --logger json > local.json # Store new versions
+              log_debug "NVChecker output stored in local.json"
+
+              # Run nvcmp to compare aur.json (from compare_aur_local_versions.py) with local.json (from nvchecker)
+              # This generates changes.json
+              sudo -u builder nvcmp -c new.toml > changes.json
+              log_debug "nvcmp output (comparison) stored in changes.json"
+          }
+
+          get_package_updates_list() {
+              log_info "Determining list of packages needing updates..."
+              local upgrades_from_aur_comparison=()
+              local updates_from_nvchecker=()
+              
+              # Get packages where local repo version (PKGBUILD) is newer than AUR (from changes.json by nvcmp)
+              # This assumes compare_aur_local_versions.py populates aur.json correctly for nvcmp.
+              # And PKGBUILDs in GITHUB_WORKSPACE are the "local" state for this initial nvcmp.
+              # This is slightly confusing. Let's assume compare_aur_local_versions.py creates 'aur.json' for current AUR state.
+              # And initial 'local.json' can be generated from PKGBUILDs in GITHUB_WORKSPACE.
+              # The current nvcmp call uses oldver='aur.json' newver='local.json'
+              # local.json is from nvchecker against *upstream sources*.
+              # aur.json is from compare_aur_local_versions.py against *AUR itself*.
+              # So, changes.json from `nvcmp -c new.toml` (where oldver=aur.json, newver=local.json from nvchecker)
+              # will show differences between current AUR versions and latest upstream versions.
+              
+              if [ -f changes.json ] && [ -s changes.json ]; then
+                  mapfile -t upgrades_from_aur_comparison < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2>/dev/null || true)
+              fi
+              log_debug "Packages with potential upgrades (upstream newer than AUR) from changes.json:"
+              printf '  %s\n' "${upgrades_from_aur_comparison[@]:-(none)}"
+              
+              # Get updates from nvchecker's direct output (nvcmp -q query mode for new.toml)
+              # This tells which entries in new.toml (representing various packages) found an update.
+              mapfile -t updates_from_nvchecker < <(sudo -u builder nvcmp -c new.toml -q 2>/dev/null || true)
+              log_debug "Packages with updates found directly by NVChecker (nvcmp -q):"
+              printf '  %s\n' "${updates_from_nvchecker[@]:-(none)}"
+              
+              # Combine and deduplicate. This UPDATES global var will be used.
+              # Using a temporary file for sort -u to handle empty arrays robustly
+              local temp_updates_file
+              temp_updates_file=$(mktemp)
+              printf '%s\n' "${upgrades_from_aur_comparison[@]:-}" > "$temp_updates_file"
+              printf '%s\n' "${updates_from_nvchecker[@]:-}" >> "$temp_updates_file"
+              
+              mapfile -t UPDATES < <(sort -u "$temp_updates_file")
+              rm "$temp_updates_file"
+
+              declare -g UPDATES # Make UPDATES available globally in the script
+              log_info "Final list of packages to process for updates:"
+              if [ ${#UPDATES[@]} -eq 0 ]; then
+                  log_info "  No packages require updates at this time."
+              else
+                  printf '  %s\n' "${UPDATES[@]}"
+              fi
+          }
+
+          # Extracts directory components: maintain/build/package_name -> (maintain build package_name)
+          extract_path_components() {
+              local path_to_parse="$1"
+              # Remove GITHUB_WORKSPACE prefix if present, and leading/trailing slashes
+              local relative_path="${path_to_parse#${GITHUB_WORKSPACE}/}"
+              relative_path="${relative_path%/}"
+              relative_path="${relative_path#/}"
+              
+              IFS='/' read -r -a components <<< "${relative_path}"
+              echo "${components[@]}" # Returns space-separated list
+          }
+
+          # Extracts dependencies and sources from a PKGBUILD file
+          extract_pkgbuild_details() {
+              local pkgbuild_dir_abs="$1" # Absolute path to directory containing PKGBUILD
+              # Source the PKGBUILD in a subshell to isolate its variables
+              (
+                  # shellcheck source=/dev/null
+                  source "${pkgbuild_dir_abs}/PKGBUILD"
+                  # Print depends, makedepends, checkdepends, and source arrays as bash declarations
+                  declare -p depends makedepends checkdepends source 2>/dev/null || true
+              )
+          }
+
+          # Processes dependencies for a single package and returns JSON fragment
+          process_single_package_details() {
+              local package_name="$1"
+              local pkgbuild_dir_rel_to_workspace="$2" # e.g., maintain/build/package
+              local pkgbuild_details_output
+              
+              pkgbuild_details_output=$(extract_pkgbuild_details "${GITHUB_WORKSPACE}/${pkgbuild_dir_rel_to_workspace}")
+              
+              # Reset and evaluate dependency variables from PKGBUILD output
+              unset depends makedepends checkdepends source
+              eval "$pkgbuild_details_output" # This re-declares the arrays in current scope
+              
+              # Convert bash arrays to JSON arrays
+              local depends_json makedepends_json checkdepends_json sources_json
+              depends_json=$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              makedepends_json=$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              checkdepends_json=$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              sources_json=$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              
+              # Construct JSON for this package
+              jq -n \
+                  --arg pkg_name "$package_name" \
+                  --argjson deps "$depends_json" \
+                  --argjson mkdeps "$makedepends_json" \
+                  --argjson chkdeps "$checkdepends_json" \
+                  --argjson srcs "$sources_json" \
+                  '{($pkg_name): {depends: $deps, makedepends: $mkdeps, checkdepends: $chkdeps, sources: $srcs}}'
+          }
+          
+          # Main function for building a single package using buildscript.py
+          # This function will also update the GitHub Step Summary.
+          execute_package_build_script() {
+              local package_name="$1"
+              local build_type="$2"      # e.g., "build", "test" (from directory structure)
+              local pkgbuild_path_rel="$3" # Relative path to PKGBUILD dir, e.g., "maintain/build/package"
+              
+              local package_artifact_dir="${ARTIFACTS_DIR}/${package_name}"
+              sudo -u builder mkdir -p "${package_artifact_dir}" # Ensure specific artifact dir exists
+
+              log_info "Starting build process for package: ${package_name} (Type: ${build_type}, Path: ${pkgbuild_path_rel})"
+              
+              local build_script_py="${NVCHECKER_DIR}/buildscript2.py"
+              local build_output_json
+              
+              # Run buildscript.py as 'builder' user
+              # -E preserves environment (might be useful)
+              # GH_TOKEN is passed as arg, GITHUB_WORKSPACE also
+              if ! build_output_json=$(sudo -E -u builder \
+                  python3 "${build_script_py}" \
+                  --github-repo "${{ github.repository }}" \
+                  --github-token "${GH_TOKEN}" \
+                  --github-workspace "${GITHUB_WORKSPACE}" \
+                  --package-name "${package_name}" \
+                  --depends-json "${DEPENDS_JSON_PATH}" \
+                  --pkgbuild-path "${pkgbuild_path_rel}" \
+                  --commit-message "CI: Auto update ${package_name}" \
+                  --build-mode "${build_type}" \
+                  --artifacts-dir "${package_artifact_dir}" \
+                  --debug # Enable debug for buildscript.py
+              ); then
+                  # buildscript.py exits non-zero on failure, but should still print JSON.
+                  # The JSON is in build_output_json variable due to command substitution.
+                  log_error "buildscript.py for '${package_name}' exited with an error. Output JSON (if any):"
+                  log_error "${build_output_json:-No JSON output from failing script}"
+              else
+                  log_debug "buildscript.py for '${package_name}' succeeded. Output JSON:"
+                  log_debug "${build_output_json}"
+              fi
+
+              # Parse JSON output from buildscript.py
+              local version success changes_detected error_msg
+              version=$(echo "$build_output_json" | jq -r '.version // "N/A"')
+              success=$(echo "$build_output_json" | jq -r '.success') # "true" or "false"
+              changes_detected=$(echo "$build_output_json" | jq -r '.changes_detected') # "true" or "false"
+              error_msg=$(echo "$build_output_json" | jq -r '.error_message // ""') # "" if null or not present
+
+              local status_md changes_md aur_link_md log_link_md
+
+              if [ "$success" = "true" ]; then
+                  status_md="✅ Success"
+              else
+                  status_md="❌ Failure"
+                  if [ -n "$error_msg" ] && [ "$error_msg" != "null" ]; then
+                      # Escape for Markdown, very basic:
+                      error_msg_md=$(echo "$error_msg" | sed 's/|/\\|/g; s/\n/<br>/g')
+                      status_md="${status_md}: <small>${error_msg_md}</small>"
+                  fi
+              fi
+
+              if [ "$changes_detected" = "true" ]; then
+                  changes_md="✔️ Yes"
+              else
+                  changes_md="➖ No"
+              fi
+              
+              aur_link_md="[AUR](https://aur.archlinux.org/packages/${package_name})"
+              
+              # Check for logs in the package-specific artifact directory
+              if compgen -G "${package_artifact_dir}/${package_name}-*.log" > /dev/null; then
+                  log_link_md="See 'build-logs-${{ github.run_id }}' artifact (<tt>${package_name}/</tt> subdir)"
+              else
+                  log_link_md="N/A"
+              fi
+              
+              # Append to GitHub Step Summary
+              echo "| **${package_name}** | ${version} | ${status_md} | ${changes_md} | ${aur_link_md} | ${log_link_md} |" >> "$GITHUB_STEP_SUMMARY"
+
+              # Return status based on buildscript.py's success field
+              [ "$success" = "true" ]
+          }
+
+          # --- Main Execution ---
+          main() {
+              if ! setup_environment; then exit 1; fi
+              
+              # Initialize GitHub Step Summary
+              echo "## Arch Package Build Summary" > "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY" # Add a newline for better formatting
+              echo "| Package | Version | Status | Changes | AUR Link | Build Logs |" >> "$GITHUB_STEP_SUMMARY"
+              echo "|---|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+              # Step 1: Compare local PKGBUILD versions (in GITHUB_WORKSPACE) with current AUR versions.
+              # This creates 'aur.json' with current versions from AUR.
+              log_info "Comparing local repository PKGBUILD versions with AUR versions..."
+              # This script `compare_aur_local_versions.py` is expected to generate `aur.json`
+              # It needs to run as builder if it uses tools like expac that read pacman db.
+              sudo -E -u builder python3 "${NVCHECKER_DIR}/compare_aur_local_versions.py" \
+                  --maintainer "${AUR_MAINTAINER_NAME}" \
+                  --repo-root "${GITHUB_WORKSPACE}" \
+                  --output-file "${NVCHECKER_DIR}/aur.json" # Explicit output for clarity
+              
+              # Step 2: Generate combined nvchecker config and run version checks against upstream.
+              generate_nvchecker_config # Creates new.toml and keyfile.toml in NVCHECKER_DIR
+              run_version_checks        # Creates local.json (from nvchecker) and changes.json (from nvcmp)
+              
+              # Step 3: Determine which packages to update.
+              get_package_updates_list # Populates global array UPDATES
+
+              if [ ${#UPDATES[@]} -eq 0 ]; then
+                  log_info "No packages identified for update. Exiting successfully."
+                  echo "| *No updates found* | - | - | - | - | - |" >> "$GITHUB_STEP_SUMMARY"
+                  exit 0
+              fi
+
+              # Step 4: Process PKGBUILD details for all packages in the GITHUB_WORKSPACE
+              # to create a consolidated JSON file for buildscript.py
+              log_info "Processing PKGBUILD details for all relevant packages..."
+              local combined_details_json="{}" # Start with an empty JSON object
+              
+              # Find all potential package directories (e.g., */maintain/build/packagename)
+              # Adjust find path and -maxdepth according to your repo structure.
+              # This example assumes packages are in GITHUB_WORKSPACE/some_category/build_type/packagename/
+              local all_pkg_dirs=()
+              mapfile -t all_pkg_dirs < <(find "${GITHUB_WORKSPACE}" -mindepth 3 -maxdepth 4 -type d -wholename "*/maintain/build/*" -print)
+
+              for pkg_dir_abs in "${all_pkg_dirs[@]}"; do
+                  if [ -f "${pkg_dir_abs}/PKGBUILD" ]; then
+                      local current_package_name
+                      current_package_name=$(basename "${pkg_dir_abs}")
+                      log_debug "Processing details for ${current_package_name} in ${pkg_dir_abs}"
+                      
+                      local pkg_dir_rel_to_workspace="${pkg_dir_abs#${GITHUB_WORKSPACE}/}"
+                      
+                      local single_pkg_json
+                      single_pkg_json=$(process_single_package_details "$current_package_name" "$pkg_dir_rel_to_workspace")
+                      combined_details_json=$(echo "$combined_details_json $single_pkg_json" | jq -s 'add')
+                  fi
+              done
+              
+              echo "${combined_details_json}" | jq . > "${DEPENDS_JSON_PATH}"
+              sudo -u builder chown builder:builder "${DEPENDS_JSON_PATH}"
+              log_info "Consolidated package details saved to ${DEPENDS_JSON_PATH}"
+
+              # Step 5: Build/process each package identified for an update.
+              log_info "Processing packages marked for update..."
+              local overall_success=true
+              for package_to_update in "${UPDATES[@]}"; do
+                  log_info "--- Processing package: ${package_to_update} ---"
+                  # Find the directory for this package.
+                  # Example assumes package_to_update is the direct name of the package dir.
+                  local pkg_build_dirs_found=()
+                  # Be more specific with find: look for directories named $package_to_update that contain a PKGBUILD
+                  mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -type d -name "${package_to_update}" -exec test -f "{}/PKGBUILD" \; -print)
+
+                  if [ ${#pkg_build_dirs_found[@]} -eq 0 ]; then
+                      log_error "No directory found for package '${package_to_update}' containing a PKGBUILD. Skipping."
+                      echo "| **${package_to_update}** | N/A | ❌ Error: PKGBUILD dir not found | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+                      overall_success=false
+                      continue
+                  elif [ ${#pkg_build_dirs_found[@]} -gt 1 ]; then
+                      log_error "Multiple directories found for package '${package_to_update}'. Ambiguous. Skipping."
+                      printf '  %s\n' "${pkg_build_dirs_found[@]}"
+                      echo "| **${package_to_update}** | N/A | ❌ Error: Multiple PKGBUILD dirs | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+                      overall_success=false
+                      continue
+                  fi
+                  
+                  local package_dir_abs="${pkg_build_dirs_found[0]}"
+                  local package_dir_rel_to_workspace="${package_dir_abs#${GITHUB_WORKSPACE}/}"
+                  
+                  # Extract components (e.g., maintain/build/packagename)
+                  # This relies on a fixed structure like "category/build_type/packagename"
+                  local path_components
+                  path_components=($(extract_path_components "${package_dir_rel_to_workspace}"))
+                  
+                  # Example: expect path like "maintain/build/packagename"
+                  # components[0]=maintain, components[1]=build, components[2]=packagename
+                  local build_category="${path_components[0]:-unknown}" # e.g., "maintain"
+                  local build_mode_from_dir="${path_components[1]:-unknown}" # e.g., "build", "test"
+                  local actual_package_name="${path_components[-1]:-unknown}" # last component is package name
+
+                  if [ "$package_to_update" != "$actual_package_name" ]; then
+                      log_warning "Mismatch: Update list has '${package_to_update}', found dir for '${actual_package_name}'. Using '${package_to_update}' for build script."
+                  fi
+
+                  # Validate build_mode_from_dir (e.g. "build", "test", "nobuild")
+                  # Default to "build" if not standard, or use a fixed mode.
+                  # The buildscript.py --build-mode will take precedence if it's e.g. always "build" for this workflow.
+                  # For this example, let's assume the directory name 'build' or 'test' implies the build mode.
+                  # If dir name is not 'build' or 'test', perhaps default to 'nobuild'.
+                  local effective_build_mode="nobuild"
+                  if [[ "$build_mode_from_dir" == "build" || "$build_mode_from_dir" == "test" ]]; then
+                      effective_build_mode="$build_mode_from_dir"
+                  fi
+                  
+                  # Logic for 'maintain' category, adjust if needed
+                  if [ "$build_category" = "maintain" ]; then
+                      if ! execute_package_build_script "$package_to_update" "$effective_build_mode" "$package_dir_rel_to_workspace"; then
+                          log_error "Build process for '${package_to_update}' failed."
+                          overall_success=false
+                          # Summary line is added by execute_package_build_script
+                      fi
+                  else
+                      log_info "Package '${package_to_update}' is not in 'maintain' category ('${build_category}'). Skipping build script execution."
+                      echo "| **${package_to_update}** | N/A | ⚪ Skipped (not in 'maintain' category) | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+                  log_info "--- Finished processing package: ${package_to_update} ---"
+              done
+              
+              log_info "All package processing complete."
+              if ! $overall_success; then
+                  log_error "One or more packages failed to process or build."
+                  exit 1
+              fi
+              log_info "Workflow finished successfully."
+          }
+
+          # Execute main function, passing all script arguments
+          main "$@"
+        env:
+          # GITHUB_TOKEN is automatically available with appropriate permissions for the repo
+          # For gh release and gh api calls in buildscript.py to this repo.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GHuK is presumably a PAT if nvchecker needs to access other private repos,
+          # or for higher rate limits. Used in generate_nvchecker_config.
+          # Ensure it's set in secrets.
+
+      - name: Upload build logs and artifacts
+        if: always() # Run even if previous steps fail, to capture any generated logs/artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ${{ github.workspace }}/artifacts/ # Upload the entire artifacts directory
+          retention-days: 7 # Optional: customize retention period

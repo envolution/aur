@@ -105,7 +105,6 @@ class ArchPackageBuilder:
         if self.config.artifacts_dir:
             self.artifacts_path = Path(self.config.artifacts_dir)
 
-
     def _setup_logger(self) -> logging.Logger:
         # Use the global logger name, but configure its handler and level per instance
         instance_logger = logging.getLogger("arch_builder_script") # Same name as global
@@ -113,7 +112,7 @@ class ArchPackageBuilder:
         for handler in instance_logger.handlers[:]:
             instance_logger.removeHandler(handler)
             
-        handler = logging.StreamHandler(sys.stdout) # Ensure logs go to stdout for GHA
+        handler = logging.StreamHandler(sys.stderr) # MODIFIED LINE: Logs should go to stderr
         formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
         handler.setFormatter(formatter)
         instance_logger.addHandler(handler)

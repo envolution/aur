@@ -183,47 +183,85 @@ jobs:
           # --- Test setup_environment function ---
           setup_environment() {
               _start_raw_group "DEBUG: setup_environment Function"
-              _log_raw_notice "SETUP_ENV_START" "Entering setup_environment function."
+              _log_raw_notice "SETUP_ENV_START" "Entering setup_environment function. Current PWD: $(pwd)"
+              
+              _log_raw_debug "GITHUB_WORKSPACE is: ${GITHUB_WORKSPACE}"
               
               _log_raw_debug "Running: sudo -u builder mkdir -p \"${NVCHECKER_RUN_DIR}\""
-              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"
-              _log_raw_debug "Finished: sudo -u builder mkdir -p \"${NVCHECKER_RUN_DIR}\". Exit code: $?"
+              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}" # This should be fine
 
               _log_raw_debug "Running: sudo -u builder mkdir -p \"${ARTIFACTS_DIR}\""
-              sudo -u builder mkdir -p "${ARTIFACTS_DIR}"
-              _log_raw_debug "Finished: sudo -u builder mkdir -p \"${ARTIFACTS_DIR}\". Exit code: $?"
+              sudo -u builder mkdir -p "${ARTIFACTS_DIR}" # This should be fine
 
+              # NVCHECKER_RUN_DIR should exist now if mkdir worked.
               _log_raw_debug "Running: cd \"${NVCHECKER_RUN_DIR}\""
               cd "${NVCHECKER_RUN_DIR}"
-              _log_raw_debug "Finished: cd \"${NVCHECKER_RUN_DIR}\". Current directory: $(pwd). Exit code: $?"
+              _log_raw_debug "Current directory after cd: $(pwd)."
 
-              _log_raw_notice "SETUP_ENV_COPY_SCRIPTS" "Copying necessary scripts..."
+              _log_raw_notice "SETUP_ENV_VERIFY_AND_COPY_SCRIPTS" "Verifying and copying necessary scripts..."
+              local all_scripts_found_and_copied=true
+
               for script_name_to_copy in "buildscript.py" "compare_aur_local_versions.py"; do
-                  _log_raw_debug "Processing script: ${script_name_to_copy}"
-                  local script_path_in_workspace="${GITHUB_WORKSPACE}/scripts/${script_name_to_copy}"
-                  _log_raw_debug "Source path: ${script_path_in_workspace}"
+                  _log_raw_debug "Processing script for verification and copy: ${script_name_to_copy}"
                   
-                  if [ ! -f "${script_path_in_workspace}" ]; then
-                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Required script ${script_name_to_copy} not found at ${script_path_in_workspace}! This is FATAL for setup_environment."
-                      # exit 1 # Exit here makes it clear this is the failure point
+                  _log_raw_debug "Searching for '${script_name_to_copy}' within '${GITHUB_WORKSPACE}'..."
+                  local found_script_path
+                  # Use find to locate the script. -L follows symlinks if any.
+                  # We expect it in a 'scripts' subdirectory, but let's be a bit broader first to see if it's elsewhere.
+                  # Then we can narrow down if needed. For now, let's assume it *should* be in GITHUB_WORKSPACE/scripts/
+                  
+                  # Search specifically in GITHUB_WORKSPACE/scripts/
+                  found_script_path=$(find "${GITHUB_WORKSPACE}/scripts/" -name "${script_name_to_copy}" -type f -print -quit 2>/dev/null)
+                  # -print: prints the path
+                  # -quit: exits after the first find (we only expect one)
+                  # 2>/dev/null: Suppress "find: ‘.../scripts/’: No such file or directory" if scripts dir itself doesn't exist
+
+                  if [ -n "${found_script_path}" ] && [ -f "${found_script_path}" ]; then
+                      _log_raw_notice "SETUP_ENV_SCRIPT_FOUND" "Script '${script_name_to_copy}' FOUND at '${found_script_path}'."
+                      
+                      _log_raw_debug "Attempting to copy: sudo -u builder cp \"${found_script_path}\" \"${NVCHECKER_RUN_DIR}/\""
+                      if sudo -u builder cp "${found_script_path}" "${NVCHECKER_RUN_DIR}/"; then
+                          _log_raw_debug "Copy SUCCESS for ${script_name_to_copy} from '${found_script_path}'."
+                          
+                          _log_raw_debug "Attempting chmod +x on destination: sudo -u builder chmod +x \"${NVCHECKER_RUN_DIR}/${script_name_to_copy}\""
+                          if sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name_to_copy}"; then
+                             _log_raw_debug "chmod +x SUCCESS for ${script_name_to_copy} in '${NVCHECKER_RUN_DIR}'."
+                          else
+                             _log_raw_error "SETUP_ENV_CHMOD_FAILED" "chmod +x FAILED for '${NVCHECKER_RUN_DIR}/${script_name_to_copy}'. Exit code: $?"
+                             all_scripts_found_and_copied=false
+                          fi
+                      else
+                          _log_raw_error "SETUP_ENV_COPY_FAILED" "sudo -u builder cp FAILED for ${script_name_to_copy} from '${found_script_path}'. Exit code: $?"
+                          all_scripts_found_and_copied=false
+                      fi
+                  else
+                      # If not found in GITHUB_WORKSPACE/scripts/, let's do a broader search in GITHUB_WORKSPACE for diagnostics
+                      _log_raw_warning "SETUP_ENV_SCRIPT_NOT_IN_EXPECTED_PATH" "Script '${script_name_to_copy}' NOT FOUND in expected path '${GITHUB_WORKSPACE}/scripts/'."
+                      _log_raw_debug "Performing broader search for '${script_name_to_copy}' within all of '${GITHUB_WORKSPACE}'..."
+                      local broader_found_paths
+                      mapfile -t broader_found_paths < <(find "${GITHUB_WORKSPACE}" -name "${script_name_to_copy}" -type f -print 2>/dev/null)
+                      if [ ${#broader_found_paths[@]} -gt 0 ]; then
+                          _log_raw_warning "SETUP_ENV_BROADER_SEARCH_RESULTS" "Script '${script_name_to_copy}' found at other locations (unexpected):"
+                          printf "  ::warning file=${script_name_to_copy},title=Unexpected Location::%s\n" "${broader_found_paths[@]}"
+                      else
+                          _log_raw_error "SETUP_ENV_MISSING_SCRIPT_ENTIRELY" "Script '${script_name_to_copy}' NOT FOUND anywhere within '${GITHUB_WORKSPACE}'. This is a critical error."
+                      fi
+                      all_scripts_found_and_copied=false
+                      # Consider exiting if a script is absolutely critical: # exit 1 
                   fi
-                  _log_raw_debug "Script ${script_name_to_copy} exists at source."
-
-                  _log_raw_debug "Running: sudo -u builder cp \"${script_path_in_workspace}\" \"${NVCHECKER_RUN_DIR}/\""
-                  sudo -u builder cp "${script_path_in_workspace}" "${NVCHECKER_RUN_DIR}/"
-                  _log_raw_debug "Finished: sudo -u builder cp for ${script_name_to_copy}. Exit code: $?"
-
-                  _log_raw_debug "Running: sudo -u builder chmod +x \"${NVCHECKER_RUN_DIR}/${script_name_to_copy}\""
-                  sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name_to_copy}"
-                  _log_raw_debug "Finished: sudo -u builder chmod +x for ${script_name_to_copy}. Exit code: $?"
               done
               
-              _log_raw_debug "Listing contents of ${NVCHECKER_RUN_DIR} after copy:"
-              ls -la "${NVCHECKER_RUN_DIR}" | while IFS= read -r line; do _log_raw_debug "  ls: $line"; done
+              _log_raw_debug "Listing contents of destination '${NVCHECKER_RUN_DIR}' after attempted copies:"
+              ls -la "${NVCHECKER_RUN_DIR}" | while IFS= read -r line; do _log_raw_debug "  ls dest: $line"; done
 
-              _log_raw_notice "SETUP_ENV_END" "Exiting setup_environment function successfully."
+              if ! ${all_scripts_found_and_copied}; then
+                  _log_raw_error "SETUP_ENV_FINAL_CHECK_FAILED" "One or more scripts were not found or copied successfully. Please check logs above."
+                  # exit 1 # Make this fatal if scripts are essential for next steps
+              fi
+
+              _log_raw_notice "SETUP_ENV_END" "Exiting setup_environment function."
               _end_raw_group
-              return 0 # Explicitly return success
+              return 0 # Or return 1 if all_scripts_found_and_copied is false and it's critical
           }
           _log_raw_notice "SETUP_ENV_DEF_DONE" "setup_environment function defined."
 

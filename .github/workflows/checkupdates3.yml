@@ -145,16 +145,109 @@ jobs:
         shell: bash
         run: |
           #!/bin/bash
-          # set -euo pipefail # Temporarily comment out for initial debugging
-          echo "::notice title=Bash Script Start::The 'Run Arch Package Update and Build Task' script has STARTED."
-          
-          # Your helper functions (log_notice, log_debug, etc.) can be here
-          # but don't call any complex logic yet.
-          log_debug() { echo "::debug::$1"; } # Example
-          log_notice() { echo "::notice title=$1::$2"; }
+          #
+          # !!! EXTREME DEBUGGING ENABLED !!!
+          # 'set -x' will print every command as it's executed.
+          # 'set -e' exits on error.
+          # 'set -u' exits on unbound variable.
+          # 'set -o pipefail' exits if any command in a pipeline fails.
+          #
+          set -xeuo pipefail 
+          echo "::notice title=SCRIPT_START::Bash script for 'Run Arch Package Update and Build Task' started. set -xeuo pipefail active."
 
-          log_notice "Minimal Test" "This is a minimal execution within the large script."
+          # --- Helper Functions with GitHub Actions Workflow Commands (Definitions Only) ---
+          # These definitions themselves are unlikely to fail, but we define them for later use.
+          _log_raw_debug() { echo "::debug::$1"; }
+          _log_raw_notice() { echo "::notice title=$1::$2"; }
+          _log_raw_error() { echo "::error title=$1::$2"; }
+          _start_raw_group() { echo "::group::$1"; }
+          _end_raw_group() { echo "::endgroup::"; }
+
+          _log_raw_notice "HELPER_DEF" "Helper functions defined."
+
+          # --- Configuration & Constants ---
+          _log_raw_notice "VARS_START" "Defining initial constants..."
+          BUILDER_HOME="/home/builder"
+          _log_raw_debug "BUILDER_HOME='${BUILDER_HOME}'"
+
+          NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run" 
+          _log_raw_debug "NVCHECKER_RUN_DIR='${NVCHECKER_RUN_DIR}'"
           
-          echo "Script finished minimal execution."
+          ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"
+          _log_raw_debug "ARTIFACTS_DIR='${ARTIFACTS_DIR}'"
+          
+          PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
+          _log_raw_debug "PACKAGE_DETAILS_JSON_PATH='${PACKAGE_DETAILS_JSON_PATH}'"
+          _log_raw_notice "VARS_END" "Initial constants defined."
+
+          # --- Test setup_environment function ---
+          setup_environment() {
+              _start_raw_group "DEBUG: setup_environment Function"
+              _log_raw_notice "SETUP_ENV_START" "Entering setup_environment function."
+              
+              _log_raw_debug "Running: sudo -u builder mkdir -p \"${NVCHECKER_RUN_DIR}\""
+              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"
+              _log_raw_debug "Finished: sudo -u builder mkdir -p \"${NVCHECKER_RUN_DIR}\". Exit code: $?"
+
+              _log_raw_debug "Running: sudo -u builder mkdir -p \"${ARTIFACTS_DIR}\""
+              sudo -u builder mkdir -p "${ARTIFACTS_DIR}"
+              _log_raw_debug "Finished: sudo -u builder mkdir -p \"${ARTIFACTS_DIR}\". Exit code: $?"
+
+              _log_raw_debug "Running: cd \"${NVCHECKER_RUN_DIR}\""
+              cd "${NVCHECKER_RUN_DIR}"
+              _log_raw_debug "Finished: cd \"${NVCHECKER_RUN_DIR}\". Current directory: $(pwd). Exit code: $?"
+
+              _log_raw_notice "SETUP_ENV_COPY_SCRIPTS" "Copying necessary scripts..."
+              for script_name_to_copy in "buildscript.py" "compare_aur_local_versions.py"; do
+                  _log_raw_debug "Processing script: ${script_name_to_copy}"
+                  local script_path_in_workspace="${GITHUB_WORKSPACE}/scripts/${script_name_to_copy}"
+                  _log_raw_debug "Source path: ${script_path_in_workspace}"
+                  
+                  if [ ! -f "${script_path_in_workspace}" ]; then
+                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Required script ${script_name_to_copy} not found at ${script_path_in_workspace}! This is FATAL for setup_environment."
+                      # exit 1 # Exit here makes it clear this is the failure point
+                  fi
+                  _log_raw_debug "Script ${script_name_to_copy} exists at source."
+
+                  _log_raw_debug "Running: sudo -u builder cp \"${script_path_in_workspace}\" \"${NVCHECKER_RUN_DIR}/\""
+                  sudo -u builder cp "${script_path_in_workspace}" "${NVCHECKER_RUN_DIR}/"
+                  _log_raw_debug "Finished: sudo -u builder cp for ${script_name_to_copy}. Exit code: $?"
+
+                  _log_raw_debug "Running: sudo -u builder chmod +x \"${NVCHECKER_RUN_DIR}/${script_name_to_copy}\""
+                  sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name_to_copy}"
+                  _log_raw_debug "Finished: sudo -u builder chmod +x for ${script_name_to_copy}. Exit code: $?"
+              done
+              
+              _log_raw_debug "Listing contents of ${NVCHECKER_RUN_DIR} after copy:"
+              ls -la "${NVCHECKER_RUN_DIR}" | while IFS= read -r line; do _log_raw_debug "  ls: $line"; done
+
+              _log_raw_notice "SETUP_ENV_END" "Exiting setup_environment function successfully."
+              _end_raw_group
+              return 0 # Explicitly return success
+          }
+          _log_raw_notice "SETUP_ENV_DEF_DONE" "setup_environment function defined."
+
+          # --- Call only setup_environment for now ---
+          _log_raw_notice "CALLING_SETUP_ENV" "Attempting to call setup_environment..."
+          if setup_environment; then
+            _log_raw_notice "CALL_SETUP_ENV_SUCCESS" "setup_environment function call SUCCEEDED."
+          else
+            _log_raw_error "CALL_SETUP_ENV_FAILED" "setup_environment function call FAILED. Exit code from function: $?. This is a critical failure."
+            exit 1 # Ensure workflow fails if setup_environment fails
+          fi
+
+          _log_raw_notice "SCRIPT_PARTIAL_END" "Initial debugging script part finished successfully. If you see this, setup_environment worked."
+          
+          #
+          # --- ALL OTHER FUNCTIONS AND MAIN CALL ARE TEMPORARILY OMITTED ---
+          # e.g., generate_nvchecker_config, run_version_checks, get_package_updates_list,
+          # extract_path_components, extract_pkgbuild_details, process_single_package_details,
+          # execute_package_build_script, main()
+          #
+          # If the above works, you will start adding these back one by one.
+          #
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Add other env vars from your job if they are needed by setup_environment directly,
+          # though typically they are used later.
+          # AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }} # Example if needed by an early part

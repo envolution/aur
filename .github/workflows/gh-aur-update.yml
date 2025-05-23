@@ -90,7 +90,7 @@ jobs:
           echo "::group::Install gh-aur-updater"
           sudo -u builder mkdir -p /tmp/gh-aur-updater
           cd /tmp/gh-aur-updater
-          sudo -u builder cp ${GITHUB_WORKSPACE}/scripts/gh-aur-updates.PKGBUILD PKGBUILD
+          sudo -u builder cp ${GITHUB_WORKSPACE}/scripts/gh-aur-updater.PKGBUILD PKGBUILD
           sudo -u builder paru -U
           pacman --noconfirm -U /tmp/gh-aur-updater/*zst
           which gh-aur-updater

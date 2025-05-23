@@ -1,7 +1,7 @@
-name: Grouped NVCHECKER Updates
+name: gh-aur-updater automatic
 on:
-  schedule:
-    - cron: '0 */12 * * *'  # Runs every 12 hours
+  #schedule:
+  #  - cron: '0 */12 * * *'  # Runs every 12 hours
   workflow_dispatch:  # Allows manual triggering
 
 jobs:

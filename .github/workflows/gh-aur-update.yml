@@ -140,15 +140,13 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUNID: ${{ github.runid }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          DEBUG_MODE: "true"
+          DRY_RUN_MODE: "true"
         run: |
-          echo "::notice::Attempting to execute external script main_task_script.sh"
-          # Ensure the script is executable inside the container if permissions were lost
-          mkdir -p task
-          cp ${GITHUB_WORKSPACE}/scripts/main_task_script.sh task/
-          chmod +x task/main_task_script.sh 
-          ls -la task
-          file task/main_task_script.sh
-          ./task/main_task_script.sh 
+          echo "::notice title=Python Script Invocation::Attempting to execute gh-aur-updater"
+          gh-aur-updater
+          echo "::notice title=Python Script Completion::gh-aur-updater finished."
 
       - name: Upload build logs and artifacts
         if: always()

@@ -295,20 +295,27 @@ extract_pkgbuild_details() {
 
   echo "$declarations" # This is the stdout of extract_pkgbuild_details, goes to the calling function.
 }
-
+# In main.txt
 process_single_package_details() {
+  # This debug line correctly goes to stderr
   _log_debug "process_single_package_details: pkg='$1', rel_dir='$2'" >&2
   local package_name="$1"
   local pkgbuild_dir_rel_to_workspace="$2"
   local declarations
   if ! declarations=$(extract_pkgbuild_details "${GITHUB_WORKSPACE}/${pkgbuild_dir_rel_to_workspace}"); then
-    _log_warning "PROCESS_FAIL" "extract_pkgbuild_details failed for ${package_name}." # Changed to warning
+    # This warning correctly goes to stderr
+    _log_warning "PROCESS_FAIL" "extract_pkgbuild_details failed for ${package_name}." >&2
+    # This jq output is the stdout of this function branch, which is correct.
     jq -n --arg pkg_name_arg "$package_name" '{($pkg_name_arg): {"error": "failed to extract PKGBUILD details"}}'
-    return 1 # Still return 1 to indicate this package's details processing failed.
+    return 1
   fi
-  _log_debug "Bash declarations for ${package_name} to be eval'd: ${declarations}"
+
+  # MODIFIED LINE: Ensure this debug output goes to stderr
+  _log_debug "Bash declarations for ${package_name} to be eval'd: ${declarations}" >&2
+
   unset depends makedepends checkdepends source # Ensure clean slate
-  eval "$declarations"                          # This evals the 'declare -p' output
+  eval "$declarations"                          # This evals the 'declare -p' output. Errors here will be caught by set -e.
+
   local dep_j mak_j chk_j src_j
   # Safely create JSON arrays, handling cases where arrays might be unset or empty after eval
   dep_j=$(declare -p depends &>/dev/null && [ ${#depends[@]} -gt 0 ] && printf '%s\n' "${depends[@]}" | jq -R -s -c 'split("\n")[:-1]' || echo "[]")
@@ -316,7 +323,10 @@ process_single_package_details() {
   chk_j=$(declare -p checkdepends &>/dev/null && [ ${#checkdepends[@]} -gt 0 ] && printf '%s\n' "${checkdepends[@]}" | jq -R -s -c 'split("\n")[:-1]' || echo "[]")
   src_j=$(declare -p source &>/dev/null && [ ${#source[@]} -gt 0 ] && printf '%s\n' "${source[@]}" | jq -R -s -c 'split("\n")[:-1]' || echo "[]")
 
-  _log_debug "JSON arrays for ${package_name}: depends=${dep_j}, makedepends=${mak_j}, checkdepends=${chk_j}, sources=${src_j}"
+  # MODIFIED LINE: Ensure this debug output also goes to stderr
+  _log_debug "JSON arrays for ${package_name}: depends=${dep_j}, makedepends=${mak_j}, checkdepends=${chk_j}, sources=${src_j}" >&2
+
+  # This final jq command is the *intended stdout* of this function, which will be captured.
   jq -n --arg pkg "$package_name" --argjson d "$dep_j" --argjson m "$mak_j" --argjson c "$chk_j" --argjson s "$src_j" \
     '{($pkg): {depends: $d, makedepends: $m, checkdepends: $c, sources: $s}}'
 }

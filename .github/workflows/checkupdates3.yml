@@ -121,7 +121,7 @@ jobs:
           echo "Git configuration complete."
           echo "::endgroup::"
 
-      - name: Run Arch Package Update and Build Task # Fix eval, CARCH, empty JSON arrays, jq merge
+      - name: Run Arch Package Update and Build Task # Fix unbound array handling
         shell: bash
         run: |
           #!/bin/bash
@@ -207,44 +207,33 @@ jobs:
           
           get_package_updates_list() {
               _start_group "Get Package Updates List"; 
-              _log_notice "GET_UPDATES" "Determining packages to update using nvcmp -q only (changes.json from python script used for 'upgrade' status later if needed)..."
+              _log_notice "GET_UPDATES" "Determining packages to update using nvcmp -q only..."
               if [ ! -f "new.toml" ]; then _log_error "GET_UPDATES_FAIL" "new.toml not found for nvcmp -q!"; _end_group; return 1; fi
-              
-              # The changes.json from nvcmp (text diff) is not used by this function's jq.
-              # The changes.json from compare_aur_local_versions.py (JSON format) would be used if we re-enable that part.
-              # For now, UPDATES primarily comes from nvcmp -q.
               local updates_from_nvcmp_q=()
               mapfile -t updates_from_nvcmp_q < <(sudo -E -u builder nvcmp -c new.toml -q 2>/dev/null || true)
               _log_debug "Found ${#updates_from_nvcmp_q[@]} updates from nvcmp -q."
               printf "  ::debug::updates_from_nvcmp_q: [%s]\n" "$(IFS=,; echo "${updates_from_nvcmp_q[*]}")"
-              
               declare -ga UPDATES; 
-              # Populate UPDATES only from nvcmp -q for now to simplify
               local temp_file_nvcmp_q; temp_file_nvcmp_q=$(mktemp)
-              if [ ${#updates_from_nvcmp_q[@]} -gt 0 ]; then
-                  printf '%s\n' "${updates_from_nvcmp_q[@]}" > "${temp_file_nvcmp_q}"
-              else
-                  >"${temp_file_nvcmp_q}" 
-              fi
+              if [ ${#updates_from_nvcmp_q[@]} -gt 0 ]; then printf '%s\n' "${updates_from_nvcmp_q[@]}" > "${temp_file_nvcmp_q}"; else >"${temp_file_nvcmp_q}"; fi
               mapfile -t UPDATES < <(sort -u "${temp_file_nvcmp_q}" | grep .) 
               rm "${temp_file_nvcmp_q}"
-
               if [ ${#UPDATES[@]} -eq 0 ]; then _log_notice "GET_UPDATES" "No packages require updates based on nvcmp -q."
               else _log_notice "GET_UPDATES" "Found ${#UPDATES[@]} package(s) to update (from nvcmp -q):"; printf '  ::notice title=Update Candidate (nvcmp -q)::%s\n' "${UPDATES[@]}"; fi
               _log_notice "GET_UPDATES" "Package update list generation SUCCEEDED."; _end_group; return 0
           }
 
           extract_path_components() { 
-              echo "::debug::extract_path_components input: $1" >&2 # Log to stderr
+              echo "::debug::extract_path_components input: $1" >&2 
               local path_to_parse="$1"; local relative_path="${path_to_parse#${GITHUB_WORKSPACE}/}"
               relative_path="${relative_path%/}";  relative_path="${relative_path#/}" 
               IFS='/' read -r -a components_array <<< "${relative_path}"
-              echo "::debug::extract_path_components output: ${components_array[*]}" >&2 # Log to stderr
-              echo "${components_array[@]}" # Output to stdout for capture
+              echo "::debug::extract_path_components output: ${components_array[*]}" >&2 
+              echo "${components_array[@]}" 
           }
 
           extract_pkgbuild_details() { 
-              echo "::debug::extract_pkgbuild_details input (absolute PKGBUILD dir): $1" >&2 # Log to stderr
+              echo "::debug::extract_pkgbuild_details input (absolute PKGBUILD dir): $1" >&2 
               local pkgbuild_dir_abs="$1" 
               if [ ! -f "${pkgbuild_dir_abs}/PKGBUILD" ]; then 
                   echo "::error title=EXTRACT_FAIL::PKGBUILD missing in ${pkgbuild_dir_abs}" >&2
@@ -252,8 +241,7 @@ jobs:
               fi
               ( 
                   CARCH="x86_64"; PKGDEST="/tmp/pkgdest"; SRCDEST="/tmp/srcdest"; SRCPKGDEST="/tmp/srcpkgdest"
-                  # shellcheck source=/dev/null
-                  source "${pkgbuild_dir_abs}/PKGBUILD"
+                  source "${pkgbuild_dir_abs}/PKGBUILD" # Shellcheck source=/dev/null
                   declare -p depends makedepends checkdepends source 2>/dev/null || true 
               ) || 
               { 
@@ -273,14 +261,27 @@ jobs:
               fi
               echo "::debug::Bash declarations for ${package_name} to be eval'd: ${declarations}" >&2
               
-              unset depends makedepends checkdepends source # Clear before eval
-              eval "$declarations" # This should now only contain 'declare -a ...' lines
+              unset depends makedepends checkdepends source 
+              eval "$declarations" 
               
               local dep_j mak_j chk_j src_j 
-              dep_j=$( [ ${#depends[@]} -eq 0 ]     && echo "[]" || printf '%s\n' "${depends[@]}"     | jq -R -s -c 'split("\n")[:-1]')
-              mak_j=$( [ ${#makedepends[@]} -eq 0 ] && echo "[]" || printf '%s\n' "${makedepends[@]}" | jq -R -s -c 'split("\n")[:-1]')
-              chk_j=$( [ ${#checkdepends[@]} -eq 0 ]&& echo "[]" || printf '%s\n' "${checkdepends[@]}"| jq -R -s -c 'split("\n")[:-1]')
-              src_j=$( [ ${#source[@]} -eq 0 ]      && echo "[]" || printf '%s\n' "${source[@]}"      | jq -R -s -c 'split("\n")[:-1]')
+
+              if declare -p depends &>/dev/null && [ ${#depends[@]} -gt 0 ]; then
+                  dep_j=$(printf '%s\n' "${depends[@]}" | jq -R -s -c 'split("\n")[:-1]')
+              else dep_j="[]"; fi
+
+              if declare -p makedepends &>/dev/null && [ ${#makedepends[@]} -gt 0 ]; then
+                  mak_j=$(printf '%s\n' "${makedepends[@]}" | jq -R -s -c 'split("\n")[:-1]')
+              else mak_j="[]"; fi
+
+              if declare -p checkdepends &>/dev/null && [ ${#checkdepends[@]} -gt 0 ]; then
+                  chk_j=$(printf '%s\n' "${checkdepends[@]}" | jq -R -s -c 'split("\n")[:-1]')
+              else chk_j="[]"; fi
+
+              if declare -p source &>/dev/null && [ ${#source[@]} -gt 0 ]; then
+                  src_j=$(printf '%s\n' "${source[@]}" | jq -R -s -c 'split("\n")[:-1]')
+              else src_j="[]"; fi
+              
               echo "::debug::JSON arrays for ${package_name}: depends=${dep_j}, makedepends=${mak_j}, checkdepends=${chk_j}, sources=${src_j}" >&2
               
               jq -n --arg pkg "$package_name" --argjson d "$dep_j" --argjson m "$mak_j" --argjson c "$chk_j" --argjson s "$src_j" \
@@ -316,7 +317,6 @@ jobs:
                   _end_group; continue
               fi
               
-              # Removed 'local' from these variables
               pkg_build_dirs_found=() 
               mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_process}" -type d -exec test -f "{}/PKGBUILD" \; -print)
 
@@ -341,13 +341,12 @@ jobs:
               _log_debug "JSON fragment for ${package_to_process}: ${single_package_json_fragment}"
 
               temp_merged_json="" 
-              # Robust jq merge using --argjson
               if temp_merged_json=$(jq -n --argjson current_json "$combined_pkg_details_json" --argjson fragment_json "$single_package_json_fragment" '$current_json + $fragment_json'); then
                  combined_pkg_details_json="$temp_merged_json" 
                  _log_debug "Merged JSON for ${package_to_process}."
                  if ! $process_details_succeeded; then _log_warning "JSON_GEN_PKG_MERGED_ERROR" "Merged JSON for ${package_to_process} (contained error field)."; fi
               else
-                 _log_error "JSON_GEN_PKG_MERGE_FAIL" "jq merge FAILED for ${package_to_process}. Fragment: ${single_package_json_fragment}. Combined: ${combined_pkg_details_json}"
+                 _log_error "JSON_GEN_PKG_MERGE_FAIL" "jq merge FAILED for ${package_to_process}. Fragment: ${single_package_json_fragment}. Combined was: ${combined_pkg_details_json}"
               fi
               _end_group 
           done

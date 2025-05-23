@@ -533,23 +533,29 @@ class ArchPackageBuilder:
             self.subprocess_runner.run_command(
                 ["sudo", "pacman", "--noconfirm", "-U"] + [str(p) for p in built_package_files]
             )
-
             if self.artifacts_path:
                 self.logger.info(f"Copying build artifacts to {self.artifacts_path}...")
-                # Copy PKGBUILD, .SRCINFO, and any logs or packages to artifacts_path
-                files_to_artifact = ["PKGBUILD", ".SRCINFO"] + [p.name for p in built_package_files]
-                for log_file_pattern in ["*.log", "*.log.*", "*_log", "*makepkg*.txt"]: # Common log patterns
-                    files_to_artifact.extend([lf.name for lf in self.build_dir.glob(log_file_pattern)])
+                # Start with PKGBUILD, .SRCINFO, and built package files
+                files_to_artifact_names = ["PKGBUILD", ".SRCINFO"] + [p.name for p in built_package_files]
                 
-                for file_name in set(files_to_artifact): # Use set to avoid duplicates
+                # Add only *.log files
+                self.logger.debug(f"Searching for *.log files in {self.build_dir}")
+                for log_file in self.build_dir.glob("*.log"):
+                    if log_file.is_file(): # Ensure it's a file
+                        files_to_artifact_names.append(log_file.name)
+                        self.logger.debug(f"Found log file for artifact: {log_file.name}")
+                
+                for file_name in set(files_to_artifact_names): # Use set to avoid duplicates if any
                     src_file = self.build_dir / file_name
-                    if src_file.exists():
-                        dest_file = self.artifacts_path / src_file.name # Keep original name in flat artifact dir for package
+                    if src_file.exists(): # Check if file actually exists in build_dir
+                        dest_file = self.artifacts_path / src_file.name 
                         try:
                             shutil.copy2(src_file, dest_file)
                             self.logger.debug(f"Copied artifact {src_file.name} to {dest_file}")
                         except Exception as e:
-                            self.logger.warning(f"Failed to copy artifact {src_file.name}: {e}")
+                            self.logger.warning(f"Failed to copy artifact {src_file.name} to {dest_file}: {e}")
+                    else:
+                        self.logger.warning(f"Expected artifact file '{file_name}' not found in {self.build_dir}.")
             
             if self.config.build_mode == "build": # Only create GH release for "build" mode
                 if self.result.version: # Version must be known
@@ -701,27 +707,28 @@ class ArchPackageBuilder:
             self.result.error_message = (self.result.error_message or "") + f"; Unexpected error in git/source repo update: {str(e)}"
             return False
 
-
+# In buildscript2.py / ArchPackageBuilder class
     def _update_github_file(self, path_in_repo: str, local_file_path: Path, commit_msg: str):
-        """Updates a file in the GitHub repository using the gh CLI."""
         self.logger.info(f"Updating '{path_in_repo}' in GitHub repo '{self.config.github_repo}' from local file '{local_file_path}'.")
         try:
             with open(local_file_path, "rb") as f:
                 content_bytes = f.read()
             content_b64 = base64.b64encode(content_bytes).decode("utf-8")
 
+            # Get current SHA. No -R needed if repo is in the URL.
             get_sha_cmd = [
                 "gh", "api", f"repos/{self.config.github_repo}/contents/{path_in_repo}",
-                "--jq", ".sha", "-R", self.config.github_repo
+                "--jq", ".sha" 
+                # Removed: "-R", self.config.github_repo 
             ]
             sha_result = self.subprocess_runner.run_command(get_sha_cmd, check=False)
             current_sha = sha_result.stdout.strip() if sha_result.returncode == 0 and sha_result.stdout.strip() != "null" else None
 
-            # Use a more specific commit message for the source repo update
             source_repo_commit_message = f"Sync {Path(path_in_repo).name} from AUR build"
             if self.result.version:
                  source_repo_commit_message += f" (v{self.result.version})"
-            else: # Append original base commit message if no version part
+            # If no version, use the broader commit message from AUR commit
+            elif commit_msg:
                  source_repo_commit_message = commit_msg
 
 
@@ -732,16 +739,21 @@ class ArchPackageBuilder:
             if current_sha:
                 update_fields.extend(["-f", f"sha={current_sha}"])
             
+            # Update command. No -R needed if repo is in the URL.
             update_cmd = [
                 "gh", "api", "--method", "PUT",
                 f"repos/{self.config.github_repo}/contents/{path_in_repo}",
-            ] + update_fields + ["-R", self.config.github_repo] # -R might be redundant if repo in API path
+            ] + update_fields
+            # Removed: + ["-R", self.config.github_repo]
             
             self.subprocess_runner.run_command(update_cmd)
             self.logger.info(f"Successfully updated '{path_in_repo}' in source GitHub repository.")
 
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Failed to update '{path_in_repo}' in GitHub repo. CMD: {e.cmd}, RC: {e.returncode}, Stderr: {e.stderr}")
+            # Add more context to the error message stored in the result
+            detailed_error = f"gh api update for {path_in_repo} failed. CMD: {shlex.join(e.cmd)}. Stderr: {e.stderr}"
+            self.result.error_message = (self.result.error_message or "") + f"; {detailed_error}"
             raise 
         except FileNotFoundError:
             self.logger.error(f"Local file '{local_file_path}' not found for GitHub source update.")

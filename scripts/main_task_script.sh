@@ -297,7 +297,7 @@ extract_pkgbuild_details() {
 }
 
 process_single_package_details() {
-  _log_debug "process_single_package_details: pkg='$1', rel_dir='$2'"
+  _log_debug "process_single_package_details: pkg='$1', rel_dir='$2'" >&2
   local package_name="$1"
   local pkgbuild_dir_rel_to_workspace="$2"
   local declarations

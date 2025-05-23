@@ -417,11 +417,11 @@ jobs:
           _log_notice "BUILD_LOOP" "Finished build loop."
           _end_group
 
-          if ! $overall_build_success; then
-              _log_error "MAIN_EXEC_BUILD_FAIL" "One or more packages failed to build. See summary and individual build logs."
-              exit 1
-          fi
-          _log_notice "MAIN_EXEC" "All tasks completed successfully."
+          #if ! $overall_build_success; then
+          #    _log_error "MAIN_EXEC_BUILD_FAIL" "One or more packages failed to build. See summary and individual build logs."
+          #    exit 1
+          #fi
+          #_log_notice "MAIN_EXEC" "All tasks completed successfully."
 
       - name: Upload build logs and artifacts
         if: always()

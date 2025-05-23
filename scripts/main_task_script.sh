@@ -23,6 +23,7 @@ setup_environment() {
   _start_group "Setup Environment"; _log_notice "SETUP_ENV" "Configuring environment in ${NVCHECKER_RUN_DIR}..."
   if ! sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"; then _log_error "SETUP_FAIL" "mkdir NVCHECKER_RUN_DIR failed."; _end_group; return 1; fi
   if ! mkdir -p "${ARTIFACTS_DIR}"; then _log_error "SETUP_FAIL" "mkdir ARTIFACTS_DIR failed."; _end_group; return 1; fi
+  if ! chown builder:builder "${ARTIFACTS_DIR}"; then _log_error "SETUP_FAIL" "chown builder:builder ARTIFACTS_DIR failed."; _end_group; return 1; fi
   cd "${NVCHECKER_RUN_DIR}"; _log_debug "Now in $(pwd)."
   local all_ok=true
   for script_to_copy in "buildscript2.py" "compare_aur_local_versions.py"; do # Used buildscript2.py

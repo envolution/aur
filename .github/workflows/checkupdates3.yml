@@ -133,6 +133,7 @@ jobs:
           _log_raw_debug() { echo "::debug::$1"; }
           _log_raw_notice() { echo "::notice title=$1::$2"; }
           _log_raw_error() { echo "::error title=$1::$2"; }
+          _log_raw_warning() { echo "::warning title=$1::$2"; } 
           _start_raw_group() { echo "::group::$1"; }
           _end_raw_group() { echo "::endgroup::"; }
           _log_raw_notice "HELPER_DEF" "Helper functions defined."

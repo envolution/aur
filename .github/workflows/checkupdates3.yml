@@ -138,7 +138,8 @@ jobs:
             echo "::notice title=NVChecker Custom Source::Script not found at '${CUSTOM_NV_SOURCE_SCRIPT}'. Skipping."
           fi
           echo "::endgroup::"
-      - name: Run Arch Package Update and Build Task # Next test
+
+      - name: Run Arch Package Update and Build Task # Next test with chown fix
         shell: bash
         run: |
           #!/bin/bash
@@ -180,11 +181,11 @@ jobs:
               _log_raw_debug "Current directory after cd: $(pwd)."
 
               _log_raw_notice "SETUP_ENV_VERIFY_AND_COPY_SCRIPTS" "Verifying and copying necessary scripts..."
-              local all_scripts_found_and_copied=true
+              local all_scripts_found_and_copied=true # 'local' is fine here, inside function
 
               for script_name_to_copy in "buildscript.py" "compare_aur_local_versions.py"; do
                   _log_raw_debug "Processing script for verification and copy: ${script_name_to_copy}"
-                  local found_script_path
+                  local found_script_path # 'local' is fine here
                   found_script_path=$(find "${GITHUB_WORKSPACE}/scripts/" -name "${script_name_to_copy}" -type f -print -quit 2>/dev/null)
 
                   if [ -n "${found_script_path}" ] && [ -f "${found_script_path}" ]; then
@@ -202,7 +203,7 @@ jobs:
                           all_scripts_found_and_copied=false
                       fi
                   else
-                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Script '${script_name_to_copy}' NOT FOUND in expected path '${GITHUB_WORKSPACE}/scripts/'. Broader search may run if enabled, but this is an issue."
+                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Script '${script_name_to_copy}' NOT FOUND in expected path '${GITHUB_WORKSPACE}/scripts/'. This is an issue."
                       all_scripts_found_and_copied=false
                   fi
               done
@@ -226,8 +227,8 @@ jobs:
               _start_raw_group "DEBUG: generate_nvchecker_config Function"
               _log_raw_notice "NVCHECKER_CONFIG_START" "Entering generate_nvchecker_config function."
               
-              local combined_config_file="new.toml" # Relative to NVCHECKER_RUN_DIR as we cd'd there
-              local keyfile="keyfile.toml"         # Relative to NVCHECKER_RUN_DIR
+              local combined_config_file="new.toml" 
+              local keyfile="keyfile.toml"         
 
               _log_raw_debug "Target combined_config_file: $(pwd)/${combined_config_file}"
               _log_raw_debug "Target keyfile: $(pwd)/${keyfile}"
@@ -236,26 +237,18 @@ jobs:
               echo "[__config__]" > "${combined_config_file}"
               echo "oldver = 'aur.json'" >> "${combined_config_file}" 
               echo "newver = 'local.json'" >> "${combined_config_file}" 
-              _log_raw_debug "Base config written. Current content of ${combined_config_file}:"
-              cat "${combined_config_file}" | while IFS= read -r line; do _log_raw_debug "  ${combined_config_file}: $line"; done
+              _log_raw_debug "Base config written."
 
               _log_raw_debug "Writing keyfile ${keyfile} with GHuK secret..."
-              # Mask the secret in the log (set -x will still show it, this is for our manual debug lines)
-              echo "[keys]" > "${keyfile}"
-              echo "github = '********'" >> "${keyfile}" # Log masked version
-              # Actual write:
-              echo "[keys]" > "${keyfile}" # Overwrite for actual content
+              echo "[keys]" > "${keyfile}" 
               echo "github = '${{ secrets.GHuK }}'" >> "${keyfile}"
-              _log_raw_debug "Keyfile ${keyfile} written. Content (secret masked in log):"
-              cat "${keyfile}" | sed "s/${{ secrets.GHuK }}/********/g" | while IFS= read -r line; do _log_raw_debug "  ${keyfile}: $line"; done
+              _log_raw_debug "Keyfile ${keyfile} written."
               
               _log_raw_notice "NVCHECKER_CONFIG_APPEND" "Appending individual .nvchecker.toml files..."
-              # Path GITHUB_WORKSPACE/maintain/build is an example, adjust if your structure differs
-              local find_path_pattern="${GITHUB_WORKSPACE}" # Start search from workspace root
+              local find_path_pattern="${GITHUB_WORKSPACE}" 
               _log_raw_debug "Searching for .nvchecker.toml files in paths matching '${find_path_pattern}' and subdirectory pattern '*/maintain/build/*/.nvchecker.toml'"
 
-              # Store find results in an array to count and log them
-              local individual_nvchecker_configs=()
+              local individual_nvchecker_configs=() # 'local' is fine here
               mapfile -t individual_nvchecker_configs < <(find "${find_path_pattern}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print)
               
               if [ ${#individual_nvchecker_configs[@]} -eq 0 ]; then
@@ -266,23 +259,20 @@ jobs:
                   for conf_file in "${individual_nvchecker_configs[@]}"; do
                       _log_raw_debug "Appending content of '${conf_file}' to '${combined_config_file}'"
                       cat "${conf_file}" >> "${combined_config_file}"
-                      echo "" >> "${combined_config_file}" # Ensure a newline
+                      echo "" >> "${combined_config_file}" 
                   done
               fi
               
-              _log_raw_debug "Final content of combined_config_file (${combined_config_file}):"
-              # Avoid printing very large config to logs unless necessary for deep debugging
-              # cat "${combined_config_file}" | while IFS= read -r line; do _log_raw_debug "  ${combined_config_file}: $line"; done
               _log_raw_debug "Verifying size of ${combined_config_file}: $(wc -c < "${combined_config_file}") bytes"
 
-
-              _log_raw_debug "Changing ownership of '${combined_config_file}' and '${keyfile}' to builder..."
-              if sudo -u builder chown builder:builder "${combined_config_file}" "${keyfile}"; then
+              _log_raw_debug "Changing ownership of '${combined_config_file}' and '${keyfile}' to builder:builder..."
+              # Script runs as root here, so direct chown is fine and correct.
+              if chown builder:builder "${combined_config_file}" "${keyfile}"; then
                  _log_raw_debug "Ownership change SUCCESS for nvchecker config files."
               else
                  _log_raw_error "NVCHECKER_CONFIG_CHOWN_FAILED" "Could not chown nvchecker config files. Exit code $?."
                  _end_raw_group
-                 return 1 # Fail if chown fails
+                 return 1 
               fi
               _log_raw_notice "NVCHECKER_CONFIG_END" "Exiting generate_nvchecker_config function successfully."
               _end_raw_group
@@ -293,12 +283,15 @@ jobs:
 
           # --- Main Execution Flow (Phased) ---
           _log_raw_notice "MAIN_EXEC_START" "Starting main execution flow..."
+          
+          exit_code_setup_env=0 # Initialize for safety, though set -e should prevent use if call fails
+          exit_code_nv_config=0 # Initialize
 
           # Phase 1: Setup Environment
           if setup_environment; then
             _log_raw_notice "MAIN_EXEC_SETUP_SUCCESS" "setup_environment function call SUCCEEDED."
           else
-            local exit_code_setup_env=$?
+            exit_code_setup_env=$? # Not 'local'
             _log_raw_error "MAIN_EXEC_SETUP_FAILED" "setup_environment function call FAILED. Exit code: ${exit_code_setup_env}. Stopping workflow."
             exit "${exit_code_setup_env}" 
           fi
@@ -308,7 +301,7 @@ jobs:
           if generate_nvchecker_config; then
             _log_raw_notice "MAIN_EXEC_NVCHECKER_CONFIG_SUCCESS" "generate_nvchecker_config call SUCCEEDED."
           else
-            local exit_code_nv_config=$?
+            exit_code_nv_config=$? # Not 'local'
             _log_raw_error "MAIN_EXEC_NVCHECKER_CONFIG_FAILED" "generate_nvchecker_config call FAILED. Exit code: ${exit_code_nv_config}. Stopping workflow."
             exit "${exit_code_nv_config}"
           fi
@@ -320,6 +313,4 @@ jobs:
           #
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Ensure GHuK is available if your generate_nvchecker_config uses it.
-          # It's referenced as ${{ secrets.GHuK }} in the function.
-
+          # GHuK is referenced as ${{ secrets.GHuK }} in generate_nvchecker_config.

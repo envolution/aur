@@ -14,7 +14,6 @@ jobs:
         AUR_MAINTAINER_NAME: envolution
         GIT_USERNAME: envolution
         GIT_EMAIL: involution@gmail.com
-        # For GITHUB_STEP_SUMMARY
         ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
 
     steps:
@@ -126,6 +125,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
+          SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
           #!/bin/bash
           set -euo pipefail 
@@ -170,7 +170,7 @@ jobs:
               _start_group "Generate NVChecker Configuration"; _log_notice "NV_CONF" "Generating nvchecker config files..."
               local cfg="new.toml"; local keyf="keyfile.toml"         
               echo "[__config__]" > "${cfg}"; echo "oldver = 'aur.json'" >> "${cfg}"; echo "newver = 'local.json'" >> "${cfg}" 
-              echo "[keys]" > "${keyf}"; echo "github = '${{ secrets.GHuK }}'" >> "${keyf}"
+              echo "[keys]" > "${keyf}"; echo "github = '${SECRET_GHUK_VALUE}'" >> "${keyf}"
               local individual_configs=(); mapfile -t individual_configs < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print)
               if [ ${#individual_configs[@]} -gt 0 ]; then
                   _log_debug "Appending ${#individual_configs[@]} individual .nvchecker.toml files."

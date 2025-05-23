@@ -343,134 +343,85 @@ class ArchPackageBuilder:
             self.result.error_message = f"Dependency installation failed for {package_name} (paru exit code {install_result.returncode}). Check logs."
             return False
 
+# In buildscript2.py / ArchPackageBuilder class
 
     def check_version_update(self) -> Optional[str]:
         nvchecker_config_path = self.build_dir / ".nvchecker.toml"
         if not nvchecker_config_path.is_file():
             self.logger.info(f".nvchecker.toml not found in {self.build_dir}, skipping version check.")
-            return None
+            return self._get_current_pkgbuild_version() # Return current version if no check
 
-        # keyfile.toml is expected to be in the current working directory (NVCHECKER_RUN_DIR from main.txt)
-        # buildscript2.py is executed from NVCHECKER_RUN_DIR, so relative path "keyfile.toml" is fine.
-        # However, nvchecker itself is run from self.build_dir after os.chdir.
-        # So, keyfile path needs to be absolute or relative to where nvchecker is run from.
-        # Let's make keyfile_path absolute based on original CWD (NVCHECKER_RUN_DIR).
-        # The script starts in NVCHECKER_RUN_DIR, then changes to self.build_dir.
-        # So, Path("keyfile.toml") would resolve *relative to self.build_dir* when nvchecker is run.
-        # The keyfile is in the directory *from which buildscript2.py was launched*.
-        # Store original CWD at start of run() and use that.
-        # For now, assume buildscript2.py CWD is NVCHECKER_RUN_DIR, and keyfile.toml is there.
-        # nvchecker is called after os.chdir(self.build_dir).
-        # So keyfile_path should be relative to self.build_dir, pointing back to NVCHECKER_RUN_DIR.
-        
-        # Simpler: The keyfile is copied to NVCHECKER_RUN_DIR.
-        # buildscript2.py is also copied and run from NVCHECKER_RUN_DIR.
-        # So, `Path("keyfile.toml")` should work if nvchecker is also run from NVCHECKER_RUN_DIR.
-        # BUT nvchecker is run *after* chdir to self.build_dir.
-        # So, the path to keyfile.toml needs to be relative from self.build_dir to where buildscript2.py was launched.
-        # The calling script `main.txt` ensures `keyfile.toml` is in `NVCHECKER_RUN_DIR`.
-        # `buildscript2.py` is also run from `NVCHECKER_RUN_DIR`.
-        # So, when `os.chdir(self.build_dir)` happens, `Path.cwd()` changes.
-        # We need an absolute path to `keyfile.toml` or one relative to `self.build_dir`.
-
-        # Path to keyfile.toml relative to the initial CWD of buildscript2.py
-        # This assumes buildscript2.py is launched from the dir containing keyfile.toml
-        # (which is NVCHECKER_RUN_DIR as per main.txt)
-        initial_cwd = Path(self.config.github_workspace).parent / "nvchecker-run" # This is a bit of a hack to reconstruct NVCHECKER_RUN_DIR
-                                                                                  # Better to pass NVCHECKER_RUN_DIR as a config.
-                                                                                  # For now, let's assume keyfile.toml is in the CWD *when nvchecker is invoked*.
-                                                                                  # No, nvchecker needs the path *to* the keyfile.
-        keyfile_path = self.config.base_build_dir.parent / "nvchecker-run" / "keyfile.toml" # Reconstruct based on known structure. Risky.
-        # Best: make keyfile path an argument to buildscript2.py or make nvchecker run from NVCHECKER_RUN_DIR.
-        # Let's assume the keyfile is in NVCHECKER_RUN_DIR, and buildscript2.py is also run from there.
-        # So, when we are in self.build_dir, path to keyfile is os.path.relpath(NVCHECKER_RUN_DIR + "/keyfile.toml", self.build_dir)
-        # Or, use absolute path if NVCHECKER_RUN_DIR is passed.
-        
-        # Fixed: `keyfile.toml` is in `NVCHECKER_RUN_DIR`. buildscript2.py is also run from there.
-        # So, when nvchecker is run (after chdir to self.build_dir), the keyfile is at `../keyfile.toml`
-        # if self.build_dir is a direct subdir of NVCHECKER_RUN_DIR. This is not the case.
-        # self.build_dir is under PACKAGE_BUILD_BASE_DIR.
-        # NVCHECKER_RUN_DIR and PACKAGE_BUILD_BASE_DIR are siblings under /home/builder.
-        # So, if CWD is /home/builder/pkg_builds/build-pkg-xyz
-        # Keyfile is at /home/builder/nvchecker-run/keyfile.toml
-        # Relative path: ../../nvchecker-run/keyfile.toml
-
-        # Let's try making keyfile_path relative to self.build_dir
-        # This assumes self.build_dir = /home/builder/pkg_builds/build-<pkg>-<hex>
-        # And keyfile is at /home/builder/nvchecker-run/keyfile.toml
-        # So from self.build_dir, path is ../../nvchecker-run/keyfile.toml
-        keyfile_path_relative_to_build_dir = Path("../../nvchecker-run/keyfile.toml")
-        # More robustly, construct absolute path if NVCHECKER_RUN_DIR can be known.
-        # For now, using the relative path based on the established structure in main.txt.
-        # This requires NVCHECKER_RUN_DIR and PACKAGE_BUILD_BASE_DIR to be siblings under BUILDER_HOME.
-        # BUILDER_HOME/nvchecker-run
-        # BUILDER_HOME/pkg_builds/ (this is self.config.base_build_dir)
-        #   build-pkg-name-xxxx/ (this is self.build_dir)
-
-        # Get absolute path to nvchecker_run_dir from base_build_dir
+        # Construct absolute path to keyfile.toml
+        # self.config.base_build_dir is e.g. /home/builder/pkg_builds
+        # NVCHECKER_RUN_DIR is a sibling, e.g. /home/builder/nvchecker-run
         nvchecker_run_dir_abs = self.config.base_build_dir.parent / "nvchecker-run"
         keyfile_abs_path = nvchecker_run_dir_abs / "keyfile.toml"
 
         if not keyfile_abs_path.is_file():
-            self.logger.warning(f"NVChecker keyfile not found at {keyfile_abs_path} (derived from build config). Version check might fail for sources requiring auth.")
+            self.logger.warning(f"NVChecker keyfile not found at {keyfile_abs_path}. Version check might fail for sources requiring auth.")
         
         try:
-            # nvchecker is run from self.build_dir (current CWD)
             cmd = [
                 "nvchecker",
-                "-c", str(nvchecker_config_path), # This is .nvchecker.toml inside self.build_dir
+                "-c", str(nvchecker_config_path), 
             ]
             if keyfile_abs_path.is_file():
-                 cmd.extend(["-k", str(keyfile_abs_path)]) # Use absolute path to keyfile
+                 cmd.extend(["-k", str(keyfile_abs_path)])
 
-            # No --logger json for this specific invocation, parse structured output
-            result = self.subprocess_runner.run_command(cmd, check=False) # nvchecker can exit non-zero if no update
-            self.logger.debug(f"Raw NVChecker output (stdout): {result.stdout}")
-            self.logger.debug(f"Raw NVChecker output (stderr): {result.stderr}")
+            # nvchecker (without --logger json) sends "updated to X" to stderr.
+            # Other info/errors can also go to stderr. stdout might be for specific formatted output.
+            result = self.subprocess_runner.run_command(cmd, check=False) 
+            
+            self.logger.debug(f"NVChecker command: {shlex.join(cmd)}")
+            self.logger.debug(f"NVChecker exit code: {result.returncode}")
+            self.logger.debug(f"NVChecker stdout: {result.stdout.strip()}")
+            self.logger.debug(f"NVChecker stderr: {result.stderr.strip()}")
 
-            # nvchecker output format: "package_name old_version -> new_version" or JSON lines if --logger json
-            # Without --logger json, it prints "pkgname old_ver -> new_ver"
-            # Let's parse this simple format.
             new_version = None
-            if result.returncode == 0 and result.stdout: # Success and has output
-                for line in result.stdout.splitlines():
-                    line = line.strip()
-                    if not line: continue
-                    # Example: mypackage 1.0 -> 1.1
-                    # Example: mypackage 1.1 (already new)
-                    # Example: mypackage error: ...
-                    if "->" in line and "error:" not in line.lower():
-                        parts = line.split("->")
-                        if len(parts) == 2:
-                            new_version_candidate = parts[1].strip().split(" ")[0] # Get "1.1" from "1.1" or "1.1 (whatever)"
-                            # Check if it's for the current package. Output should be specific if .nvchecker.toml is specific.
-                            if self.config.package_name in parts[0]:
-                                new_version = new_version_candidate
-                                self.logger.info(f"NVChecker found new version: {new_version} for {self.config.package_name}")
-                                self._update_pkgbuild_version(new_version)
-                                self.result.version = new_version # Store the new version
-                                break 
-                    elif "(already new)" in line:
-                         self.logger.info(f"NVChecker reports version for {self.config.package_name} is already up-to-date.")
-                         # Try to parse current version from PKGBUILD to set self.result.version for consistency
-                         current_pkgver = self._get_current_pkgbuild_version()
-                         if current_pkgver: self.result.version = current_pkgver
-                         break # Stop processing output
+            # Parse stderr for the "updated to X" message
+            # Example stderr line: "[I 05-23 12:42:07.397 core:416] apache-spark: updated to 4.0.0"
+            # Example stderr line for already new: "[I 05-23 ... core:NNN] pkgname: current 1.2.3" (or similar)
+            # Example no update found: stderr might be empty or just log noise.
+            
+            # Regex to find "pkgname: updated to new_version" or "updated to new_version"
+            # Make it more specific to nvchecker's logging format if possible
+            # nvchecker info log format is typically `[I DATE TIME module:LINE] pkgname: message`
+            
+            update_pattern = re.compile(rf":\s*updated to\s+([^\s,]+)", re.IGNORECASE)
+            # Check if self.config.package_name is mentioned for safety, though nvchecker usually processes one .toml
+            # that should correspond to the package.
 
-            if not new_version and "(already new)" not in (result.stdout or "") :
-                self.logger.info(f"NVChecker did not report any new version for {self.config.package_name}. Output: {result.stdout}")
-                current_pkgver = self._get_current_pkgbuild_version()
-                if current_pkgver: self.result.version = current_pkgver
+            for line in result.stderr.splitlines(): # MODIFIED: Parse stderr
+                line = line.strip()
+                if not line: continue
+
+                match = update_pattern.search(line)
+                if match and self.config.package_name in line : # Ensure it's for our package and an update
+                    new_version_candidate = match.group(1)
+                    new_version = new_version_candidate
+                    self.logger.info(f"NVChecker (from stderr) found new version: {new_version} for {self.config.package_name}")
+                    self._update_pkgbuild_version(new_version) # This sets self.result.changes_detected
+                    self.result.version = new_version 
+                    break 
+                elif f"{self.config.package_name}: current" in line: # Example: "pkgname: current 1.2.3"
+                    self.logger.info(f"NVChecker (from stderr) reports version for {self.config.package_name} is already up-to-date.")
+                    current_ver_from_pkgbuild = self._get_current_pkgbuild_version()
+                    if current_ver_from_pkgbuild: self.result.version = current_ver_from_pkgbuild
+                    break # Stop processing output
+
+            if not new_version and not self.result.version : # If no update found and version not set by "current"
+                self.logger.info(f"NVChecker did not report any new or current version for {self.config.package_name} from stderr.")
+                self.result.version = self._get_current_pkgbuild_version() # Fallback to PKGBUILD
+            elif not new_version and self.result.version:
+                 self.logger.info(f"NVChecker found no new version; version remains {self.result.version} (likely current or from PKGBUILD).")
 
 
-            return self.result.version # Return the version found or current
+            return self.result.version 
 
-        except subprocess.CalledProcessError as e: # Should not happen with check=False
-            self.logger.warning(f"NVChecker command error (should not be fatal due to check=False): {e}")
         except Exception as e:
-            self.logger.error(f"Version check using NVChecker failed: {e}", exc_info=self.config.debug)
+            self.logger.error(f"Version check using NVChecker failed with exception: {e}", exc_info=self.config.debug)
         
-        # Fallback: if nvchecker fails, try to get version from PKGBUILD
+        # Fallback if nvchecker fails or no version set
         if not self.result.version:
             self.result.version = self._get_current_pkgbuild_version()
         return self.result.version

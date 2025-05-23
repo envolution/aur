@@ -241,38 +241,59 @@ extract_path_components() {
 }
 
 extract_pkgbuild_details() {
-  _log_debug "extract_pkgbuild_details input (absolute PKGBUILD dir): $1"
+  # Ensure internal echos go to stderr to not pollute $declarations
+  _log_debug "extract_pkgbuild_details input (absolute PKGBUILD dir): $1" >&2
   local pkgbuild_dir_abs="$1"
   if [ ! -f "${pkgbuild_dir_abs}/PKGBUILD" ]; then
-    _log_error "EXTRACT_FAIL" "PKGBUILD missing in ${pkgbuild_dir_abs}"
+    _log_error "EXTRACT_FAIL" "PKGBUILD missing in ${pkgbuild_dir_abs}" >&2
     return 1
   fi
-  # Run sourcing in a subshell as builder to isolate environment and use builder's permissions
-  # HOME must be set correctly for PKGBUILDs that might use ~ or $HOME during sourcing (rare, but possible)
+
   local declarations
+  # The subshell here captures stdout. All echos inside it meant for debugging MUST go to stderr.
   declarations=$(
     sudo -E -u builder HOME="${BUILDER_HOME}" bash -c '
+      # This sub-bash script should only print `declare -p` lines to its stdout.
+      # Debug messages within this sub-bash script should go to its stderr.
+      # echo "Sub-bash script starting for PKGBUILD sourcing." >&2 # Example debug to stderr
       set -euo pipefail
       CARCH="x86_64"
-      PKGDEST="/tmp/pkgdest" # These are standard makepkg vars, usually not critical for just sourcing
+      PKGDEST="/tmp/pkgdest" 
       SRCDEST="/tmp/srcdest"
       SRCPKGDEST="/tmp/srcpkgdest"
+      
+      # Source the PKGBUILD. Errors during source will cause sub-bash to exit non-zero due to set -e.
       source "'"${pkgbuild_dir_abs}/PKGBUILD"'"
-      # Only declare variables if they are arrays and have elements, or if they are simple strings (not handled here)
-      # More robustly handle if arrays are unset or empty
+      
+      # Capture `declare -p` output for relevant arrays.
+      # If an array is not set, `declare -p` for it will fail, set -e handles this.
+      # To avoid failure for unset arrays, check if they are set first.
       declare_output=""
       if declare -p depends &>/dev/null; then declare_output+="$(declare -p depends);"; fi
       if declare -p makedepends &>/dev/null; then declare_output+="$(declare -p makedepends);"; fi
       if declare -p checkdepends &>/dev/null; then declare_output+="$(declare -p checkdepends);"; fi
       if declare -p source &>/dev/null; then declare_output+="$(declare -p source);"; fi
+      
+      # This echo is the *only* thing that should go to sub-bash stdout.
       echo "$declare_output"
     '
   )
-  if [ $? -ne 0 ] || [ -z "$declarations" ]; then
-    _log_error "EXTRACT_FAIL" "Sourcing/declaring PKGBUILD vars failed for ${pkgbuild_dir_abs}."
+  local sub_bash_exit_code=$? # Capture exit code of the sudo bash -c command
+
+  if [ $sub_bash_exit_code -ne 0 ]; then
+    _log_error "EXTRACT_FAIL" "Sourcing PKGBUILD or declaring vars failed for ${pkgbuild_dir_abs}. Sub-bash exit code: ${sub_bash_exit_code}." >&2
+    # $declarations might contain partial output or error messages from the sub-bash stderr if not careful
+    _log_debug "Content of \$declarations on failure: ${declarations}" >&2
     return 1
   fi
-  echo "$declarations"
+  if [ -z "$declarations" ]; then
+    # This can happen if all arrays (depends, makedepends, etc.) are unset/empty in the PKGBUILD.
+    # This is not necessarily an error for extraction itself, but process_single_package_details will produce empty arrays.
+    _log_warning "EXTRACT_WARN" "No relevant array variables (depends, makedepends, checkdepends, source) found or declared in ${pkgbuild_dir_abs}/PKGBUILD." >&2
+    # Return success, but $declarations is empty. process_single_package_details will handle empty eval.
+  fi
+
+  echo "$declarations" # This is the stdout of extract_pkgbuild_details, goes to the calling function.
 }
 
 process_single_package_details() {

@@ -141,3 +141,447 @@ jobs:
           fi
           echo "::endgroup::"
 
+      - name: Run Arch Package Update and Build Task
+        shell: bash
+        # For extreme debugging of bash, uncomment the next line. Output will be VERY verbose.
+        # run: |
+        #   set -xeuo pipefail 
+        run: |
+          #!/bin/bash
+          set -euo pipefail 
+
+          # --- Configuration & Constants ---
+          BUILDER_HOME="/home/builder"
+          NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run" 
+          ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"
+          PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
+
+          # --- Helper Functions with GitHub Actions Workflow Commands ---
+          log_notice() { echo "::notice title=$1::$2"; }
+          log_debug() { echo "::debug::$1"; } # Debug messages are only shown if actions Address Debugging is enabled
+          log_error() { echo "::error title=$1::$2"; }
+          start_group() { echo "::group::$1"; }
+          end_group() { echo "::endgroup::"; }
+
+          # --- Main Script Functions ---
+          setup_environment() {
+              start_group "Setup Task Environment"
+              log_notice "Task Setup" "Setting up task environment in ${NVCHECKER_RUN_DIR}..."
+              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"
+              sudo -u builder mkdir -p "${ARTIFACTS_DIR}" 
+
+              log_debug "Changing directory to ${NVCHECKER_RUN_DIR}"
+              cd "${NVCHECKER_RUN_DIR}"
+              log_debug "Current directory: $(pwd)"
+
+              log_notice "Script Copy" "Copying necessary scripts from workspace to ${NVCHECKER_RUN_DIR}..."
+              for script_name in "buildscript.py" "compare_aur_local_versions.py"; do
+                  local script_path_workspace="${GITHUB_WORKSPACE}/scripts/${script_name}"
+                  if [ -f "${script_path_workspace}" ]; then
+                      if sudo -u builder cp "${script_path_workspace}" "${NVCHECKER_RUN_DIR}/"; then
+                          log_debug "Copied ${script_name} to ${NVCHECKER_RUN_DIR}."
+                          sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name}" # Ensure executable by builder
+                      else
+                          log_error "Script Copy Failed" "Failed to copy ${script_name} to ${NVCHECKER_RUN_DIR}"
+                          return 1
+                      fi
+                  else
+                      log_error "Missing Script" "Required script ${script_name} not found at ${script_path_workspace}!"
+                      return 1 
+                  fi
+              done
+              log_debug "Listing contents of ${NVCHECKER_RUN_DIR}:"
+              ls -la "${NVCHECKER_RUN_DIR}" | while IFS= read -r line; do log_debug "  $line"; done
+              end_group
+          }
+
+          generate_nvchecker_config() {
+              start_group "Generate NVChecker Configuration"
+              log_notice "NVChecker Config" "Generating combined NVChecker configuration (new.toml)..."
+              local combined_config_file="new.toml"
+              local keyfile="keyfile.toml" 
+
+              echo "[__config__]" > "${combined_config_file}"
+              echo "oldver = 'aur.json'" >> "${combined_config_file}" 
+              echo "newver = 'local.json'" >> "${combined_config_file}" 
+
+              echo "[keys]" > "${keyfile}"
+              echo "github = '${{ secrets.GHuK }}'" >> "${keyfile}"
+              log_debug "Generated keyfile.toml with GitHub key."
+
+              log_debug "Searching for .nvchecker.toml files in ${GITHUB_WORKSPACE}/*/maintain/build/*/"
+              find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print0 | while IFS= read -r -d $'\0' file; do
+                  log_debug "Appending $file to $combined_config_file"
+                  cat "$file" >> "${combined_config_file}"
+                  echo "" >> "${combined_config_file}" 
+              done
+              
+              log_debug "Generated ${combined_config_file} content:"
+              # Only log content if it's small or for specific debugging
+              # cat "${combined_config_file}" | while IFS= read -r line; do log_debug "  $line"; done
+              
+              if sudo -u builder chown builder:builder "${combined_config_file}" "${keyfile}"; then
+                 log_debug "Set ownership of config files for builder user."
+              else
+                 log_error "Ownership Change Failed" "Could not chown nvchecker config files."
+                 return 1
+              fi
+              end_group
+          }
+
+          run_version_checks() {
+              start_group "Run Version Checks (NVChecker & nvcmp)"
+              log_notice "Version Checks" "Running NVChecker and nvcmp for version comparison..."
+              
+              log_debug "Running nvchecker with: sudo -u builder nvchecker -c new.toml -k keyfile.toml --logger json"
+              if ! sudo -u builder nvchecker -c new.toml -k keyfile.toml --logger json > local.json; then
+                  log_error "NVChecker Failed" "nvchecker command failed. Check stdout/stderr if any was produced before this."
+                  # Even if it fails, local.json might have partial data or be empty.
+              fi
+              log_debug "NVChecker output stored in local.json. Contents:"
+              cat local.json | while IFS= read -r line; do log_debug "  local.json: $line"; done
+              if [ ! -s local.json ]; then log_notice "NVChecker Output" "local.json is empty or does not exist after nvchecker run."; fi
+
+
+              log_debug "Running nvcmp with: sudo -u builder nvcmp -c new.toml"
+              if ! sudo -u builder nvcmp -c new.toml > changes.json; then
+                  log_error "nvcmp Failed" "nvcmp command failed. Check output."
+                  # changes.json might be empty or partial.
+              fi
+              log_debug "nvcmp output (comparison) stored in changes.json. Contents:"
+              cat changes.json | while IFS= read -r line; do log_debug "  changes.json: $line"; done
+              if [ ! -s changes.json ]; then log_notice "nvcmp Output" "changes.json is empty or does not exist after nvcmp run."; fi
+
+              end_group
+          }
+
+          get_package_updates_list() {
+              start_group "Determine Package Updates List"
+              log_notice "Package Updates" "Determining list of packages needing updates..."
+              local upgrades_from_aur_comparison=()
+              local updates_from_nvchecker=()
+              
+              if [ -f changes.json ] && [ -s changes.json ]; then
+                  mapfile -t upgrades_from_aur_comparison < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2>/dev/null || true)
+              fi
+              log_debug "Packages with potential upgrades (upstream newer than AUR) from changes.json:"
+              printf '  ::debug::%s\n' "${upgrades_from_aur_comparison[@]:-(none)}"
+              
+              mapfile -t updates_from_nvchecker < <(sudo -u builder nvcmp -c new.toml -q 2>/dev/null || true)
+              log_debug "Packages with updates found directly by NVChecker (nvcmp -q):"
+              printf '  ::debug::%s\n' "${updates_from_nvchecker[@]:-(none)}"
+              
+              local temp_updates_file
+              temp_updates_file=$(mktemp)
+              printf '%s\n' "${upgrades_from_aur_comparison[@]:-}" > "$temp_updates_file"
+              printf '%s\n' "${updates_from_nvchecker[@]:-}" >> "$temp_updates_file"
+              
+              mapfile -t UPDATES < <(sort -u "$temp_updates_file")
+              rm "$temp_updates_file"
+
+              declare -g UPDATES 
+              log_notice "Update Candidates" "Final list of packages to process for updates:"
+              if [ ${#UPDATES[@]} -eq 0 ]; then
+                  log_notice "Update Candidates" "  No packages require updates at this time."
+              else
+                  printf '  ::notice title=Candidate::%s\n' "${UPDATES[@]}"
+              fi
+              end_group
+          }
+
+          extract_path_components() {
+              local path_to_parse="$1"
+              local relative_path="${path_to_parse#${GITHUB_WORKSPACE}/}"
+              relative_path="${relative_path%/}"
+              relative_path="${relative_path#/}"
+              IFS='/' read -r -a components <<< "${relative_path}"
+              echo "${components[@]}" 
+          }
+
+          extract_pkgbuild_details() {
+              local pkgbuild_dir_abs="$1" 
+              log_debug "Extracting PKGBUILD details from: ${pkgbuild_dir_abs}/PKGBUILD"
+              if [ ! -f "${pkgbuild_dir_abs}/PKGBUILD" ]; then
+                  log_error "Missing PKGBUILD" "PKGBUILD file not found in ${pkgbuild_dir_abs}"
+                  return 1 # Failure
+              fi
+              # Source the PKGBUILD in a subshell
+              (
+                  # shellcheck source=/dev/null
+                  source "${pkgbuild_dir_abs}/PKGBUILD"
+                  declare -p depends makedepends checkdepends source 2>/dev/null || true
+              ) || { log_error "PKGBUILD Source Failed" "Failed to source or declare variables from ${pkgbuild_dir_abs}/PKGBUILD"; return 1; }
+          }
+
+          process_single_package_details() {
+              local package_name="$1"
+              local pkgbuild_dir_rel_to_workspace="$2" 
+              local pkgbuild_details_output
+              
+              if ! pkgbuild_details_output=$(extract_pkgbuild_details "${GITHUB_WORKSPACE}/${pkgbuild_dir_rel_to_workspace}"); then
+                  log_error "Detail Extraction Failed" "Could not extract details for ${package_name} from ${pkgbuild_dir_rel_to_workspace}"
+                  return 1 # Propagate failure
+              fi
+              
+              unset depends makedepends checkdepends source
+              eval "$pkgbuild_details_output" 
+              
+              local depends_json makedepends_json checkdepends_json sources_json
+              depends_json=$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              makedepends_json=$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              checkdepends_json=$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              sources_json=$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')
+              
+              jq -n \
+                  --arg pkg_name "$package_name" \
+                  --argjson deps "$depends_json" \
+                  --argjson mkdeps "$makedepends_json" \
+                  --argjson chkdeps "$checkdepends_json" \
+                  --argjson srcs "$sources_json" \
+                  '{($pkg_name): {depends: $deps, makedepends: $mkdeps, checkdepends: $chkdeps, sources: $srcs}}'
+          }
+          
+          execute_package_build_script() {
+              local package_name="$1"
+              local build_type="$2"      
+              local pkgbuild_path_rel="$3" 
+              
+              start_group "Build Package: ${package_name}"
+              local package_artifact_dir="${ARTIFACTS_DIR}/${package_name}"
+              sudo -u builder mkdir -p "${package_artifact_dir}" 
+
+              log_notice "Build Start: ${package_name}" "Type: ${build_type}, Path: ${pkgbuild_path_rel}, Artifacts: ${package_artifact_dir}"
+              
+              local build_script_py="${NVCHECKER_RUN_DIR}/buildscript.py"
+              local build_output_json
+              local build_script_exit_code=0
+              
+              # Capture stdout and stderr separately for better debugging if buildscript.py itself fails
+              local temp_stdout
+              temp_stdout=$(mktemp)
+
+              # sudo -E is important if buildscript.py needs GITHUB_ env vars not explicitly passed
+              if ! sudo -E -u builder \
+                  python3 "${build_script_py}" \
+                  --github-repo "${{ github.repository }}" \
+                  --github-token "${GH_TOKEN}" \
+                  --github-workspace "${GITHUB_WORKSPACE}" \
+                  --package-name "${package_name}" \
+                  --depends-json "${PACKAGE_DETAILS_JSON_PATH}" \
+                  --pkgbuild-path "${pkgbuild_path_rel}" \
+                  --commit-message "CI: Auto update ${package_name}" \
+                  --build-mode "${build_type}" \
+                  --artifacts-dir "${package_artifact_dir}" \
+                  --debug > "${temp_stdout}" 2> >(tee >(sed 's/^/::error::buildscript.py STDERR: /') >&2); then
+                  build_script_exit_code=$?
+                  log_error "Build Script Failed: ${package_name}" "buildscript.py exited with code ${build_script_exit_code}. Check STDERR above."
+              fi
+              build_output_json=$(cat "${temp_stdout}")
+              rm "${temp_stdout}"
+              
+              log_debug "buildscript.py STDOUT for ${package_name} (now in build_output_json):"
+              echo "${build_output_json}" | while IFS= read -r line; do log_debug "  $line"; done
+
+
+              local version success changes_detected error_msg
+              version=$(echo "$build_output_json" | jq -r '.version // "N/A"')
+              success=$(echo "$build_output_json" | jq -r '.success') 
+              changes_detected=$(echo "$build_output_json" | jq -r '.changes_detected') 
+              error_msg=$(echo "$build_output_json" | jq -r '.error_message // ""') 
+
+              # Check if jq failed to parse or if output was not JSON
+              if [[ -z "$success" || "$success" == "null" ]]; then
+                  log_error "JSON Parse Error: ${package_name}" "Failed to parse JSON output from buildscript.py or output was not valid JSON. Exit code was ${build_script_exit_code}."
+                  success="false" # Assume failure
+                  error_msg="${error_msg:-buildscript.py produced invalid or no JSON output.}"
+              fi
+
+              local status_md changes_md aur_link_md log_link_md
+              if [ "$success" = "true" ]; then
+                  status_md="✅ Success"
+              else
+                  status_md="❌ Failure"
+                  if [ -n "$error_msg" ] && [ "$error_msg" != "null" ]; then
+                      error_msg_md=$(echo "$error_msg" | sed 's/|/\\|/g; s/\n/<br>/g')
+                      status_md="${status_md}: <small>${error_msg_md}</small>"
+                  fi
+              fi
+              [ "$changes_detected" = "true" ] && changes_md="✔️ Yes" || changes_md="➖ No"
+              aur_link_md="[AUR](https://aur.archlinux.org/packages/${package_name})"
+              
+              if compgen -G "${package_artifact_dir}/${package_name}-*.log" > /dev/null; then
+                  log_link_md="See 'build-artifacts-${{ github.run_id }}' artifact (<tt>${package_name}/</tt> subdir)"
+              else
+                  log_link_md="N/A"
+              fi
+              
+              echo "| **${package_name}** | ${version} | ${status_md} | ${changes_md} | ${aur_link_md} | ${log_link_md} |" >> "$GITHUB_STEP_SUMMARY"
+              end_group # End package build group
+
+              [ "$success" = "true" ] # Return true if buildscript reported success
+          }
+
+          # --- Main Execution ---
+          main() {
+              start_group "Main Workflow Execution"
+              log_notice "Workflow Start" "Starting Arch package update and build task."
+              log_debug "Initial GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+              log_debug "Initial BUILDER_HOME: ${BUILDER_HOME}"
+              log_debug "Initial NVCHECKER_RUN_DIR: ${NVCHECKER_RUN_DIR}"
+              log_debug "Initial ARTIFACTS_DIR: ${ARTIFACTS_DIR}"
+              log_debug "Initial PACKAGE_DETAILS_JSON_PATH: ${PACKAGE_DETAILS_JSON_PATH}"
+              log_debug "User executing this script: $(whoami)"
+              log_debug "Current directory: $(pwd)"
+              
+              # Dump initial environment for builder user for debugging sudo -u builder calls
+              start_group "Builder User Environment"
+              sudo -u builder env | sort | while IFS= read -r line; do log_debug "  builder env: $line"; done
+              end_group
+
+              if ! setup_environment; then 
+                  log_error "Setup Failed" "Environment setup failed. Exiting."
+                  exit 1; 
+              fi
+              
+              echo "## Arch Package Build Summary" > "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY" 
+              echo "| Package | Version | Status | Changes | AUR Link | Build Logs |" >> "$GITHUB_STEP_SUMMARY"
+              echo "|---|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+              start_group "Step 1: Compare local PKGBUILDs with AUR"
+              log_notice "AUR Comparison" "Comparing local repository PKGBUILD versions with AUR versions..."
+              local compare_script="${NVCHECKER_RUN_DIR}/compare_aur_local_versions.py"
+              local aur_json_file="${NVCHECKER_RUN_DIR}/aur.json"
+              if sudo -E -u builder python3 "${compare_script}" \
+                  --maintainer "${AUR_MAINTAINER_NAME}" \
+                  --repo-root "${GITHUB_WORKSPACE}" \
+                  --output-file "${aur_json_file}"; then
+                  log_debug "compare_aur_local_versions.py succeeded. aur.json content:"
+                  cat "${aur_json_file}" | while IFS= read -r line; do log_debug "  aur.json: $line"; done
+              else
+                  log_error "AUR Comparison Failed" "${compare_script} failed. Check logs."
+                  # Decide if this is fatal. For now, continue, nvchecker might still work.
+              fi
+              if [ ! -f "${aur_json_file}" ]; then
+                  log_warning "Missing aur.json" "${aur_json_file} was not created. nvcmp might not work as expected."
+                  echo "{}" > "${aur_json_file}" # Create empty JSON to prevent nvcmp from failing on missing file
+              fi
+              end_group
+              
+              if ! generate_nvchecker_config; then log_error "Config Gen Failed" "NVChecker config generation failed."; exit 1; fi
+              if ! run_version_checks; then log_error "Version Check Failed" "NVChecker/nvcmp run failed."; exit 1; fi # Potentially fatal
+              
+              get_package_updates_list 
+
+              if [ ${#UPDATES[@]} -eq 0 ]; then
+                  log_notice "No Updates" "No packages identified for update. Exiting successfully."
+                  echo "| *No updates found* | - | - | - | - | - |" >> "$GITHUB_STEP_SUMMARY"
+                  end_group # End Main Workflow Execution group
+                  exit 0
+              fi
+
+              start_group "Step 4: Process PKGBUILD details for all packages"
+              log_notice "PKGBUILD Details" "Processing PKGBUILD details for all relevant packages..."
+              local combined_details_json="{}" 
+              
+              local all_pkg_dirs=()
+              # Find dirs like */maintain/build/packagename/ containing a PKGBUILD
+              mapfile -t all_pkg_dirs < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*" -type d -exec test -f "{}/PKGBUILD" \; -print)
+              log_debug "Found potential package directories:"
+              printf "  ::debug::%s\n" "${all_pkg_dirs[@]:-(none)}"
+
+              for pkg_dir_abs in "${all_pkg_dirs[@]}"; do
+                  local current_package_name
+                  current_package_name=$(basename "${pkg_dir_abs}")
+                  log_debug "Processing details for ${current_package_name} in ${pkg_dir_abs}"
+                  
+                  local pkg_dir_rel_to_workspace="${pkg_dir_abs#${GITHUB_WORKSPACE}/}"
+                  
+                  local single_pkg_json
+                  if single_pkg_json=$(process_single_package_details "$current_package_name" "$pkg_dir_rel_to_workspace"); then
+                      combined_details_json=$(echo "$combined_details_json $single_pkg_json" | jq -s 'add')
+                  else
+                      log_warning "PKGBUILD Detail Skip" "Skipping detail aggregation for ${current_package_name} due to previous error."
+                  fi
+              done
+              
+              echo "${combined_details_json}" | jq . > "${PACKAGE_DETAILS_JSON_PATH}"
+              if sudo -u builder chown builder:builder "${PACKAGE_DETAILS_JSON_PATH}"; then
+                 log_debug "Set ownership of ${PACKAGE_DETAILS_JSON_PATH} for builder."
+              else
+                 log_error "Ownership Change Failed" "Could not chown ${PACKAGE_DETAILS_JSON_PATH}"
+              fi
+              log_debug "Consolidated package details saved to ${PACKAGE_DETAILS_JSON_PATH}. Content:"
+              cat "${PACKAGE_DETAILS_JSON_PATH}" | while IFS= read -r line; do log_debug "  ${PACKAGE_DETAILS_JSON_PATH}: $line"; done
+              end_group
+              
+
+              start_group "Step 5: Build/Process packages marked for update"
+              log_notice "Package Processing" "Processing packages marked for update..."
+              local overall_success=true
+              for package_to_update in "${UPDATES[@]}"; do
+                  log_notice "Processing Start: ${package_to_update}" "--- Starting update process for package: ${package_to_update} ---"
+                  local pkg_build_dirs_found=()
+                  mapfile -t pkg_build_dirs_found < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_update}" -type d -exec test -f "{}/PKGBUILD" \; -print)
+
+                  if [ ${#pkg_build_dirs_found[@]} -eq 0 ]; then
+                      log_error "Package Dir Not Found: ${package_to_update}" "No directory found for package '${package_to_update}' at expected path */maintain/build/${package_to_update} with a PKGBUILD. Skipping."
+                      echo "| **${package_to_update}** | N/A | ❌ Error: PKGBUILD dir not found | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+                      overall_success=false
+                      continue
+                  elif [ ${#pkg_build_dirs_found[@]} -gt 1 ]; then # Should not happen with this specific find path
+                      log_error "Multiple Dirs: ${package_to_update}" "Multiple directories found for package '${package_to_update}'. Ambiguous. Skipping."
+                      printf '  ::error::%s\n' "${pkg_build_dirs_found[@]}"
+                      echo "| **${package_to_update}** | N/A | ❌ Error: Multiple PKGBUILD dirs | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+                      overall_success=false
+                      continue
+                  fi
+                  
+                  local package_dir_abs="${pkg_build_dirs_found[0]}"
+                  local package_dir_rel_to_workspace="${package_dir_abs#${GITHUB_WORKSPACE}/}" # e.g., maintain/build/packagename
+                  
+                  local path_components
+                  path_components=($(extract_path_components "${package_dir_rel_to_workspace}"))
+                  
+                  local build_category="${path_components[0]:-unknown}" 
+                  local build_mode_from_dir="${path_components[1]:-unknown}" 
+                  local actual_package_name="${path_components[-1]:-unknown}" 
+
+                  if [ "$package_to_update" != "$actual_package_name" ]; then # Sanity check
+                      log_warning "Name Mismatch" "Update list has '${package_to_update}', dir is for '${actual_package_name}'. Using '${package_to_update}' from update list."
+                  fi
+
+                  local effective_build_mode="nobuild" # Default build mode
+                  if [[ "$build_mode_from_dir" == "build" || "$build_mode_from_dir" == "test" ]]; then
+                      effective_build_mode="$build_mode_from_dir"
+                  fi
+                  log_debug "Package: ${package_to_update}, Category: ${build_category}, Build Mode from Dir: ${build_mode_from_dir}, Effective Build Mode: ${effective_build_mode}"
+                  
+                  if [ "$build_category" = "maintain" ]; then # Only build packages in "maintain" category
+                      if ! execute_package_build_script "$package_to_update" "$effective_build_mode" "$package_dir_rel_to_workspace"; then
+                          log_error "Build Failure: ${package_to_update}" "Build process for '${package_to_update}' reported failure."
+                          overall_success=false
+                      fi
+                  else
+                      log_notice "Skip Build: ${package_to_update}" "Package '${package_to_update}' is not in 'maintain' category ('${build_category}'). Skipping build script execution."
+                      echo "| **${package_to_update}** | N/A | ⚪ Skipped (not in 'maintain' category) | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+                  log_notice "Processing End: ${package_to_update}" "--- Finished processing package: ${package_to_update} ---"
+              done
+              end_group # End Step 5
+              
+              log_notice "Workflow Complete" "All package processing finished."
+              if ! $overall_success; then
+                  log_error "Overall Failure" "One or more packages failed to process or build. Workflow failed."
+                  end_group # End Main Workflow Execution group
+                  exit 1
+              fi
+              log_notice "Workflow Success" "Workflow finished successfully."
+              end_group # End Main Workflow Execution group
+          }
+
+          main "$@"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GHuK is used by nvchecker for github sources
+

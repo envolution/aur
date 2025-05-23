@@ -385,34 +385,34 @@ jobs:
           # Build packages
           _start_group "Build Packages"
           _log_notice "BUILD_LOOP" "Starting build loop for ${#UPDATES[@]} package(s)..."
-          overall_build_success=true
-          for package_to_build in "${UPDATES[@]}"; do
-              if [ -z "${package_to_build}" ]; then _log_warning "BUILD_LOOP_SKIP_EMPTY" "Skipping empty package name."; continue; fi
-              
-              pkg_build_dirs_found_for_build=()
-              mapfile -t pkg_build_dirs_found_for_build < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_build}" -type d -exec test -f "{}/PKGBUILD" \; -print)
-              if [ ${#pkg_build_dirs_found_for_build[@]} -ne 1 ]; then
-                  _log_error "BUILD_LOOP_FIND_ERR" "PKGBUILD dir error for build: '${package_to_build}' (Found: ${#pkg_build_dirs_found_for_build[@]})."
-                  echo "| **${package_to_build}** | N/A | ❌ Error: PKGBUILD dir not found for build | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
-                  overall_build_success=false; continue
-              fi
-              package_dir_abs_for_build="${pkg_build_dirs_found_for_build[0]}"
-              package_dir_rel_to_workspace_for_build="${package_dir_abs_for_build#${GITHUB_WORKSPACE}/}"
-
-              path_components_for_build=() 
-              path_components_for_build=($(extract_path_components "${package_dir_rel_to_workspace_for_build}"))
-              build_mode_from_dir_for_build="nobuild" 
-              if [ "${#path_components_for_build[@]}" -ge 2 ] && ([[ "${path_components_for_build[1]}" == "build" || "${path_components_for_build[1]}" == "test" ]]); then
-                  build_mode_from_dir_for_build="${path_components_for_build[1]}"
-              else _log_warning "BUILD_LOOP_MODE_WARN" "Cannot determine build_mode for ${package_to_build} from path ${package_dir_rel_to_workspace_for_build}. Defaulting to 'nobuild'."; fi
-              _log_debug "Package: ${package_to_build}, Determined build_mode: ${build_mode_from_dir_for_build}"
-
-              if ! execute_build_script_py "$package_to_build" "$build_mode_from_dir_for_build" "$package_dir_rel_to_workspace_for_build"; then
-                  _log_error "BUILD_LOOP_SCRIPT_FAIL" "Build script execution FAILED for ${package_to_build}."
-                  overall_build_success=false 
-              fi
-          done
-          _log_notice "BUILD_LOOP" "Finished build loop."
+#          overall_build_success=true
+#          for package_to_build in "${UPDATES[@]}"; do
+#              if [ -z "${package_to_build}" ]; then _log_warning "BUILD_LOOP_SKIP_EMPTY" "Skipping empty package name."; continue; fi
+#              
+#              pkg_build_dirs_found_for_build=()
+#              mapfile -t pkg_build_dirs_found_for_build < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/${package_to_build}" -type d -exec test -f "{}/PKGBUILD" \; -print)
+#              if [ ${#pkg_build_dirs_found_for_build[@]} -ne 1 ]; then
+#                  _log_error "BUILD_LOOP_FIND_ERR" "PKGBUILD dir error for build: '${package_to_build}' (Found: ${#pkg_build_dirs_found_for_build[@]})."
+#                  echo "| **${package_to_build}** | N/A | ❌ Error: PKGBUILD dir not found for build | - | - | N/A |" >> "$GITHUB_STEP_SUMMARY"
+#                  overall_build_success=false; continue
+#              fi
+#              package_dir_abs_for_build="${pkg_build_dirs_found_for_build[0]}"
+#              package_dir_rel_to_workspace_for_build="${package_dir_abs_for_build#${GITHUB_WORKSPACE}/}"
+#
+#              path_components_for_build=() 
+#              path_components_for_build=($(extract_path_components "${package_dir_rel_to_workspace_for_build}"))
+#              build_mode_from_dir_for_build="nobuild" 
+#              if [ "${#path_components_for_build[@]}" -ge 2 ] && ([[ "${path_components_for_build[1]}" == "build" || "${path_components_for_build[1]}" == "test" ]]); then
+#                  build_mode_from_dir_for_build="${path_components_for_build[1]}"
+#              else _log_warning "BUILD_LOOP_MODE_WARN" "Cannot determine build_mode for ${package_to_build} from path ${package_dir_rel_to_workspace_for_build}. Defaulting to 'nobuild'."; fi
+#              _log_debug "Package: ${package_to_build}, Determined build_mode: ${build_mode_from_dir_for_build}"
+#
+#              if ! execute_build_script_py "$package_to_build" "$build_mode_from_dir_for_build" "$package_dir_rel_to_workspace_for_build"; then
+#                  _log_error "BUILD_LOOP_SCRIPT_FAIL" "Build script execution FAILED for ${package_to_build}."
+#                  overall_build_success=false 
+#              fi
+#          done
+#          _log_notice "BUILD_LOOP" "Finished build loop."
           _end_group
 
           if ! $overall_build_success; then

@@ -252,36 +252,72 @@ jobs:
           }
           
           # --- get_package_updates_list function (NEW) ---
-          # ... (Keep this function as it was) ...
           get_package_updates_list() {
               _start_raw_group "DEBUG: get_package_updates_list"
               _log_raw_notice "GET_UPDATES_START" "Determining packages to update..."
               if [ ! -f "changes.json" ]; then _log_raw_error "GET_UPDATES_MISSING_CHANGES" "changes.json not found!"; _end_raw_group; return 1; fi
               if [ ! -f "new.toml" ]; then _log_raw_error "GET_UPDATES_MISSING_NEWTOML" "new.toml not found for nvcmp -q!"; _end_raw_group; return 1; fi
 
-              local upgrades_from_changes=()
-              local updates_from_nvcmp_q=()
+              local upgrades_from_changes=() # 'local' is fine here
+              local updates_from_nvcmp_q=()  # 'local' is fine here
               
               if [ -s "changes.json" ]; then 
-                  mapfile -t upgrades_from_changes < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2>/dev/null || true)
+                  _log_raw_debug "Attempting to parse changes.json with jq..."
+                  mapfile -t upgrades_from_changes < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2>/dev/null || { _log_raw_error "JQ_CHANGES_FAIL" "jq command for changes.json failed or produced error."; echo ""; } )
+                  _log_raw_debug "jq for changes.json exit code: $?"
               else 
                   _log_raw_warning "GET_UPDATES_EMPTY_CHANGES" "changes.json is empty."
               fi
-              _log_raw_debug "Packages with UPGRADES from changes.json (upstream > aur):"
+              _log_raw_debug "Packages with UPGRADES from changes.json (count: ${#upgrades_from_changes[@]}):"
               printf '  ::debug::  - %s\n' "${upgrades_from_changes[@]:-(none)}"
               
-              mapfile -t updates_from_nvcmp_q < <(sudo -E -u builder nvcmp -c new.toml -q 2>/dev/null || true)
-              _log_raw_debug "Packages with updates found directly by NVChecker (nvcmp -q):"
+              _log_raw_debug "Attempting to run nvcmp -q..."
+              mapfile -t updates_from_nvcmp_q < <(sudo -E -u builder nvcmp -c new.toml -q 2>/dev/null || { _log_raw_error "NVCMP_Q_FAIL" "nvcmp -q command failed or produced error."; echo ""; } )
+              _log_raw_debug "nvcmp -q exit code: $?"
+              _log_raw_debug "Packages with updates found directly by NVChecker (nvcmp -q) (count: ${#updates_from_nvcmp_q[@]}):"
               printf '  ::debug::  - %s\n' "${updates_from_nvcmp_q[@]:-(none)}"
               
-              local temp_updates_file; temp_updates_file=$(mktemp)
+              local temp_updates_file; temp_updates_file=$(mktemp) # 'local' is fine here
+              _log_raw_debug "Created temporary file for updates: ${temp_updates_file}"
+
+              _log_raw_debug "Writing upgrades_from_changes to temp file..."
               printf '%s\n' "${upgrades_from_changes[@]:-}" > "$temp_updates_file"
+              _log_raw_debug "Writing updates_from_nvcmp_q to temp file..."
               printf '%s\n' "${updates_from_nvcmp_q[@]:-}" >> "$temp_updates_file"
               
-              mapfile -tG UPDATES < <(sort -u "$temp_updates_file") 
-              rm "$temp_updates_file"
+              _log_raw_debug "Contents of temp_updates_file (${temp_updates_file}) before sort:"
+              cat "${temp_updates_file}" | while IFS= read -r line; do _log_raw_debug "  tmpfile: $line"; done || _log_raw_debug "  tmpfile: (empty)"
 
-              _log_raw_notice "GET_UPDATES_FINAL_LIST" "Final list of packages to process for updates (UPDATES array):"
+              _log_raw_debug "Declaring UPDATES as global array: declare -ga UPDATES"
+              declare -ga UPDATES # Declare UPDATES as a global indexed array
+              
+              _log_raw_debug "Attempting: mapfile -t UPDATES < <(sort -u \"${temp_updates_file}\")"
+              
+              # To isolate mapfile issue, let's first see output of sort -u
+              local sorted_output_file; sorted_output_file=$(mktemp)
+              _log_raw_debug "Sorting ${temp_updates_file} into ${sorted_output_file}..."
+              if sort -u "${temp_updates_file}" > "${sorted_output_file}"; then
+                  _log_raw_debug "sort -u succeeded. Contents of sorted_output_file (${sorted_output_file}):"
+                  cat "${sorted_output_file}" | while IFS= read -r line; do _log_raw_debug "  sorted: $line"; done || _log_raw_debug "  sorted: (empty)"
+                  
+                  # Now try mapfile with the intermediate sorted file
+                  _log_raw_debug "Attempting mapfile -t UPDATES < \"${sorted_output_file}\""
+                  if mapfile -t UPDATES < "${sorted_output_file}"; then
+                      _log_raw_debug "mapfile command finished. Exit code: $?"
+                  else
+                      _log_raw_error "MAPFILE_COMMAND_FAILED" "mapfile command itself failed. Exit code: $?"
+                      # It might have printed help text here if it failed this way
+                  fi
+              else
+                  _log_raw_error "SORT_U_FAILED" "sort -u command failed for ${temp_updates_file}. Exit code: $?"
+              fi
+              rm "${sorted_output_file}" # Clean up intermediate sorted file
+
+              rm "$temp_updates_file" # Clean up main temp file
+              _log_raw_debug "Deleted temporary files."
+
+
+              _log_raw_notice "GET_UPDATES_FINAL_LIST" "Final list of packages to process for updates (UPDATES array) (count: ${#UPDATES[@]}):"
               if [ ${#UPDATES[@]} -eq 0 ]; then
                   _log_raw_notice "GET_UPDATES_NONE_FOUND" "  No packages require updates at this time."
               else
@@ -290,7 +326,6 @@ jobs:
               _log_raw_notice "GET_UPDATES_END" "Exiting get_package_updates_list successfully."
               _end_raw_group; return 0
           }
-
           # --- Main Execution Flow ---
           _log_raw_notice "MAIN_EXEC_START" "Starting main execution flow..."
           

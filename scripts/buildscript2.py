@@ -8,8 +8,8 @@ import os
 import subprocess
 import sys
 import re
-import shlex # For command logging
-from dataclasses import dataclass, asdict
+import shlex 
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import base64
 import shutil
@@ -17,7 +17,8 @@ import tempfile
 from typing import List, Tuple, Dict, Optional, Any
 
 # Setup logger early, but allow ArchPackageBuilder to customize further
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+# Logs will be configured to go to stderr by ArchPackageBuilder instance
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s", stream=sys.stderr)
 logger = logging.getLogger("arch_builder_script")
 
 
@@ -34,13 +35,18 @@ class SubprocessRunner:
         self.logger = logger_instance
 
     def run_command(
-        self, cmd: List[str], check: bool = True, input_data: Optional[str] = None
+        self, cmd: List[str], check: bool = True, input_data: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None
     ) -> CommandResult:
         self.logger.debug(f"Running command: {shlex.join(cmd)}")
-
+        # Merge with current environment if new env is provided
+        current_env = os.environ.copy()
+        if env:
+            current_env.update(env)
+        
         try:
             process = subprocess.run(
-                cmd, check=check, text=True, capture_output=True, input=input_data
+                cmd, check=check, text=True, capture_output=True, input=input_data, env=current_env
             )
             return CommandResult(
                 command=cmd,
@@ -74,8 +80,9 @@ class BuildConfig:
     depends_json: str
     pkgbuild_path: str
     commit_message: str
-    build_mode: str = ""  # Options: nobuild, build, test
-    artifacts_dir: Optional[str] = None # Directory for build artifacts
+    base_build_dir: Path # New: Base directory for creating package-specific build dirs
+    build_mode: str = "nobuild" 
+    artifacts_dir: Optional[str] = None
     debug: bool = False
 
 
@@ -84,48 +91,66 @@ class BuildResult:
     success: bool
     package_name: str
     version: Optional[str] = None
-    built_packages: List[str] = None # Filled with package file names
+    built_packages: List[str] = field(default_factory=list) 
     error_message: Optional[str] = None
     changes_detected: bool = False
 
 
 class ArchPackageBuilder:
     RELEASE_BODY = "To install, run: sudo pacman -U PACKAGENAME.pkg.tar.zst"
-    TRACKED_FILES = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml"]
+    TRACKED_FILES = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml"] # Base set of files
 
     def __init__(self, config: BuildConfig):
         self.config = config
-        self.logger = self._setup_logger() # Use instance logger
-        self.build_dir = Path(tempfile.mkdtemp(prefix=f"build-{config.package_name}-"))
+        self.logger = self._setup_logger() 
+        
+        # Create package-specific build directory inside the base_build_dir
+        # Ensure base_build_dir exists (should be handled by calling script, but double check)
+        self.config.base_build_dir.mkdir(parents=True, exist_ok=True) 
+        # Use a unique name for the package-specific build directory
+        unique_suffix = os.urandom(4).hex()
+        self.build_dir = self.config.base_build_dir / f"build-{config.package_name}-{unique_suffix}"
+        try:
+            self.build_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"Created package build directory: {self.build_dir}")
+        except Exception as e:
+            self.logger.error(f"Failed to create package build directory {self.build_dir}: {e}")
+            # This is a critical failure for the builder instance
+            raise RuntimeError(f"Failed to create package build directory: {e}") from e
+
         self.tracked_files: List[str] = self.TRACKED_FILES.copy()
-        self.result = BuildResult(success=True, package_name=config.package_name)
+        self.result = BuildResult(success=True, package_name=config.package_name) # Start optimistic
         self.subprocess_runner = SubprocessRunner(self.logger)
         
         self.artifacts_path: Optional[Path] = None
         if self.config.artifacts_dir:
             self.artifacts_path = Path(self.config.artifacts_dir)
+            # Ensure artifacts_path (e.g., /github_workspace/artifacts/package_name) exists
+            try:
+                self.artifacts_path.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                self.logger.warning(f"Could not create artifacts directory {self.artifacts_path}: {e}. Artifacts may not be saved.")
+                self.artifacts_path = None # Disable artifact saving if dir creation fails
+
 
     def _setup_logger(self) -> logging.Logger:
         # Use the global logger name, but configure its handler and level per instance
-        instance_logger = logging.getLogger("arch_builder_script") # Same name as global
-        # Remove existing handlers to avoid duplicate messages if script is run multiple times
+        instance_logger = logging.getLogger("arch_builder_script") 
         for handler in instance_logger.handlers[:]:
             instance_logger.removeHandler(handler)
             
-        handler = logging.StreamHandler(sys.stderr) # MODIFIED LINE: Logs should go to stderr
-        formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+        handler = logging.StreamHandler(sys.stderr) # Ensure logs go to STDERR
+        formatter = logging.Formatter("[%(levelname)s] %(name)s: %(message)s") # Keep it simple for GHA
         handler.setFormatter(formatter)
         instance_logger.addHandler(handler)
         instance_logger.setLevel(logging.DEBUG if self.config.debug else logging.INFO)
-        instance_logger.propagate = False # Avoid propagation to root logger if it has handlers
+        instance_logger.propagate = False 
         return instance_logger
 
     def authenticate_github(self) -> bool:
+        # Ensure HOME is set for gh CLI operations if they rely on it for config
+        # self.subprocess_runner already inherits env, which should include HOME from the caller
         try:
-            # Using input_data for token is generally safer than temp files
-            # Ensure gh version supports this well.
-            # Create a temporary file for the token as gh auth login --with-token expects it from stdin
-            # but subprocess.run with input pipes it, which is fine.
             self.subprocess_runner.run_command(
                 ["gh", "auth", "login", "--with-token"], input_data=self.config.github_token
             )
@@ -133,13 +158,16 @@ class ArchPackageBuilder:
             return True
         except Exception as e:
             self.logger.error(f"GitHub authentication error: {str(e)}")
+            self.result.error_message = f"GitHub authentication failed: {str(e)}"
             return False
 
     def setup_build_environment(self):
+        # AUR repo will be cloned into self.build_dir
         aur_repo = f"ssh://aur@aur.archlinux.org/{self.config.package_name}.git"
         self.subprocess_runner.run_command(
             ["git", "clone", aur_repo, str(self.build_dir)]
         )
+        # All subsequent operations relative to build_dir should be done after cd
         os.chdir(self.build_dir)
         self.logger.info(f"Changed directory to {self.build_dir}")
 
@@ -152,76 +180,72 @@ class ArchPackageBuilder:
             self.logger.warning(f"Provided PKGBUILD path {workspace_source_path} is not a directory. Skipping file collection.")
             return
 
-        for source_file_path in workspace_source_path.glob("**/*"):
-            if source_file_path.is_file():
-                relative_path = source_file_path.relative_to(workspace_source_path)
-                destination_file_path = self.build_dir / relative_path
-                try:
-                    destination_file_path.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(source_file_path, destination_file_path)
-                    self.logger.debug(f"Copied {source_file_path} to {destination_file_path}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to copy {source_file_path} to {destination_file_path}: {e}")
-
+        # shutil.copytree can simplify this, but glob allows more control if needed later.
+        # For now, let's ensure it copies symlinks as symlinks, and overwrites.
+        try:
+            shutil.copytree(workspace_source_path, self.build_dir, dirs_exist_ok=True, symlinks=True)
+            self.logger.info(f"Copied directory tree from {workspace_source_path} to {self.build_dir}")
+        except Exception as e:
+            self.logger.error(f"Error copying files from {workspace_source_path} to {self.build_dir}: {e}")
+            # This might be a critical error depending on what failed.
+            # For now, log and continue; subsequent steps might fail if files are missing.
+            self.result.error_message = f"Failed to copy package files: {e}"
+            raise # Re-raise to stop further processing if essential files are missing
 
     def process_package_sources(self):
-        workspace_path = Path(self.config.github_workspace) # Base workspace
+        # This function primarily ensures local files mentioned in PKGBUILD's 'source' array are tracked by git
+        # It assumes files are already in self.build_dir (copied by collect_package_files)
         package_name = self.config.package_name
-        json_file_path = Path(self.config.depends_json) # Should be absolute or resolvable
+        json_file_path = Path(self.config.depends_json) 
 
         if not json_file_path.is_file():
             self.logger.error(f"Depends JSON file not found: {json_file_path}")
-            self.result.error_message = f"File not found: {json_file_path}"
-            return False # Indicate failure
+            self.result.error_message = f"Depends JSON file not found: {json_file_path}"
+            return False 
 
         try:
             with open(json_file_path, "r") as file:
                 data = json.load(file)
         except json.JSONDecodeError as e:
             self.logger.error(f"Error decoding JSON from {json_file_path}: {e}")
-            self.result.error_message = f"Error decoding JSON: {e}"
+            self.result.error_message = f"Error decoding JSON from {json_file_path}: {e}"
             return False
 
         self.logger.info(f"Loaded source/dependency JSON data for package '{package_name}'")
 
-        if package_name not in data:
-            self.logger.info(f"Package '{package_name}' not found in JSON data. No specific sources to process from JSON.")
-            return True # Not an error, just no specific handling
-
-        package_specific_data = data[package_name]
-        sources_from_json = package_specific_data.get("sources", [])
-
-        if not sources_from_json:
-            self.logger.info(f"No 'sources' array found for package '{package_name}' in JSON. Only PKGBUILD defaults apply.")
+        if package_name not in data or "sources" not in data[package_name]:
+            self.logger.info(f"No 'sources' array found for package '{package_name}' in JSON or package not in JSON. Only PKGBUILD defaults apply for source tracking.")
             return True
 
-        # Path to the directory containing the PKGBUILD and its associated files in the source repo
-        pkgbuild_source_dir_in_workspace = Path(self.config.github_workspace) / self.config.pkgbuild_path
-
-        for source_entry in sources_from_json:
-            if self._is_url(source_entry):
-                self.logger.debug(f"Source is a URL, handled by makepkg: {source_entry}")
-            else:
-                # This is a local file name, relative to the PKGBUILD's directory in the source repo
-                source_file_in_workspace = pkgbuild_source_dir_in_workspace / source_entry
-                if source_file_in_workspace.is_file():
-                    # These files are copied by collect_package_files if they are under pkgbuild_path.
-                    # Here, we just add them to tracked_files for git commit purposes.
-                    if source_entry not in self.tracked_files:
-                        self.tracked_files.append(source_entry)
-                    self.logger.info(f"Local source file '{source_entry}' will be tracked.")
+        sources_from_json = data[package_name].get("sources", [])
+        
+        for source_entry_raw in sources_from_json:
+            # source entry can be "filename" or "filename::url"
+            source_filename = source_entry_raw.split('::')[0]
+            if self._is_url(source_entry_raw): # Handles "filename::url" and "url"
+                self.logger.debug(f"Source is a URL, downloaded by makepkg: {source_entry_raw}")
+            else: 
+                # This is a local file name, should exist in self.build_dir
+                source_file_in_build_dir = self.build_dir / source_filename
+                if source_file_in_build_dir.is_file():
+                    if source_filename not in self.tracked_files:
+                        self.tracked_files.append(source_filename)
+                    self.logger.info(f"Local source file '{source_filename}' will be tracked by git.")
                 else:
-                    # This could be an issue if PKGBUILD expects it and it's not a URL
-                    self.logger.warning(f"Local source file '{source_entry}' listed in JSON not found at {source_file_in_workspace}. PKGBUILD might fail.")
+                    self.logger.warning(f"Local source file '{source_filename}' (from JSON) not found at {source_file_in_build_dir}. PKGBUILD might fail or it might be generated.")
         return True
 
 
     def _is_url(self, source_string: str) -> bool:
-        # Basic check for URL schemes or common Git source syntaxes
-        return "://" in source_string or source_string.startswith("git+")
+        # Check if the part *after* an optional "filename::" is a URL
+        parts = source_string.split('::')
+        url_candidate = parts[-1] # If "file::url", this is url. If "url", this is url. If "file", this is file.
+        return "://" in url_candidate or url_candidate.startswith("git+")
 
 
     def process_dependencies(self) -> bool:
+        # Runs as `builder` due to buildscript2.py's invocation. HOME should be /home/builder.
+        # Paru will use sudo internally for pacman.
         package_name = self.config.package_name
         json_file_path = Path(self.config.depends_json)
 
@@ -238,141 +262,231 @@ class ArchPackageBuilder:
             self.result.error_message = f"Error decoding JSON: {e}"
             return False
 
-        self.logger.debug(f"Loaded JSON data for dependencies: {data}")
+        self.logger.debug(f"Loaded JSON data for dependencies for package '{package_name}'")
 
         if package_name not in data:
-            self.logger.info(f"Package '{package_name}' not found in JSON. Assuming no specific dependencies to install.")
+            self.logger.info(f"Package '{package_name}' not found in JSON. Assuming no specific dependencies to install from JSON.")
             return True
 
         package_data = data[package_name]
-        combined_dependencies = list(set(
+        # Combine all types of dependencies, remove duplicates and version constraints for paru resolution
+        deps_to_resolve = list(set(
             package_data.get("depends", []) +
             package_data.get("makedepends", []) +
             package_data.get("checkdepends", [])
         ))
-        combined_dependencies = [dep for dep in combined_dependencies if dep and not dep.startswith((" হৃ", ">", "<", "="))] # Filter out version constraints for now
         
-        if not combined_dependencies:
-            self.logger.info("No dependencies listed for this package in JSON.")
+        if not deps_to_resolve:
+            self.logger.info(f"No dependencies listed for '{package_name}' in JSON.")
             return True
 
-        self.logger.info(f"Identified dependencies for {package_name}: {combined_dependencies}")
+        self.logger.info(f"Raw dependencies for {package_name} from JSON: {deps_to_resolve}")
         
         resolved_packages_to_install = []
-        for dep in combined_dependencies:
-            # Remove version constraints for paru resolution (e.g., 'glibc>=2.32')
-            dep_name_only = re.split(r'[<>=]', dep)[0].strip()
-            
-            check_cmd = ["paru", "-Ssx", f"^{dep_name_only}$"] # Exact match for package name
+        for dep_full_string in deps_to_resolve:
+            dep_name_only = re.split(r'[<>=!]', dep_full_string)[0].strip()
+            if not dep_name_only: continue # Skip empty strings resulting from split
+
+            # Check if package provides itself (repo or AUR)
+            # Using paru -Ss should find it in repos or AUR if name matches
+            check_cmd = ["paru", "-Ss", f"^{re.escape(dep_name_only)}$"] 
             result = self.subprocess_runner.run_command(check_cmd, check=False)
 
-            if result.returncode == 0 and result.stdout.strip(): # Found in repos or AUR
-                self.logger.debug(f"Dependency '{dep_name_only}' found by paru.")
+            if result.returncode == 0 and result.stdout.strip(): 
+                self.logger.debug(f"Dependency '{dep_name_only}' found directly by paru.")
                 resolved_packages_to_install.append(dep_name_only)
-            else: # Check if it's a provides
-                self.logger.debug(f"Dependency '{dep_name_only}' not directly found. Checking providers via AUR RPC for '{dep}'.")
+            else: # Check if it's a virtual package provided by something else
+                self.logger.debug(f"Dependency '{dep_name_only}' not directly found. Checking providers via AUR RPC for '{dep_name_only}'.")
                 try:
-                    # Use original dep string (with potential version for provides search, though RPC might ignore it)
-                    # Or better, use dep_name_only for provides search too, as RPC 'search' by 'provides' is name-based.
-                    response = requests.get(
+                    # AUR RPC 'search' by 'provides'
+                    # Timeout increased, can be slow
+                    aur_response = requests.get(
                         f"https://aur.archlinux.org/rpc/v5/search/{dep_name_only}?by=provides",
-                        timeout=10, # Increased timeout
+                        timeout=15 
                     )
-                    response.raise_for_status()
-                    aur_data = response.json()
+                    aur_response.raise_for_status()
+                    aur_data = aur_response.json()
                     if aur_data.get("results"):
-                        # Simplistic: take the first provider. Could be more sophisticated.
-                        provider_name = aur_data["results"][0].get("Name")
+                        provider_name = aur_data["results"][0].get("Name") # Take first provider
                         if provider_name:
-                            self.logger.info(f"Found AUR provider '{provider_name}' for '{dep_name_only}'.")
+                            self.logger.info(f"Found AUR provider '{provider_name}' for virtual package '{dep_name_only}'.")
                             resolved_packages_to_install.append(provider_name)
                         else:
-                            self.logger.warning(f"No AUR provider name found for '{dep_name_only}' despite results. Package might be missing.")
+                             self.logger.warning(f"AUR RPC search for provider of '{dep_name_only}' gave result but no 'Name' field.")
                     else:
-                        self.logger.warning(f"No AUR provider found for dependency: {dep_name_only} (original: {dep}). It might be a repo package not yet synced or a typo.")
+                        self.logger.warning(f"No AUR provider found for dependency: {dep_name_only} (original: {dep_full_string}). It might be a repo package not yet synced, a typo, or a non-AUR provided virtual package.")
                 except requests.RequestException as e:
                     self.logger.warning(f"Error querying AUR for provider of '{dep_name_only}': {e}")
                 except json.JSONDecodeError as e:
                     self.logger.warning(f"Error decoding AUR RPC response for '{dep_name_only}': {e}")
-
-
-        resolved_packages_to_install = sorted(list(set(resolved_packages_to_install)))
+        
+        resolved_packages_to_install = sorted(list(set(resolved_packages_to_install))) # Unique and sorted
         if not resolved_packages_to_install:
             self.logger.info("No dependencies to install after resolution.")
             return True
             
-        self.logger.info(f"Final list of dependencies to attempt installing: {resolved_packages_to_install}")
+        self.logger.info(f"Final list of dependencies to attempt installing for '{package_name}': {resolved_packages_to_install}")
         install_cmd = [
             "paru", "-S", "--norebuild", "--noconfirm", "--needed",
         ] + resolved_packages_to_install
         
+        # Paru is run as builder user. It will use sudo for pacman internally.
+        # HOME should be /home/builder.
         install_result = self.subprocess_runner.run_command(install_cmd, check=False)
         if install_result.returncode == 0:
             self.logger.info(f"Dependencies for package '{package_name}' installed successfully.")
             return True
         else:
-            self.logger.error(f"Dependency installation failed for {package_name}. Paru stderr:\n{install_result.stderr}")
-            self.result.error_message = "Dependency installation failed."
+            self.logger.error(f"Dependency installation failed for {package_name}. Paru exit code: {install_result.returncode}")
+            self.logger.error(f"Paru stdout:\n{install_result.stdout}")
+            self.logger.error(f"Paru stderr:\n{install_result.stderr}")
+            self.result.error_message = f"Dependency installation failed for {package_name} (paru exit code {install_result.returncode}). Check logs."
             return False
 
 
     def check_version_update(self) -> Optional[str]:
         nvchecker_config_path = self.build_dir / ".nvchecker.toml"
         if not nvchecker_config_path.is_file():
-            self.logger.info(".nvchecker.toml not found, skipping version check.")
+            self.logger.info(f".nvchecker.toml not found in {self.build_dir}, skipping version check.")
             return None
 
-        # Keyfile path assumes it's available in the builder's home, set up by the workflow
-        # This path should align with what's in checkupdates.yml
-        keyfile_path = Path.home() / "nvchecker/keyfile.toml" # Standardized path from workflow
-        if not keyfile_path.is_file():
-            self.logger.warning(f"NVChecker keyfile not found at {keyfile_path}. Version check might fail for sources requiring auth.")
+        # keyfile.toml is expected to be in the current working directory (NVCHECKER_RUN_DIR from main.txt)
+        # buildscript2.py is executed from NVCHECKER_RUN_DIR, so relative path "keyfile.toml" is fine.
+        # However, nvchecker itself is run from self.build_dir after os.chdir.
+        # So, keyfile path needs to be absolute or relative to where nvchecker is run from.
+        # Let's make keyfile_path absolute based on original CWD (NVCHECKER_RUN_DIR).
+        # The script starts in NVCHECKER_RUN_DIR, then changes to self.build_dir.
+        # So, Path("keyfile.toml") would resolve *relative to self.build_dir* when nvchecker is run.
+        # The keyfile is in the directory *from which buildscript2.py was launched*.
+        # Store original CWD at start of run() and use that.
+        # For now, assume buildscript2.py CWD is NVCHECKER_RUN_DIR, and keyfile.toml is there.
+        # nvchecker is called after os.chdir(self.build_dir).
+        # So keyfile_path should be relative to self.build_dir, pointing back to NVCHECKER_RUN_DIR.
+        
+        # Simpler: The keyfile is copied to NVCHECKER_RUN_DIR.
+        # buildscript2.py is also copied and run from NVCHECKER_RUN_DIR.
+        # So, `Path("keyfile.toml")` should work if nvchecker is also run from NVCHECKER_RUN_DIR.
+        # BUT nvchecker is run *after* chdir to self.build_dir.
+        # So, the path to keyfile.toml needs to be relative from self.build_dir to where buildscript2.py was launched.
+        # The calling script `main.txt` ensures `keyfile.toml` is in `NVCHECKER_RUN_DIR`.
+        # `buildscript2.py` is also run from `NVCHECKER_RUN_DIR`.
+        # So, when `os.chdir(self.build_dir)` happens, `Path.cwd()` changes.
+        # We need an absolute path to `keyfile.toml` or one relative to `self.build_dir`.
+
+        # Path to keyfile.toml relative to the initial CWD of buildscript2.py
+        # This assumes buildscript2.py is launched from the dir containing keyfile.toml
+        # (which is NVCHECKER_RUN_DIR as per main.txt)
+        initial_cwd = Path(self.config.github_workspace).parent / "nvchecker-run" # This is a bit of a hack to reconstruct NVCHECKER_RUN_DIR
+                                                                                  # Better to pass NVCHECKER_RUN_DIR as a config.
+                                                                                  # For now, let's assume keyfile.toml is in the CWD *when nvchecker is invoked*.
+                                                                                  # No, nvchecker needs the path *to* the keyfile.
+        keyfile_path = self.config.base_build_dir.parent / "nvchecker-run" / "keyfile.toml" # Reconstruct based on known structure. Risky.
+        # Best: make keyfile path an argument to buildscript2.py or make nvchecker run from NVCHECKER_RUN_DIR.
+        # Let's assume the keyfile is in NVCHECKER_RUN_DIR, and buildscript2.py is also run from there.
+        # So, when we are in self.build_dir, path to keyfile is os.path.relpath(NVCHECKER_RUN_DIR + "/keyfile.toml", self.build_dir)
+        # Or, use absolute path if NVCHECKER_RUN_DIR is passed.
+        
+        # Fixed: `keyfile.toml` is in `NVCHECKER_RUN_DIR`. buildscript2.py is also run from there.
+        # So, when nvchecker is run (after chdir to self.build_dir), the keyfile is at `../keyfile.toml`
+        # if self.build_dir is a direct subdir of NVCHECKER_RUN_DIR. This is not the case.
+        # self.build_dir is under PACKAGE_BUILD_BASE_DIR.
+        # NVCHECKER_RUN_DIR and PACKAGE_BUILD_BASE_DIR are siblings under /home/builder.
+        # So, if CWD is /home/builder/pkg_builds/build-pkg-xyz
+        # Keyfile is at /home/builder/nvchecker-run/keyfile.toml
+        # Relative path: ../../nvchecker-run/keyfile.toml
+
+        # Let's try making keyfile_path relative to self.build_dir
+        # This assumes self.build_dir = /home/builder/pkg_builds/build-<pkg>-<hex>
+        # And keyfile is at /home/builder/nvchecker-run/keyfile.toml
+        # So from self.build_dir, path is ../../nvchecker-run/keyfile.toml
+        keyfile_path_relative_to_build_dir = Path("../../nvchecker-run/keyfile.toml")
+        # More robustly, construct absolute path if NVCHECKER_RUN_DIR can be known.
+        # For now, using the relative path based on the established structure in main.txt.
+        # This requires NVCHECKER_RUN_DIR and PACKAGE_BUILD_BASE_DIR to be siblings under BUILDER_HOME.
+        # BUILDER_HOME/nvchecker-run
+        # BUILDER_HOME/pkg_builds/ (this is self.config.base_build_dir)
+        #   build-pkg-name-xxxx/ (this is self.build_dir)
+
+        # Get absolute path to nvchecker_run_dir from base_build_dir
+        nvchecker_run_dir_abs = self.config.base_build_dir.parent / "nvchecker-run"
+        keyfile_abs_path = nvchecker_run_dir_abs / "keyfile.toml"
+
+        if not keyfile_abs_path.is_file():
+            self.logger.warning(f"NVChecker keyfile not found at {keyfile_abs_path} (derived from build config). Version check might fail for sources requiring auth.")
         
         try:
+            # nvchecker is run from self.build_dir (current CWD)
             cmd = [
                 "nvchecker",
-                "-c", str(nvchecker_config_path), # Use the one in build_dir
-                "--logger", "json",
+                "-c", str(nvchecker_config_path), # This is .nvchecker.toml inside self.build_dir
             ]
-            if keyfile_path.is_file(): # Only add -k if keyfile exists
-                 cmd.extend(["-k", str(keyfile_path)])
+            if keyfile_abs_path.is_file():
+                 cmd.extend(["-k", str(keyfile_abs_path)]) # Use absolute path to keyfile
 
-            result = self.subprocess_runner.run_command(cmd)
-            self.logger.debug(f"Raw NVChecker output: {result.stdout}")
+            # No --logger json for this specific invocation, parse structured output
+            result = self.subprocess_runner.run_command(cmd, check=False) # nvchecker can exit non-zero if no update
+            self.logger.debug(f"Raw NVChecker output (stdout): {result.stdout}")
+            self.logger.debug(f"Raw NVChecker output (stderr): {result.stderr}")
 
+            # nvchecker output format: "package_name old_version -> new_version" or JSON lines if --logger json
+            # Without --logger json, it prints "pkgname old_ver -> new_ver"
+            # Let's parse this simple format.
             new_version = None
-            for line in result.stdout.splitlines():
-                line = line.strip()
-                if not line: continue
-                try:
-                    entry = json.loads(line)
-                    if isinstance(entry, dict) and entry.get("event") == "updated": # nvchecker uses 'event':'updated'
-                        new_version_candidate = entry.get("version")
-                        # Additional check: ensure it's for the current package.
-                        # nvchecker output format might not directly give package name per line
-                        # in this context with single package .toml. So, first 'updated' version is taken.
-                        if new_version_candidate:
-                            new_version = new_version_candidate
-                            self.logger.info(f"NVChecker found new version: {new_version}")
-                            self._update_pkgbuild_version(new_version)
-                            self.result.version = new_version
-                            break 
-                except json.JSONDecodeError as e:
-                    self.logger.warning(f"Skipping invalid JSON line from NVChecker: {line}. Error: {e}")
-            
-            if not new_version:
-                self.logger.info("NVChecker did not report any new version (no 'updated' event with version).")
-            return new_version
+            if result.returncode == 0 and result.stdout: # Success and has output
+                for line in result.stdout.splitlines():
+                    line = line.strip()
+                    if not line: continue
+                    # Example: mypackage 1.0 -> 1.1
+                    # Example: mypackage 1.1 (already new)
+                    # Example: mypackage error: ...
+                    if "->" in line and "error:" not in line.lower():
+                        parts = line.split("->")
+                        if len(parts) == 2:
+                            new_version_candidate = parts[1].strip().split(" ")[0] # Get "1.1" from "1.1" or "1.1 (whatever)"
+                            # Check if it's for the current package. Output should be specific if .nvchecker.toml is specific.
+                            if self.config.package_name in parts[0]:
+                                new_version = new_version_candidate
+                                self.logger.info(f"NVChecker found new version: {new_version} for {self.config.package_name}")
+                                self._update_pkgbuild_version(new_version)
+                                self.result.version = new_version # Store the new version
+                                break 
+                    elif "(already new)" in line:
+                         self.logger.info(f"NVChecker reports version for {self.config.package_name} is already up-to-date.")
+                         # Try to parse current version from PKGBUILD to set self.result.version for consistency
+                         current_pkgver = self._get_current_pkgbuild_version()
+                         if current_pkgver: self.result.version = current_pkgver
+                         break # Stop processing output
 
-        except subprocess.CalledProcessError as e:
-            # nvchecker exits non-zero if no updates are found, or on error.
-            # We need to distinguish. If stdout is empty, it's likely an error.
-            # If stdout has "event":"error", it's an error.
-            # If stdout only has "old_ver", "ver", but no "updated", it's no update.
-            # The current logic relies on finding "event":"updated".
-            self.logger.warning(f"NVChecker command finished. It might have found no updates or encountered an error. Check its output if issues persist.")
+            if not new_version and "(already new)" not in (result.stdout or "") :
+                self.logger.info(f"NVChecker did not report any new version for {self.config.package_name}. Output: {result.stdout}")
+                current_pkgver = self._get_current_pkgbuild_version()
+                if current_pkgver: self.result.version = current_pkgver
+
+
+            return self.result.version # Return the version found or current
+
+        except subprocess.CalledProcessError as e: # Should not happen with check=False
+            self.logger.warning(f"NVChecker command error (should not be fatal due to check=False): {e}")
         except Exception as e:
-            self.logger.error(f"Version check using NVChecker failed: {e}")
+            self.logger.error(f"Version check using NVChecker failed: {e}", exc_info=self.config.debug)
+        
+        # Fallback: if nvchecker fails, try to get version from PKGBUILD
+        if not self.result.version:
+            self.result.version = self._get_current_pkgbuild_version()
+        return self.result.version
+
+    def _get_current_pkgbuild_version(self) -> Optional[str]:
+        pkgbuild_path = self.build_dir / "PKGBUILD"
+        if not pkgbuild_path.is_file():
+            self.logger.error("PKGBUILD not found in build directory for version retrieval.")
+            return None
+        try:
+            content = pkgbuild_path.read_text()
+            match = re.search(r"^\s*pkgver=([^\s#]+)", content, re.MULTILINE)
+            if match:
+                return match.group(1)
+        except Exception as e:
+            self.logger.error(f"Error reading pkgver from PKGBUILD: {e}")
         return None
 
 
@@ -380,6 +494,7 @@ class ArchPackageBuilder:
         pkgbuild_path = self.build_dir / "PKGBUILD"
         if not pkgbuild_path.is_file():
             self.logger.error("PKGBUILD not found in build directory for version update.")
+            self.result.error_message = "PKGBUILD not found for version update."
             raise FileNotFoundError("PKGBUILD not found for version update")
 
         content = pkgbuild_path.read_text()
@@ -387,11 +502,14 @@ class ArchPackageBuilder:
         old_pkgver_match = re.search(r"^\s*pkgver=([^\s#]+)", content, re.MULTILINE)
         if not old_pkgver_match:
             self.logger.error("pkgver not found in PKGBUILD.")
+            self.result.error_message = "pkgver not found in PKGBUILD."
             raise ValueError("pkgver not found in PKGBUILD")
         old_version = old_pkgver_match.group(1)
 
         if old_version == new_version:
-            self.logger.info(f"PKGBUILD version ({old_version}) already matches new version ({new_version}). No update needed.")
+            self.logger.info(f"PKGBUILD version ({old_version}) already matches new version ({new_version}). No update needed for pkgver.")
+            # Even if version is same, pkgrel might need reset if other files changed.
+            # For now, only change pkgrel if pkgver changes.
             return
 
         self.logger.info(f"Updating PKGBUILD: pkgver {old_version} -> {new_version}, pkgrel -> 1")
@@ -404,190 +522,236 @@ class ArchPackageBuilder:
         )
         content = re.sub(
             r"(^\s*pkgrel=)([^\s#]+)",
-            r"\g<1>1",
+            r"\g<1>1", # Reset pkgrel to 1
             content,
             count=1,
             flags=re.MULTILINE,
         )
         pkgbuild_path.write_text(content)
-        self.result.changes_detected = True # Mark that PKGBUILD changed
+        self.result.changes_detected = True 
 
 
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
-            self.logger.info(f"Build mode is '{self.config.build_mode}', skipping actual package build steps.")
-            return True
+            self.logger.info(f"Build mode is '{self.config.build_mode}', skipping actual package build steps (makepkg, release).")
+            # If version was updated, .SRCINFO might still need generation for commit_and_push
+            if self.result.changes_detected: # True if PKGBUILD version changed
+                try:
+                    self.logger.info("PKGBUILD changed, regenerating .SRCINFO for nobuild/test mode...")
+                    srcinfo_result = self.subprocess_runner.run_command(["makepkg", "--printsrcinfo"])
+                    (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
+                    self.logger.info(".SRCINFO regenerated.")
+                except Exception as e:
+                    self.logger.warning(f"Failed to regenerate .SRCINFO in '{self.config.build_mode}' mode: {e}")
+                    # Not fatal for 'nobuild', but might be for 'test' if it implies a build.
+                    # For now, let's not make it fatal here.
+            return True # Success for 'nobuild' mode.
 
         try:
+            # All commands here run as 'builder' user from self.build_dir
+            # HOME=/home/builder should be set from the calling script for the python env
+            
             self.logger.info("Updating checksums in PKGBUILD (updpkgsums)...")
-            self.subprocess_runner.run_command(["updpkgsums"])
+            self.subprocess_runner.run_command(["updpkgsums"]) # This modifies PKGBUILD
+            self.result.changes_detected = True # Assume updpkgsums implies changes or PKGBUILD was already changed
             
             self.logger.info("Regenerating .SRCINFO file...")
             srcinfo_result = self.subprocess_runner.run_command(["makepkg", "--printsrcinfo"])
             (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
-            self.result.changes_detected = True # .SRCINFO changed or updpkgsums changed PKGBUILD
+            self.result.changes_detected = True 
 
-            self.logger.info("Starting package build (makepkg -L -s --noconfirm)...")
-            self.subprocess_runner.run_command(["makepkg", "-L", "-s", "--noconfirm"]) # Added -L
+            self.logger.info(f"Starting package build (makepkg -Lcs --noconfirm --needed --noprogressbar) in {self.build_dir}...")
+            # Added -c (clean up work Dirs), -s (install deps), --needed, --noprogressbar
+            # HOME is inherited, should be /home/builder.
+            self.subprocess_runner.run_command(["makepkg", "-Lcs", "--noconfirm", "--needed", "--noprogressbar"]) 
 
-            built_package_files = sorted(self.build_dir.glob("*.pkg.tar.zst"))
+            built_package_files = sorted(self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")) # More specific glob
+            if not built_package_files: # If main package not found, try any .pkg.tar.zst
+                built_package_files = sorted(self.build_dir.glob("*.pkg.tar.zst"))
+
             if not built_package_files:
                 self.logger.error("No packages were built (no .pkg.tar.zst files found).")
-                raise Exception("No packages built")
+                self.result.error_message = "No .pkg.tar.zst files found after makepkg."
+                return False # Explicitly return False
             
             self.result.built_packages = [p.name for p in built_package_files]
             self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
 
-            # Install the built package(s) locally for testing or as a dependency for others
-            self.logger.info(f"Installing built package(s) locally: {', '.join(map(str, built_package_files))}")
+            # Install the built package(s) locally (as builder, using sudo for pacman)
+            self.logger.info(f"Installing built package(s) locally: {', '.join(self.result.built_packages)}")
             self.subprocess_runner.run_command(
                 ["sudo", "pacman", "--noconfirm", "-U"] + [str(p) for p in built_package_files]
             )
 
-            # Copy build logs to artifacts directory if specified
             if self.artifacts_path:
-                self.artifacts_path.mkdir(parents=True, exist_ok=True)
-                for log_file in self.build_dir.glob("*.log"):
-                    try:
-                        # Prepend package name for uniqueness in a shared artifact dir
-                        dest_log_file = self.artifacts_path / f"{self.config.package_name}-{log_file.name}"
-                        shutil.copy2(log_file, dest_log_file)
-                        self.logger.info(f"Copied log file {log_file.name} to {dest_log_file}")
-                    except Exception as e:
-                        self.logger.warning(f"Failed to copy log file {log_file.name}: {e}")
+                self.logger.info(f"Copying build artifacts to {self.artifacts_path}...")
+                # Copy PKGBUILD, .SRCINFO, and any logs or packages to artifacts_path
+                files_to_artifact = ["PKGBUILD", ".SRCINFO"] + [p.name for p in built_package_files]
+                for log_file_pattern in ["*.log", "*.log.*", "*_log", "*makepkg*.txt"]: # Common log patterns
+                    files_to_artifact.extend([lf.name for lf in self.build_dir.glob(log_file_pattern)])
+                
+                for file_name in set(files_to_artifact): # Use set to avoid duplicates
+                    src_file = self.build_dir / file_name
+                    if src_file.exists():
+                        dest_file = self.artifacts_path / src_file.name # Keep original name in flat artifact dir for package
+                        try:
+                            shutil.copy2(src_file, dest_file)
+                            self.logger.debug(f"Copied artifact {src_file.name} to {dest_file}")
+                        except Exception as e:
+                            self.logger.warning(f"Failed to copy artifact {src_file.name}: {e}")
             
-            if self.config.build_mode == "build":
-                self._create_release(built_package_files)
-
+            if self.config.build_mode == "build": # Only create GH release for "build" mode
+                if self.result.version: # Version must be known
+                    self._create_release(built_package_files)
+                else:
+                    self.logger.warning("Build mode is 'build' but no version determined. Skipping GitHub Release creation.")
             return True
 
-        except Exception as e:
-            self.logger.error(f"Build process failed: {e}", exc_info=self.config.debug)
-            self.result.error_message = f"Build failed: {str(e)}"
+        except subprocess.CalledProcessError as e: # Catch errors from run_command if check=True was used
+            self.logger.error(f"Build process failed during command: {shlex.join(e.cmd)} (Return code: {e.returncode})", exc_info=self.config.debug)
+            self.logger.error(f"Stdout: {e.stdout}")
+            self.logger.error(f"Stderr: {e.stderr}")
+            self.result.error_message = f"Build failed: {e.cmd} exited {e.returncode}. Stderr: {e.stderr[:200]}"
+            return False
+        except Exception as e: # Catch other Python exceptions
+            self.logger.error(f"Build process failed with Python exception: {e}", exc_info=self.config.debug)
+            self.result.error_message = f"Build failed due to Python error: {str(e)}"
             return False
 
     def _create_release(self, package_files: List[Path]):
-        if not self.result.version:
-            self.logger.warning("No version information available (self.result.version is None). Skipping GitHub release creation.")
-            self.logger.warning("This usually means nvchecker did not find a new version or was not run.")
-            # Decide if this is an error or acceptable. For now, just skip.
+        if not self.result.version: # Should have been set by check_version_update or _get_current_pkgbuild_version
+            self.logger.error("Cannot create GitHub release: package version is not determined.")
+            self.result.error_message = (self.result.error_message or "") + "; GitHub release skipped: version unknown."
             return
 
-        # Use package_name and version for the tag and title for clarity
         tag_name = f"{self.config.package_name}-{self.result.version}"
         release_title = f"{self.config.package_name} {self.result.version}"
         
-        self.logger.info(f"Creating GitHub release with tag '{tag_name}' and title '{release_title}'.")
+        self.logger.info(f"Creating/updating GitHub release with tag '{tag_name}' and title '{release_title}'.")
 
         try:
-            # Create release
-            # Check if release already exists for this tag
             check_release_cmd = ["gh", "release", "view", tag_name, "-R", self.config.github_repo]
             release_exists_result = self.subprocess_runner.run_command(check_release_cmd, check=False)
 
-            if release_exists_result.returncode == 0:
-                self.logger.info(f"Release for tag '{tag_name}' already exists. Will attempt to upload/clobber assets.")
-            else:
+            if release_exists_result.returncode != 0: # Release does not exist, create it
                 self.logger.info(f"Creating new release for tag '{tag_name}'.")
+                # Ensure there's at least one package name for the body, fallback if list is empty
+                main_package_for_notes = self.result.built_packages[0] if self.result.built_packages else f"{self.config.package_name}-VERSION.pkg.tar.zst"
+                release_notes = self.RELEASE_BODY.replace("PACKAGENAME.pkg.tar.zst", main_package_for_notes)
+                
                 create_release_cmd = [
                     "gh", "release", "create", tag_name,
                     "--title", release_title,
-                    "--notes", self.RELEASE_BODY.replace("PACKAGENAME.pkg.tar.zst", self.result.built_packages[0] if self.result.built_packages else "PACKAGE.pkg.tar.zst"),
+                    "--notes", release_notes,
                     "-R", self.config.github_repo,
                 ]
-                self.subprocess_runner.run_command(create_release_cmd) # check=True by default
+                self.subprocess_runner.run_command(create_release_cmd)
+            else:
+                self.logger.info(f"Release for tag '{tag_name}' already exists. Will upload/clobber assets.")
 
-            # Upload packages
             for pkg_file in package_files:
-                self.logger.info(f"Uploading {pkg_file.name} to release '{tag_name}'.")
-                upload_cmd = [
-                    "gh", "release", "upload", tag_name, str(pkg_file),
-                    "--clobber", # Overwrite if asset already exists
-                    "-R", self.config.github_repo,
-                ]
-                self.subprocess_runner.run_command(upload_cmd)
-            self.logger.info("All built packages uploaded to GitHub release.")
+                if pkg_file.is_file():
+                    self.logger.info(f"Uploading {pkg_file.name} to release '{tag_name}'.")
+                    upload_cmd = [
+                        "gh", "release", "upload", tag_name, str(pkg_file),
+                        "--clobber", 
+                        "-R", self.config.github_repo,
+                    ]
+                    self.subprocess_runner.run_command(upload_cmd)
+                else:
+                    self.logger.warning(f"Package file {pkg_file} not found for upload to release.")
+            self.logger.info(f"Assets for release '{tag_name}' updated.")
 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to create or upload to GitHub release '{tag_name}': {e}")
-            # Optionally append to self.result.error_message or handle more gracefully
-            self.result.error_message = (self.result.error_message or "") + f"; GitHub release failed for {tag_name}"
-        except Exception as e: # Catch other potential errors
+            self.logger.error(f"Failed to create or upload to GitHub release '{tag_name}': CMD: {e.cmd}, RC: {e.returncode}, Stderr: {e.stderr}")
+            self.result.error_message = (self.result.error_message or "") + f"; GitHub release failed for {tag_name}: {e.stderr[:100]}"
+        except Exception as e: 
             self.logger.error(f"An unexpected error occurred during GitHub release for '{tag_name}': {e}", exc_info=self.config.debug)
             self.result.error_message = (self.result.error_message or "") + f"; Unexpected error during GitHub release for {tag_name}"
 
 
     def commit_and_push(self) -> bool:
-        if not self.tracked_files:
-            self.logger.error("There are no tracked files defined. This should not happen.")
-            return False
-
-        self.logger.info(f"Attempting to commit and push changes. Tracked files: {self.tracked_files}")
-
-        # Ensure we are in the build directory (git repo)
-        if Path.cwd() != self.build_dir:
-            self.logger.warning(f"Current directory {Path.cwd()} is not build_dir {self.build_dir}. Changing to build_dir.")
-            os.chdir(self.build_dir)
-
-        # Verify tracked files exist before adding
-        existing_tracked_files = []
-        for file_name in self.tracked_files:
-            file_path = self.build_dir / file_name
-            if file_path.is_file():
-                existing_tracked_files.append(file_name)
-            else:
-                self.logger.warning(f"Tracked file '{file_name}' not found at {file_path}. It will not be added to git.")
+        # This runs after os.chdir(self.build_dir)
+        # Git user should be configured by the calling shell script.
         
-        if not existing_tracked_files:
-            self.logger.info("No existing tracked files found to add to git.")
-            # This might be okay if no changes were expected or made.
-            # Check if changes were detected by other means (e.g. version update)
-            # For now, proceed to check git status.
-        else:
-            self.subprocess_runner.run_command(["git", "add"] + existing_tracked_files)
+        # Ensure all tracked files are up-to-date (e.g. .SRCINFO if PKGBUILD changed)
+        # This is typically done in build_package or if version changed. Re-check here.
+        if (self.build_dir / "PKGBUILD").is_file() and not (self.build_dir / ".SRCINFO").is_file():
+            try:
+                self.logger.info(".SRCINFO missing, attempting to generate it...")
+                srcinfo_result = self.subprocess_runner.run_command(["makepkg", "--printsrcinfo"])
+                (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
+                self.result.changes_detected = True
+            except Exception as e:
+                self.logger.error(f"Failed to generate .SRCINFO before commit: {e}")
+                self.result.error_message = "Failed to generate .SRCINFO"
+                return False # Cannot proceed without .SRCINFO
 
+        self.logger.info(f"Preparing to commit to AUR. Tracked files: {self.tracked_files}")
+        
+        existing_tracked_files_for_add = []
+        for file_name in self.tracked_files:
+            if (self.build_dir / file_name).is_file():
+                existing_tracked_files_for_add.append(file_name)
+            else:
+                self.logger.warning(f"Tracked file '{file_name}' not found in {self.build_dir}. It will not be added to git.")
+        
+        if not existing_tracked_files_for_add:
+            self.logger.info("No existing tracked files to 'git add'. Checking for other changes...")
+        else:
+            self.subprocess_runner.run_command(["git", "add"] + existing_tracked_files_for_add)
 
         if not self._has_git_changes_to_commit():
             self.logger.info("No git changes to commit to AUR.")
-            # If PKGBUILD was changed by nvchecker but git status is clean, it implies it was already committed.
-            # self.result.changes_detected might still be true from version update or .SRCINFO.
-            # This is fine.
-            return True # No failure, just nothing to push to AUR.
+            # If self.result.changes_detected is true (e.g. from version bump), but git reports no changes,
+            # it could mean the changes were already committed, or .gitattributes are ignoring them.
+            # For now, this is considered success (nothing to push).
+            return True 
 
         self.logger.info("Git changes detected. Proceeding with commit and push to AUR.")
+        self.result.changes_detected = True # Confirming again as git status shows diff
         
         commit_version_suffix = f" (v{self.result.version})" if self.result.version else ""
-        commit_msg = f"{self.config.commit_message}{commit_version_suffix}"
+        # Ensure commit_message from config is used as base
+        final_commit_msg = f"{self.config.commit_message}{commit_version_suffix}"
         
         try:
-            self.subprocess_runner.run_command(["git", "commit", "-m", commit_msg])
-            self.subprocess_runner.run_command(["git", "push", "origin", "master"]) # Assuming master is the target branch for AUR
-            self.result.changes_detected = True # Explicitly confirm changes were pushed
+            # Git commit to local AUR clone
+            self.subprocess_runner.run_command(["git", "commit", "-m", final_commit_msg])
+            
+            # Git push to AUR remote
+            self.subprocess_runner.run_command(["git", "push", "origin", "master"]) # Or main, depending on AUR's default
             self.logger.info("Changes successfully committed and pushed to AUR.")
 
-            # Update files in the source GitHub repository
-            # This syncs changes made in build_dir (like version bump, .SRCINFO) back to the main repo.
-            for file_name in existing_tracked_files: # Only update files that were actually part of the commit
-                file_path_in_build_dir = self.build_dir / file_name
-                # self.config.pkgbuild_path is path like "maintain/build/mypackage"
-                # file_name is like "PKGBUILD" or ".SRCINFO"
-                # So, target path in repo is config.pkgbuild_path / file_name
-                path_in_repo = Path(self.config.pkgbuild_path) / file_name
-                self._update_github_file(str(path_in_repo), file_path_in_build_dir)
+            # Sync changes back to the source GitHub repository
+            # Only sync files that were actually part of the AUR commit (existing_tracked_files_for_add)
+            # and are expected to be in the source repo.
+            self.logger.info("Syncing committed files back to source GitHub repository...")
+            for file_name_in_aur_commit in existing_tracked_files_for_add:
+                # Path of the file in the AUR clone (self.build_dir)
+                file_path_in_aur_clone = self.build_dir / file_name_in_aur_commit
+                # Corresponding path in the source GitHub repo.
+                # self.config.pkgbuild_path is like "maintain/build/mypackage"
+                # file_name_in_aur_commit is like "PKGBUILD"
+                path_in_source_repo = Path(self.config.pkgbuild_path) / file_name_in_aur_commit
+                
+                self._update_github_file(str(path_in_source_repo), file_path_in_aur_clone, final_commit_msg)
             
             return True
 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Git operation (commit/push to AUR or update to source repo) failed: {e}")
-            self.result.error_message = (self.result.error_message or "") + "; Git push to AUR or update to source repo failed."
+            self.logger.error(f"Git operation (commit/push to AUR or update to source repo) failed: CMD: {e.cmd}, RC: {e.returncode}")
+            self.logger.error(f"Stdout: {e.stdout}")
+            self.logger.error(f"Stderr: {e.stderr}")
+            self.result.error_message = (self.result.error_message or "") + f"; Git op failed: {e.cmd} -> {e.stderr[:100]}"
             return False
         except Exception as e:
             self.logger.error(f"Unexpected error during git operations or source repo update: {e}", exc_info=self.config.debug)
-            self.result.error_message = (self.result.error_message or "") + "; Unexpected error in git/source repo update."
+            self.result.error_message = (self.result.error_message or "") + f"; Unexpected error in git/source repo update: {str(e)}"
             return False
 
 
-    def _update_github_file(self, path_in_repo: str, local_file_path: Path):
+    def _update_github_file(self, path_in_repo: str, local_file_path: Path, commit_msg: str):
         """Updates a file in the GitHub repository using the gh CLI."""
         self.logger.info(f"Updating '{path_in_repo}' in GitHub repo '{self.config.github_repo}' from local file '{local_file_path}'.")
         try:
@@ -595,119 +759,154 @@ class ArchPackageBuilder:
                 content_bytes = f.read()
             content_b64 = base64.b64encode(content_bytes).decode("utf-8")
 
-            # Get current SHA of the file
-            # Path in repo needs to be relative to repo root.
             get_sha_cmd = [
                 "gh", "api", f"repos/{self.config.github_repo}/contents/{path_in_repo}",
                 "--jq", ".sha", "-R", self.config.github_repo
             ]
             sha_result = self.subprocess_runner.run_command(get_sha_cmd, check=False)
-            current_sha = sha_result.stdout.strip() if sha_result.returncode == 0 else None
+            current_sha = sha_result.stdout.strip() if sha_result.returncode == 0 and sha_result.stdout.strip() != "null" else None
 
-            commit_message = f"Auto update: Sync {Path(path_in_repo).name}"
+            # Use a more specific commit message for the source repo update
+            source_repo_commit_message = f"Sync {Path(path_in_repo).name} from AUR build"
             if self.result.version:
-                 commit_message += f" to v{self.result.version}"
+                 source_repo_commit_message += f" (v{self.result.version})"
+            else: # Append original base commit message if no version part
+                 source_repo_commit_message = commit_msg
+
 
             update_fields = [
-                "-f", f"message={commit_message}",
+                "-f", f"message={source_repo_commit_message}",
                 "-f", f"content={content_b64}",
             ]
-            if current_sha and current_sha != "null": # "null" if file not found or other issues
+            if current_sha:
                 update_fields.extend(["-f", f"sha={current_sha}"])
             
             update_cmd = [
                 "gh", "api", "--method", "PUT",
                 f"repos/{self.config.github_repo}/contents/{path_in_repo}",
-            ] + update_fields + ["-R", self.config.github_repo]
+            ] + update_fields + ["-R", self.config.github_repo] # -R might be redundant if repo in API path
             
             self.subprocess_runner.run_command(update_cmd)
-            self.logger.info(f"Successfully updated '{path_in_repo}' in GitHub repository.")
+            self.logger.info(f"Successfully updated '{path_in_repo}' in source GitHub repository.")
 
         except subprocess.CalledProcessError as e:
-            # gh api might return non-zero for various reasons, stderr has details
-            self.logger.error(f"Failed to update '{path_in_repo}' in GitHub repo. Error: {e.stderr}")
-            # Propagate this as part of a larger failure if needed, or log and continue
-            raise # Re-raise to be caught by commit_and_push
+            self.logger.error(f"Failed to update '{path_in_repo}' in GitHub repo. CMD: {e.cmd}, RC: {e.returncode}, Stderr: {e.stderr}")
+            raise 
         except FileNotFoundError:
-            self.logger.error(f"Local file '{local_file_path}' not found for GitHub update.")
+            self.logger.error(f"Local file '{local_file_path}' not found for GitHub source update.")
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error updating GitHub file '{path_in_repo}': {e}", exc_info=self.config.debug)
+            self.logger.error(f"Unexpected error updating GitHub source file '{path_in_repo}': {e}", exc_info=self.config.debug)
             raise
 
     def _has_git_changes_to_commit(self) -> bool:
-        # Check git status --porcelain. If it has output, there are changes.
+        # Ensure CWD is self.build_dir for git commands
+        if Path.cwd() != self.build_dir:
+            self.logger.warning(f"Git check called from {Path.cwd()}, expected {self.build_dir}. This might be an issue.")
+            # For safety, let's not chdir here as it might hide issues elsewhere.
+        
         result = self.subprocess_runner.run_command(["git", "status", "--porcelain"], check=False)
-        return bool(result.stdout.strip())
+        if result.stdout and result.stdout.strip():
+            self.logger.debug(f"Git porcelain status output:\n{result.stdout.strip()}")
+            return True
+        return False
 
     def cleanup(self):
-        if self.build_dir.exists():
-            self.logger.info(f"Cleaning up build directory: {self.build_dir}")
+        # self.build_dir is an absolute path like /home/builder/pkg_builds/build-pkg-unique
+        if self.build_dir and self.build_dir.exists() and self.build_dir.is_relative_to(self.config.base_build_dir):
+            self.logger.info(f"Cleaning up package build directory: {self.build_dir}")
             try:
-                # shutil.rmtree might fail if files are owned by root (e.g. after sudo pacman)
-                # Using sudo rm -rf is more robust in a container context where builder has sudo
-                subprocess.run(["sudo", "rm", "-rf", str(self.build_dir)], check=True, text=True, capture_output=True)
-            except subprocess.CalledProcessError as e:
-                self.logger.warning(f"Failed to clean up build directory using sudo rm -rf: {e.stderr}")
+                # Run as current user (builder). No sudo needed if builder owns base_build_dir and its contents.
+                shutil.rmtree(self.build_dir)
             except Exception as e:
-                self.logger.warning(f"Unexpected error during cleanup of {self.build_dir}: {e}")
+                self.logger.warning(f"Failed to clean up package build directory {self.build_dir}: {e}. Manual cleanup might be needed.")
+        elif self.build_dir and self.build_dir.exists():
+             self.logger.warning(f"Not cleaning up {self.build_dir} as it's not relative to base build dir {self.config.base_build_dir} or some other issue.")
 
 
     def run(self) -> Dict[str, Any]:
-        original_cwd = Path.cwd()
+        original_cwd = Path.cwd() # Should be NVCHECKER_RUN_DIR
+        self.logger.info(f"buildscript2.py started. Original CWD: {original_cwd}. HOME env: {os.environ.get('HOME')}")
+        self.logger.info(f"Package: {self.config.package_name}, Build Mode: {self.config.build_mode}")
+        self.logger.info(f"Using base build directory: {self.config.base_build_dir}")
+        self.logger.info(f"Package specific build dir will be: {self.build_dir} (created now)")
+        # build_dir is created in __init__
+
         try:
+            # 1. Authenticate with GitHub (if needed, gh auth status checks this)
+            #    Run this before changing directory, in case gh relies on CWD for some config.
             try:
-                self.subprocess_runner.run_command(["gh", "auth", "status"])
-            except subprocess.CalledProcessError:
-                self.logger.info("GitHub token not pre-authenticated or expired. Attempting login...")
+                # Check auth status without input to avoid hanging if no token.
+                # Errors here are not fatal, authenticate_github will try login.
+                self.subprocess_runner.run_command(["gh", "auth", "status"], check=False) 
+            except Exception: # Catch broader exceptions if gh not found etc.
+                 pass # Let authenticate_github handle it.
+
+            if "gh auth status" in self.subprocess_runner.run_command(["gh", "auth", "status"], check=False).stderr: # Crude check
+                self.logger.info("GitHub token might not be pre-authenticated or gh has issues. Attempting login.")
                 if not self.authenticate_github():
-                    raise RuntimeError("GitHub authentication failed") # Critical failure
+                    # self.result.error_message is set by authenticate_github
+                    self.result.success = False
+                    raise RuntimeError(self.result.error_message or "GitHub authentication failed critically.")
 
-            self.setup_build_environment() # This changes cwd to self.build_dir
-            self.collect_package_files() # Copies files from workspace/pkgbuild_path to build_dir
+            # 2. Setup build environment (clone AUR repo, cd into it)
+            self.setup_build_environment() # This changes CWD to self.build_dir (e.g., /home/builder/pkg_builds/build-pkg-xyz)
 
-            if not self.process_dependencies(): # Installs dependencies using paru
-                # Error message should be set by process_dependencies
+            # 3. Collect package files from workspace to build_dir
+            self.collect_package_files() 
+
+            # 4. Process dependencies (install them using paru)
+            if not self.process_dependencies(): 
+                self.result.success = False
                 raise Exception(self.result.error_message or "Dependency processing failed")
 
-            self.check_version_update() # Updates PKGBUILD if new version found, sets self.result.version
+            # 5. Check for version updates (nvchecker, updates PKGBUILD if new version)
+            self.check_version_update() # Sets self.result.version, self.result.changes_detected
+            if not self.result.version: # If version could not be determined at all
+                self.logger.warning("Package version could not be determined. This might affect releases and commits.")
+                # Not necessarily fatal, but good to note.
 
-            if not self.build_package(): # Builds package, installs locally, creates release
-                # Error message set by build_package
+            # 6. Build package (makepkg, local install, create GH release)
+            #    This also handles .SRCINFO generation if PKGBUILD changed.
+            if not self.build_package(): 
+                self.result.success = False
                 raise Exception(self.result.error_message or "Package build failed")
 
-            # process_package_sources updates self.tracked_files based on 'sources' in JSON
-            # It should run *before* commit_and_push to ensure all local files are tracked.
-            # It should run *after* collect_package_files ensures those files are in build_dir.
+            # 7. Process local source files listed in JSON (updates self.tracked_files for git commit)
+            #    Run this *after* potential PKGBUILD changes (version, updpkgsums) and *before* commit.
             if not self.process_package_sources():
-                 raise Exception(self.result.error_message or "Processing package sources from JSON failed")
+                self.result.success = False
+                raise Exception(self.result.error_message or "Processing package sources from JSON failed")
 
-            if not self.commit_and_push(): # Commits to AUR, updates source GitHub repo
-                # Error message might be set by commit_and_push
-                # If no changes, it returns True. If actual error, False.
-                if not self.result.error_message: # If commit_and_push failed but didn't set a specific error
-                    self.result.error_message = "Commit and push operations failed."
-                # Do not raise here if it was just "no changes".
-                # commit_and_push failing with an actual error should be the problem.
-                # The current logic of commit_and_push returning False on error is fine.
-                # Let's check if an error message was set to distinguish.
-                if self.result.error_message and "failed" in self.result.error_message.lower(): # Heuristic
-                     raise Exception(self.result.error_message)
+            # 8. Commit and push to AUR, then sync back to source GitHub repo
+            #    Only run if changes were detected (e.g. version update, .SRCINFO, updpkgsums)
+            #    or if commit_and_push itself finds changes (e.g. manual file changes copied in)
+            if self.result.changes_detected or self.config.build_mode in ["build", "test"]: # Force attempt if building/testing
+                 if not self.commit_and_push():
+                    # commit_and_push sets its own error message. If it returns False due to actual error:
+                    if self.result.error_message and "failed" in self.result.error_message.lower():
+                        self.result.success = False
+                        raise Exception(self.result.error_message)
+                    # If it returned False due to "no changes" but we expected changes, it's an anomaly.
+                    # For now, trust its return for "no changes" vs actual failure.
+            else:
+                self.logger.info("No changes detected by earlier steps (like version update or PKGBUILD modification). Skipping AUR commit and push.")
 
 
-            self.result.success = True # If we reached here, it's a success.
+            self.result.success = True # If all steps above passed or were handled.
             self.logger.info(f"Successfully processed package {self.config.package_name}")
 
         except Exception as e:
-            self.logger.error(f"Unhandled exception in run: {str(e)}", exc_info=self.config.debug)
-            self.result.success = False
+            self.logger.error(f"Exception during run for package {self.config.package_name}: {str(e)}", exc_info=self.config.debug)
+            self.result.success = False # Mark as failure
             if not self.result.error_message: # Ensure an error message is present
                 self.result.error_message = str(e)
         finally:
+            # Change back to original CWD before cleanup, especially if cleanup needs relative paths from original CWD
             if Path.cwd() != original_cwd:
-                os.chdir(original_cwd) # Change back to original CWD
+                os.chdir(original_cwd) 
                 self.logger.debug(f"Restored current directory to {original_cwd}")
-            self.cleanup()
+            self.cleanup() # Cleanup the package-specific build directory
             
         return asdict(self.result)
 
@@ -725,31 +924,53 @@ def main():
     parser.add_argument("--commit-message", required=True, help="Base Git commit message for AUR updates")
     parser.add_argument(
         "--build-mode",
-        choices=["nobuild", "build", "test"], # Changed "none" to "nobuild" for clarity
+        choices=["nobuild", "build", "test"], 
         default="nobuild",
         help="Build mode: 'nobuild' (prepare, check version, commit AUR changes), 'build' (nobuild + build, create GH release), 'test' (nobuild + build, no GH release)",
     )
     parser.add_argument(
-        "--artifacts-dir", default=None, help="Directory to store build artifacts (e.g., logs). Relative to current CWD or absolute."
+        "--artifacts-dir", default=None, help="Directory to store build artifacts for this package (e.g., logs). Path will be specific to the package."
+    )
+    parser.add_argument(
+        "--base-build-dir", required=True, type=Path, help="Base directory where package-specific temporary build directories will be created."
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
-    # Configure logger based on debug flag from CLI
+    # Configure logger based on debug flag from CLI (already set up to use stderr)
     if args.debug:
-        logger.setLevel(logging.DEBUG)
+        logging.getLogger("arch_builder_script").setLevel(logging.DEBUG)
     else:
-        logger.setLevel(logging.INFO)
-
+        logging.getLogger("arch_builder_script").setLevel(logging.INFO)
+    
+    # Convert string path to Path object for base_build_dir if not already
     config = BuildConfig(**vars(args))
+    
+    # Ensure HOME is correctly reported if script changes it internally (it shouldn't)
+    logger.debug(f"Initial HOME from environment: {os.environ.get('HOME')}")
+
+
     builder = ArchPackageBuilder(config)
     result_dict = builder.run()
 
-    # Print result as JSON to stdout
-    print(json.dumps(result_dict, indent=2))
+    # Print result as JSON to STDOUT
+    try:
+        print(json.dumps(result_dict, indent=2))
+    except TypeError as e:
+        # Fallback if result_dict is not serializable, print a basic error JSON
+        err_json = json.dumps({
+            "success": False,
+            "package_name": args.package_name,
+            "error_message": f"Failed to serialize result to JSON: {e}. Raw result: {result_dict}",
+            "version": None,
+            "built_packages": [],
+            "changes_detected": False
+        })
+        print(err_json)
+        logger.error(f"CRITICAL: Failed to serialize result_dict to JSON: {e}. Raw dict: {result_dict}")
     
-    sys.exit(0 if result_dict["success"] else 1)
+    sys.exit(0 if result_dict.get("success", False) else 1)
 
 
 if __name__ == "__main__":

@@ -139,7 +139,8 @@ jobs:
           fi
           echo "::endgroup::"
 
-      - name: Run Arch Package Update and Build Task # Next test with chown fix
+
+      - name: Run Arch Package Update and Build Task # Test run_version_checks
         shell: bash
         run: |
           #!/bin/bash
@@ -157,160 +158,163 @@ jobs:
           # --- Configuration & Constants ---
           _log_raw_notice "VARS_START" "Defining initial constants..."
           BUILDER_HOME="/home/builder"
-          _log_raw_debug "BUILDER_HOME='${BUILDER_HOME}'"
           NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run" 
-          _log_raw_debug "NVCHECKER_RUN_DIR='${NVCHECKER_RUN_DIR}'"
           ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"
-          _log_raw_debug "ARTIFACTS_DIR='${ARTIFACTS_DIR}'"
           PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
-          _log_raw_debug "PACKAGE_DETAILS_JSON_PATH='${PACKAGE_DETAILS_JSON_PATH}'"
-          _log_raw_notice "VARS_END" "Initial constants defined."
+          _log_raw_notice "VARS_END" "Initial constants defined." # For brevity, removed individual var logs
 
           # --- setup_environment function ---
           setup_environment() {
               _start_raw_group "DEBUG: setup_environment Function"
               _log_raw_notice "SETUP_ENV_START" "Entering setup_environment function. Current PWD: $(pwd)"
-              _log_raw_debug "GITHUB_WORKSPACE is: ${GITHUB_WORKSPACE}"
-              
               sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"
-              _log_raw_debug "mkdir -p ${NVCHECKER_RUN_DIR} done."
               sudo -u builder mkdir -p "${ARTIFACTS_DIR}"
-              _log_raw_debug "mkdir -p ${ARTIFACTS_DIR} done."
-              
               cd "${NVCHECKER_RUN_DIR}"
               _log_raw_debug "Current directory after cd: $(pwd)."
-
-              _log_raw_notice "SETUP_ENV_VERIFY_AND_COPY_SCRIPTS" "Verifying and copying necessary scripts..."
-              local all_scripts_found_and_copied=true # 'local' is fine here, inside function
-
+              local all_scripts_found_and_copied=true
               for script_name_to_copy in "buildscript.py" "compare_aur_local_versions.py"; do
-                  _log_raw_debug "Processing script for verification and copy: ${script_name_to_copy}"
-                  local found_script_path # 'local' is fine here
+                  local found_script_path
                   found_script_path=$(find "${GITHUB_WORKSPACE}/scripts/" -name "${script_name_to_copy}" -type f -print -quit 2>/dev/null)
-
                   if [ -n "${found_script_path}" ] && [ -f "${found_script_path}" ]; then
                       _log_raw_notice "SETUP_ENV_SCRIPT_FOUND" "Script '${script_name_to_copy}' FOUND at '${found_script_path}'."
                       if sudo -u builder cp "${found_script_path}" "${NVCHECKER_RUN_DIR}/"; then
-                          _log_raw_debug "Copy SUCCESS for ${script_name_to_copy} from '${found_script_path}'."
-                          if sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name_to_copy}"; then
-                             _log_raw_debug "chmod +x SUCCESS for ${script_name_to_copy} in '${NVCHECKER_RUN_DIR}'."
-                          else
+                          if ! sudo -u builder chmod +x "${NVCHECKER_RUN_DIR}/${script_name_to_copy}"; then
                              _log_raw_error "SETUP_ENV_CHMOD_FAILED" "chmod +x FAILED for '${NVCHECKER_RUN_DIR}/${script_name_to_copy}'. Exit code: $?."
                              all_scripts_found_and_copied=false
                           fi
                       else
-                          _log_raw_error "SETUP_ENV_COPY_FAILED" "sudo -u builder cp FAILED for ${script_name_to_copy} from '${found_script_path}'. Exit code: $?."
+                          _log_raw_error "SETUP_ENV_COPY_FAILED" "cp FAILED for ${script_name_to_copy}. Exit code: $?."
                           all_scripts_found_and_copied=false
                       fi
                   else
-                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Script '${script_name_to_copy}' NOT FOUND in expected path '${GITHUB_WORKSPACE}/scripts/'. This is an issue."
+                      _log_raw_error "SETUP_ENV_MISSING_SCRIPT" "Script '${script_name_to_copy}' NOT FOUND in '${GITHUB_WORKSPACE}/scripts/'."
                       all_scripts_found_and_copied=false
                   fi
               done
-              
-              _log_raw_debug "Listing contents of destination '${NVCHECKER_RUN_DIR}' after attempted copies:"
               ls -la "${NVCHECKER_RUN_DIR}" | while IFS= read -r line; do _log_raw_debug "  ls dest: $line"; done
-
               if ! ${all_scripts_found_and_copied}; then
-                  _log_raw_error "SETUP_ENV_FINAL_FAILURE" "CRITICAL: One or more scripts were not found or copied/chmodded successfully. Cannot proceed."
-                  _end_raw_group 
-                  return 1 
+                  _log_raw_error "SETUP_ENV_FINAL_FAILURE" "CRITICAL: Script setup failed."
+                  _end_raw_group; return 1 
               fi
-              _log_raw_notice "SETUP_ENV_END" "Exiting setup_environment function successfully."
-              _end_raw_group
-              return 0 
+              _log_raw_notice "SETUP_ENV_END" "Exiting setup_environment successfully."
+              _end_raw_group; return 0 
           }
-          _log_raw_notice "SETUP_ENV_DEF_DONE" "setup_environment function defined."
+          _log_raw_notice "SETUP_ENV_DEF_DONE" "setup_environment defined."
 
           # --- generate_nvchecker_config function ---
           generate_nvchecker_config() {
               _start_raw_group "DEBUG: generate_nvchecker_config Function"
-              _log_raw_notice "NVCHECKER_CONFIG_START" "Entering generate_nvchecker_config function."
-              
-              local combined_config_file="new.toml" 
-              local keyfile="keyfile.toml"         
-
-              _log_raw_debug "Target combined_config_file: $(pwd)/${combined_config_file}"
-              _log_raw_debug "Target keyfile: $(pwd)/${keyfile}"
-
-              _log_raw_debug "Writing base config to ${combined_config_file}..."
-              echo "[__config__]" > "${combined_config_file}"
-              echo "oldver = 'aur.json'" >> "${combined_config_file}" 
-              echo "newver = 'local.json'" >> "${combined_config_file}" 
-              _log_raw_debug "Base config written."
-
-              _log_raw_debug "Writing keyfile ${keyfile} with GHuK secret..."
-              echo "[keys]" > "${keyfile}" 
-              echo "github = '${{ secrets.GHuK }}'" >> "${keyfile}"
-              _log_raw_debug "Keyfile ${keyfile} written."
-              
+              _log_raw_notice "NVCHECKER_CONFIG_START" "Entering generate_nvchecker_config."
+              local combined_config_file="new.toml"; local keyfile="keyfile.toml"         
+              echo "[__config__]" > "${combined_config_file}"; echo "oldver = 'aur.json'" >> "${combined_config_file}"; echo "newver = 'local.json'" >> "${combined_config_file}" 
+              echo "[keys]" > "${keyfile}"; echo "github = '${{ secrets.GHuK }}'" >> "${keyfile}"
               _log_raw_notice "NVCHECKER_CONFIG_APPEND" "Appending individual .nvchecker.toml files..."
-              local find_path_pattern="${GITHUB_WORKSPACE}" 
-              _log_raw_debug "Searching for .nvchecker.toml files in paths matching '${find_path_pattern}' and subdirectory pattern '*/maintain/build/*/.nvchecker.toml'"
-
-              local individual_nvchecker_configs=() # 'local' is fine here
-              mapfile -t individual_nvchecker_configs < <(find "${find_path_pattern}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print)
-              
-              if [ ${#individual_nvchecker_configs[@]} -eq 0 ]; then
-                  _log_raw_warning "NVCHECKER_CONFIG_NO_INDIVIDUAL_FILES" "No individual .nvchecker.toml files found matching the pattern."
-              else
-                  _log_raw_notice "NVCHECKER_CONFIG_FOUND_FILES" "Found ${#individual_nvchecker_configs[@]} individual .nvchecker.toml files to append:"
-                  printf "  ::debug::  - %s\n" "${individual_nvchecker_configs[@]}"
-                  for conf_file in "${individual_nvchecker_configs[@]}"; do
-                      _log_raw_debug "Appending content of '${conf_file}' to '${combined_config_file}'"
-                      cat "${conf_file}" >> "${combined_config_file}"
-                      echo "" >> "${combined_config_file}" 
-                  done
-              fi
-              
-              _log_raw_debug "Verifying size of ${combined_config_file}: $(wc -c < "${combined_config_file}") bytes"
-
-              _log_raw_debug "Changing ownership of '${combined_config_file}' and '${keyfile}' to builder:builder..."
-              # Script runs as root here, so direct chown is fine and correct.
+              local individual_nvchecker_configs=(); mapfile -t individual_nvchecker_configs < <(find "${GITHUB_WORKSPACE}" -path "*/maintain/build/*/.nvchecker.toml" -type f -print)
+              if [ ${#individual_nvchecker_configs[@]} -gt 0 ]; then
+                  for conf_file in "${individual_nvchecker_configs[@]}"; do cat "${conf_file}" >> "${combined_config_file}"; echo "" >> "${combined_config_file}"; done
+              else _log_raw_warning "NVCHECKER_CONFIG_NO_INDIVIDUAL_FILES" "No individual .nvchecker.toml files found."; fi
               if chown builder:builder "${combined_config_file}" "${keyfile}"; then
                  _log_raw_debug "Ownership change SUCCESS for nvchecker config files."
-              else
-                 _log_raw_error "NVCHECKER_CONFIG_CHOWN_FAILED" "Could not chown nvchecker config files. Exit code $?."
-                 _end_raw_group
-                 return 1 
-              fi
-              _log_raw_notice "NVCHECKER_CONFIG_END" "Exiting generate_nvchecker_config function successfully."
-              _end_raw_group
-              return 0
+              else _log_raw_error "NVCHECKER_CONFIG_CHOWN_FAILED" "chown FAILED. $?."; _end_raw_group; return 1; fi
+              _log_raw_notice "NVCHECKER_CONFIG_END" "Exiting generate_nvchecker_config successfully."
+              _end_raw_group; return 0
           }
-          _log_raw_notice "NVCHECKER_CONFIG_DEF_DONE" "generate_nvchecker_config function defined."
+          _log_raw_notice "NVCHECKER_CONFIG_DEF_DONE" "generate_nvchecker_config defined."
+
+          # --- run_version_checks function ---
+          run_version_checks() {
+              _start_raw_group "DEBUG: run_version_checks Function"
+              _log_raw_notice "VERSION_CHECKS_START" "Entering run_version_checks function."
+              # Current directory should be NVCHECKER_RUN_DIR (/home/builder/nvchecker-run)
+              _log_raw_debug "Current directory for version checks: $(pwd)"
+              _log_raw_debug "Verifying required files: new.toml, keyfile.toml"
+              if [ ! -f "new.toml" ]; then _log_raw_error "VERSION_CHECKS_MISSING_FILE" "new.toml not found!"; _end_raw_group; return 1; fi
+              if [ ! -f "keyfile.toml" ]; then _log_raw_error "VERSION_CHECKS_MISSING_FILE" "keyfile.toml not found!"; _end_raw_group; return 1; fi
+              _log_raw_debug "Required files new.toml and keyfile.toml are present."
+
+              _log_raw_notice "VERSION_CHECKS_RUN_NVCHECKER" "Running nvchecker..."
+              # nvchecker should be run as 'builder' because keyfile.toml and new.toml are owned by builder.
+              # Also, nvchecker might write to a cache in builder's home directory.
+              # Using sudo -E -u builder to preserve environment and run as builder.
+              # `local.json` will be created by nvchecker.
+              local nvchecker_cmd="nvchecker -c new.toml -k keyfile.toml --logger json"
+              _log_raw_debug "Executing as builder: ${nvchecker_cmd} > local.json"
+              if sudo -E -u builder bash -c "${nvchecker_cmd}" > local.json; then
+                 _log_raw_notice "VERSION_CHECKS_NVCHECKER_SUCCESS" "nvchecker ran successfully."
+                 _log_raw_debug "Contents of local.json (new versions from nvchecker):"
+                 cat local.json | while IFS= read -r line; do _log_raw_debug "  local.json: $line"; done
+                 if [ ! -s local.json ]; then _log_raw_warning "VERSION_CHECKS_NVCHECKER_EMPTY_OUTPUT" "local.json is empty after nvchecker run."; fi
+              else
+                 local nvchecker_exit_code=$?
+                 _log_raw_error "VERSION_CHECKS_NVCHECKER_FAILED" "nvchecker command FAILED with exit code ${nvchecker_exit_code}."
+                 # Even if nvchecker fails, try to show local.json if it was created
+                 if [ -f "local.json" ]; then 
+                    _log_raw_debug "Contents of local.json (on failure):"
+                    cat local.json | while IFS= read -r line; do _log_raw_debug "  local.json: $line"; done
+                 else 
+                    _log_raw_debug "local.json was not created."
+                 fi
+                 _end_raw_group; return 1
+              fi
+
+              _log_raw_notice "VERSION_CHECKS_RUN_NVCMP" "Running nvcmp..."
+              # nvcmp also likely needs to be run as builder if it reads files owned by builder or writes to builder's cache.
+              # It reads new.toml (owned by builder) and potentially aur.json/local.json.
+              # `changes.json` will be created by nvcmp.
+              # Pre-requisite: aur.json must exist. This is created by compare_aur_local_versions.py in the original script.
+              # For THIS TEST, aur.json might not exist yet. We should create a dummy one or acknowledge this.
+              if [ ! -f "aur.json" ]; then
+                  _log_raw_warning "VERSION_CHECKS_NVCMP_NO_AUR_JSON" "File 'aur.json' not found. nvcmp might behave unexpectedly or fail. Creating dummy aur.json for this test."
+                  echo "{}" | sudo -u builder tee aur.json > /dev/null # Create dummy owned by builder
+              fi
+              
+              local nvcmp_cmd="nvcmp -c new.toml"
+              _log_raw_debug "Executing as builder: ${nvcmp_cmd} > changes.json"
+              if sudo -E -u builder bash -c "${nvcmp_cmd}" > changes.json; then
+                 _log_raw_notice "VERSION_CHECKS_NVCMP_SUCCESS" "nvcmp ran successfully."
+                 _log_raw_debug "Contents of changes.json (comparison results):"
+                 cat changes.json | while IFS= read -r line; do _log_raw_debug "  changes.json: $line"; done
+                 if [ ! -s changes.json ]; then _log_raw_warning "VERSION_CHECKS_NVCMP_EMPTY_OUTPUT" "changes.json is empty after nvcmp run."; fi
+              else
+                 local nvcmp_exit_code=$?
+                 _log_raw_error "VERSION_CHECKS_NVCMP_FAILED" "nvcmp command FAILED with exit code ${nvcmp_exit_code}."
+                 if [ -f "changes.json" ]; then 
+                    _log_raw_debug "Contents of changes.json (on failure):"
+                    cat changes.json | while IFS= read -r line; do _log_raw_debug "  changes.json: $line"; done
+                 else
+                    _log_raw_debug "changes.json was not created."
+                 fi
+                 _end_raw_group; return 1
+              fi
+
+              _log_raw_notice "VERSION_CHECKS_END" "Exiting run_version_checks function successfully."
+              _end_raw_group; return 0
+          }
+          _log_raw_notice "VERSION_CHECKS_DEF_DONE" "run_version_checks function defined."
 
 
           # --- Main Execution Flow (Phased) ---
           _log_raw_notice "MAIN_EXEC_START" "Starting main execution flow..."
-          
-          exit_code_setup_env=0 # Initialize for safety, though set -e should prevent use if call fails
-          exit_code_nv_config=0 # Initialize
+          exit_code_setup_env=0; exit_code_nv_config=0; exit_code_ver_checks=0
 
-          # Phase 1: Setup Environment
-          if setup_environment; then
-            _log_raw_notice "MAIN_EXEC_SETUP_SUCCESS" "setup_environment function call SUCCEEDED."
+          if setup_environment; then _log_raw_notice "MAIN_EXEC_SETUP_SUCCESS" "setup_environment SUCCEEDED."
+          else exit_code_setup_env=$?; _log_raw_error "MAIN_EXEC_SETUP_FAILED" "setup_environment FAILED. $exit_code_setup_env."; exit "${exit_code_setup_env}"; fi
+
+          if generate_nvchecker_config; then _log_raw_notice "MAIN_EXEC_NVCHECKER_CONFIG_SUCCESS" "generate_nvchecker_config SUCCEEDED."
+          else exit_code_nv_config=$?; _log_raw_error "MAIN_EXEC_NVCHECKER_CONFIG_FAILED" "generate_nvchecker_config FAILED. $exit_code_nv_config."; exit "${exit_code_nv_config}"; fi
+          
+          _log_raw_notice "MAIN_EXEC_VERSION_CHECKS" "Attempting to call run_version_checks..."
+          if run_version_checks; then
+            _log_raw_notice "MAIN_EXEC_VERSION_CHECKS_SUCCESS" "run_version_checks call SUCCEEDED."
           else
-            exit_code_setup_env=$? # Not 'local'
-            _log_raw_error "MAIN_EXEC_SETUP_FAILED" "setup_environment function call FAILED. Exit code: ${exit_code_setup_env}. Stopping workflow."
-            exit "${exit_code_setup_env}" 
+            exit_code_ver_checks=$? 
+            _log_raw_error "MAIN_EXEC_VERSION_CHECKS_FAILED" "run_version_checks call FAILED. Exit code: ${exit_code_ver_checks}. Stopping workflow."
+            exit "${exit_code_ver_checks}"
           fi
 
-          # Phase 2: Generate NVChecker Configuration
-          _log_raw_notice "MAIN_EXEC_NVCHECKER_CONFIG" "Attempting to call generate_nvchecker_config..."
-          if generate_nvchecker_config; then
-            _log_raw_notice "MAIN_EXEC_NVCHECKER_CONFIG_SUCCESS" "generate_nvchecker_config call SUCCEEDED."
-          else
-            exit_code_nv_config=$? # Not 'local'
-            _log_raw_error "MAIN_EXEC_NVCHECKER_CONFIG_FAILED" "generate_nvchecker_config call FAILED. Exit code: ${exit_code_nv_config}. Stopping workflow."
-            exit "${exit_code_nv_config}"
-          fi
+          _log_raw_notice "SCRIPT_PHASED_END" "Current test phase (up to run_version_checks) finished. Check logs."
           
-          _log_raw_notice "SCRIPT_PHASED_END" "Current test phase (up to generate_nvchecker_config) finished. Check logs."
-          
-          #
-          # --- run_version_checks and subsequent functions ARE TEMPORARILY OMITTED ---
-          #
+          # --- get_package_updates_list and subsequent functions ARE TEMPORARILY OMITTED ---
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # GHuK is referenced as ${{ secrets.GHuK }} in generate_nvchecker_config.
+          # GHuK for nvchecker (already handled as it's a secret)

@@ -128,16 +128,6 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
           set -euo pipefail
-          echo "::notice title=SCRIPT_START::Arch Package Update Task started."
-
-          # --- Helper Functions ---
-          _log_notice() { echo "::notice title=$1::$2"; }
-          _log_error() { echo "::error title=$1::$2"; }
-          _log_warning() { echo "::warning title=$1::$2"; }
-          _log_debug() { echo "::debug::$1"; } 
-          _start_group() { echo "::group::$1"; }
-          _end_group() { echo "::endgroup::"; }
-          _log_notice "HELPER_DEF" "Helper functions defined."
 
           ## --- Configuration & Constants ---
           #_log_notice "VARS_CONSTANTS" "Defining constants..."
@@ -340,7 +330,6 @@ jobs:
           #}
 
           # --- Main Execution Flow ---
-          _log_notice "MAIN_EXEC" "Starting main execution flow..."
           
           #echo "## Arch Package Build Summary" > "$GITHUB_STEP_SUMMARY"; echo "| Package | Version | Status | Changes | AUR Link | Build Logs |" >> "$GITHUB_STEP_SUMMARY"; echo "|---|---|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
@@ -385,8 +374,6 @@ jobs:
           #_end_group 
 
           # Build packages
-          _start_group "Build Packages"
-          _log_notice "BUILD_LOOP" "Starting build loop for ${#UPDATES[@]} package(s)..."
           # overall_build_success=true
           # for package_to_build in "${UPDATES[@]}"; do
           #     if [ -z "${package_to_build}" ]; then _log_warning "BUILD_LOOP_SKIP_EMPTY" "Skipping empty package name."; continue; fi
@@ -414,8 +401,6 @@ jobs:
           #         overall_build_success=false 
           #     fi
           # done
-          _log_notice "BUILD_LOOP" "Finished build loop."
-          _end_group
 
           #if ! $overall_build_success; then
           #    _log_error "MAIN_EXEC_BUILD_FAIL" "One or more packages failed to build. See summary and individual build logs."

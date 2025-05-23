@@ -128,7 +128,8 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
         run: |
           #!/bin/bash
-          set -euox pipefail 
+          #set -euo pipefail 
+          set -uo pipefail 
           echo "::notice title=SCRIPT_START::Arch Package Update Task started."
 
           # --- Helper Functions ---

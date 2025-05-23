@@ -139,31 +139,38 @@ jobs:
           fi
           echo "::endgroup::"
 
-      - name: Run Arch Package Update and Build Task # Test get_package_updates_list
-        shell: bash
-        run: |
-          #!/bin/bash
-          set -xeuo pipefail 
-          echo "::notice title=SCRIPT_START::Bash script for 'Run Arch Package Update and Build Task' started."
-
-          # --- Helper Functions ---
-          _log_raw_debug() { echo "::debug::$1"; }
-          _log_raw_notice() { echo "::notice title=$1::$2"; }
-          _log_raw_error() { echo "::error title=$1::$2"; }
-          _start_raw_group() { echo "::group::$1"; }
-          _end_raw_group() { echo "::endgroup::"; }
-          _log_raw_notice "HELPER_DEF" "Helper functions defined."
-
-          # --- Configuration & Constants ---
-          _log_raw_notice "VARS_START" "Defining constants..."
-          BUILDER_HOME="/home/builder"; NVCHECKER_RUN_DIR="${BUILDER_HOME}/nvchecker-run"; ARTIFACTS_DIR="${GITHUB_WORKSPACE}/artifacts"; PACKAGE_DETAILS_JSON_PATH="${NVCHECKER_RUN_DIR}/package_details.json" 
-          _log_raw_notice "VARS_END" "Constants defined."
-
           # --- setup_environment function ---
           setup_environment() {
               _start_raw_group "DEBUG: setup_environment"
               _log_raw_notice "SETUP_ENV_START" "PWD: $(pwd)"
-              sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}" && sudo -u builder mkdir -p "${ARTIFACTS_DIR}"
+
+              # Create NVCHECKER_RUN_DIR as builder (in builder's home)
+              _log_raw_debug "Creating NVCHECKER_RUN_DIR as builder: ${NVCHECKER_RUN_DIR}"
+              if ! sudo -u builder mkdir -p "${NVCHECKER_RUN_DIR}"; then # THIS IS FINE
+                  _log_raw_error "SETUP_ENV_FAIL" "Failed to mkdir -p ${NVCHECKER_RUN_DIR} as builder."
+                  _end_raw_group; return 1
+              fi
+
+              # Create ARTIFACTS_DIR as root (current user of the script)
+              _log_raw_debug "Creating ARTIFACTS_DIR as root: ${ARTIFACTS_DIR}"
+              if ! mkdir -p "${ARTIFACTS_DIR}"; then # CORRECTED: Run as current user (root)
+                  _log_raw_error "SETUP_ENV_FAIL" "Failed to mkdir -p ${ARTIFACTS_DIR} as root."
+                  _end_raw_group; return 1
+              fi
+              # ... rest of function ...
+              # If buildscript.py run as builder needs to create subdirs directly in ARTIFACTS_DIR root,
+              # then chown ARTIFACTS_DIR to builder here.
+              # However, buildscript.py is passed a full path like ARTIFACTS_DIR/packagename,
+              # and it should create *that* specific packagename subdir.
+              # The main ARTIFACTS_DIR can be root-owned for collection.
+              # If builder *must* write to ARTIFACTS_DIR itself (not just subdirs it creates via sudo):
+              # _log_raw_debug "Chown ARTIFACTS_DIR to builder..."
+              # if ! chown builder:builder "${ARTIFACTS_DIR}"; then
+              #     _log_raw_error "SETUP_ENV_FAIL" "Failed to chown ${ARTIFACTS_DIR} to builder."
+              #    _end_raw_group; return 1
+              # fi
+
+
               cd "${NVCHECKER_RUN_DIR}"; _log_raw_debug "Now in $(pwd)."
               local all_ok=true
               for script in "buildscript.py" "compare_aur_local_versions.py"; do
@@ -180,6 +187,7 @@ jobs:
           }
 
           # --- generate_nvchecker_config function ---
+          # ... (Keep this function as it was in the previously successful version) ...
           generate_nvchecker_config() {
               _start_raw_group "DEBUG: generate_nvchecker_config"
               _log_raw_notice "NV_CONF_START" "Generating nvchecker config..."
@@ -195,22 +203,16 @@ jobs:
               _end_raw_group; return 0
           }
 
-          # --- run_compare_aur_local_versions (NEW - Placeholder for actual call) ---
+          # --- run_compare_aur_local_versions (Placeholder for actual call) ---
+          # ... (Keep this function as it was) ...
           run_compare_aur_local_versions() {
               _start_raw_group "DEBUG: run_compare_aur_local_versions"
               _log_raw_notice "COMPARE_AUR_START" "Running compare_aur_local_versions.py..."
-              # This is where you'd call:
-              # sudo -E -u builder python3 ./compare_aur_local_versions.py \
-              #    --maintainer "${AUR_MAINTAINER_NAME}" \ # Ensure AUR_MAINTAINER_NAME is available
-              #    --repo-root "${GITHUB_WORKSPACE}" \
-              #    --output-file "aur.json"
-              # For this test, we'll just create a dummy aur.json again to allow nvcmp to run.
-              # In the next iteration, we'll use the real script.
               _log_raw_warning "COMPARE_AUR_DUMMY" "Creating dummy aur.json for this test run."
               echo "{ \"example-package\": { \"Name\": \"example-package\", \"Version\": \"1.0-1\" } }" | sudo -u builder tee aur.json > /dev/null
               if [ -f "aur.json" ]; then
                   _log_raw_notice "COMPARE_AUR_DUMMY_CREATED" "Dummy aur.json created."
-                  sudo -u builder chown builder:builder aur.json # Ensure builder owns it
+                  sudo -u builder chown builder:builder aur.json 
               else
                   _log_raw_error "COMPARE_AUR_DUMMY_FAIL" "Failed to create dummy aur.json."
                   _end_raw_group; return 1
@@ -220,6 +222,7 @@ jobs:
           }
 
           # --- run_version_checks function ---
+          # ... (Keep this function as it was) ...
           run_version_checks() {
               _start_raw_group "DEBUG: run_version_checks"
               _log_raw_notice "VER_CHECKS_START" "Running nvchecker & nvcmp..."
@@ -240,19 +243,17 @@ jobs:
           }
           
           # --- get_package_updates_list function (NEW) ---
+          # ... (Keep this function as it was) ...
           get_package_updates_list() {
               _start_raw_group "DEBUG: get_package_updates_list"
               _log_raw_notice "GET_UPDATES_START" "Determining packages to update..."
-              # Ensure files exist before trying to parse
               if [ ! -f "changes.json" ]; then _log_raw_error "GET_UPDATES_MISSING_CHANGES" "changes.json not found!"; _end_raw_group; return 1; fi
               if [ ! -f "new.toml" ]; then _log_raw_error "GET_UPDATES_MISSING_NEWTOML" "new.toml not found for nvcmp -q!"; _end_raw_group; return 1; fi
 
               local upgrades_from_changes=()
               local updates_from_nvcmp_q=()
               
-              # Get upgrades from changes.json (comparing new upstream versions to aur.json)
-              if [ -s "changes.json" ]; then # Check if not empty
-                  # This jq query extracts keys where the value object has a "status" of "upgrade"
+              if [ -s "changes.json" ]; then 
                   mapfile -t upgrades_from_changes < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json 2>/dev/null || true)
               else 
                   _log_raw_warning "GET_UPDATES_EMPTY_CHANGES" "changes.json is empty."
@@ -260,8 +261,6 @@ jobs:
               _log_raw_debug "Packages with UPGRADES from changes.json (upstream > aur):"
               printf '  ::debug::  - %s\n' "${upgrades_from_changes[@]:-(none)}"
               
-              # Get updates from nvchecker's direct output (nvcmp -q query mode for new.toml)
-              # This tells which entries in new.toml found an update from their defined source.
               mapfile -t updates_from_nvcmp_q < <(sudo -E -u builder nvcmp -c new.toml -q 2>/dev/null || true)
               _log_raw_debug "Packages with updates found directly by NVChecker (nvcmp -q):"
               printf '  ::debug::  - %s\n' "${updates_from_nvcmp_q[@]:-(none)}"
@@ -270,10 +269,7 @@ jobs:
               printf '%s\n' "${upgrades_from_changes[@]:-}" > "$temp_updates_file"
               printf '%s\n' "${updates_from_nvcmp_q[@]:-}" >> "$temp_updates_file"
               
-              # Declare UPDATES as a global variable for the rest of the script (outside this function)
-              mapfile -tG UPDATES < <(sort -u "$temp_updates_file") # -tG for global array (bash 4.2+)
-              # If bash < 4.2, use: declare -ga UPDATES; mapfile -t UPDATES < ...
-              # Or simply: IFS=$'\n' read -r -d '' -a UPDATES < <(sort -u "$temp_updates_file" && printf '\0')
+              mapfile -tG UPDATES < <(sort -u "$temp_updates_file") 
               rm "$temp_updates_file"
 
               _log_raw_notice "GET_UPDATES_FINAL_LIST" "Final list of packages to process for updates (UPDATES array):"
@@ -288,17 +284,16 @@ jobs:
 
           # --- Main Execution Flow ---
           _log_raw_notice "MAIN_EXEC_START" "Starting main execution flow..."
-          # For brevity, removed individual exit_code variables, set -e handles exit.
           
           setup_environment
           generate_nvchecker_config
-          run_compare_aur_local_versions # Call the (currently dummy) aur.json generator
+          run_compare_aur_local_versions 
           run_version_checks
-          get_package_updates_list # New call
+          get_package_updates_list 
 
           _log_raw_notice "SCRIPT_PHASED_END" "Current test phase (up to get_package_updates_list) finished."
           
-          # --- Subsequent functions (extract_pkgbuild_details, main loop, etc.) ARE TEMPORARILY OMITTED ---
+          # --- Subsequent functions OMITTED ---
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }} # Make sure this is available for compare_aur_local_versions.py
+          AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}

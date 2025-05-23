@@ -1,4 +1,4 @@
-name: Arch Linux Task - Test A
+name: Arch Linux Task - Test B (Initialize Pacman)
 on:
   workflow_dispatch:
 
@@ -22,3 +22,30 @@ jobs:
           echo "pwd: $(pwd)"
           echo "pacman --version"
           pacman --version || echo "pacman command not found or failed"
+
+      - name: Initialize pacman keyring and update system
+        run: |
+          set -e 
+          echo "::group::Initialize pacman and Update System"
+          echo "Initializing pacman keyring..."
+          mkdir -p /etc/pacman.d/gnupg
+          pacman-key --init
+          pacman-key --populate archlinux
+          
+          echo "Enabling multilib repository..."
+          echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+          
+          echo "Updating system and installing core dependencies..."
+          pacman -Sy --noconfirm --needed archlinux-keyring 
+          pacman -Syu --noconfirm 
+          
+          echo "Installing necessary packages..."
+          pacman -S --noconfirm --needed \
+            git base-devel pacman-contrib openssh github-cli jq expac \
+            ruby-rdoc ruby-pkg-config gnupg \
+            python python-pip \
+            pyalpm python-awesomeversion python-packaging python-lxml \
+            python-gobject python-requests libnotify nvchecker \
+            binutils multilib-devel python-aiohttp clang python-jq \
+            sudo 
+          echo "::endgroup::"

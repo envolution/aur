@@ -481,6 +481,72 @@ class ArchPackageBuilder:
         pkgbuild_path.write_text(content)
         self.result.changes_detected = True 
 
+    def _collect_build_artifacts(self):
+        """Collect all build artifacts (logs, PKGBUILD files, package metadata) regardless of build success/failure"""
+        if not self.artifacts_path:
+            self.logger.debug("No artifacts directory configured, skipping artifact collection.")
+            return
+            
+        self.logger.info(f"Collecting build artifacts to {self.artifacts_path}...")
+        
+        # Files to collect from the build directory root
+        root_artifacts = ["PKGBUILD", ".SRCINFO"]
+        
+        # Package-specific files from pkg/ subdirectory
+        pkg_subdir = self.build_dir / "pkg" / self.config.package_name
+        pkg_artifacts = [".BUILDINFO", ".MTREE", ".PKGINFO"]
+        
+        # Collect root-level artifacts
+        for file_name in root_artifacts:
+            src_file = self.build_dir / file_name
+            if src_file.exists():
+                dest_file = self.artifacts_path / file_name
+                try:
+                    shutil.copy2(src_file, dest_file)
+                    self.logger.debug(f"Copied artifact {file_name} to {dest_file}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to copy artifact {file_name}: {e}")
+            else:
+                self.logger.debug(f"Artifact file {file_name} not found in build directory")
+        
+        # Collect package-specific artifacts from pkg/ subdirectory
+        if pkg_subdir.exists():
+            for file_name in pkg_artifacts:
+                src_file = pkg_subdir / file_name
+                if src_file.exists():
+                    dest_file = self.artifacts_path / file_name
+                    try:
+                        shutil.copy2(src_file, dest_file)
+                        self.logger.debug(f"Copied pkg artifact {file_name} to {dest_file}")
+                    except Exception as e:
+                        self.logger.warning(f"Failed to copy pkg artifact {file_name}: {e}")
+                else:
+                    self.logger.debug(f"Package artifact {file_name} not found in {pkg_subdir}")
+        else:
+            self.logger.debug(f"Package subdirectory {pkg_subdir} does not exist")
+        
+        # Collect log files (pattern: PACKAGENAME-*.log)
+        log_pattern = f"{self.config.package_name}-*.log"
+        self.logger.debug(f"Searching for log files with pattern: {log_pattern}")
+        for log_file in self.build_dir.glob(log_pattern):
+            if log_file.is_file():
+                dest_file = self.artifacts_path / log_file.name
+                try:
+                    shutil.copy2(log_file, dest_file)
+                    self.logger.debug(f"Copied log file {log_file.name} to {dest_file}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to copy log file {log_file.name}: {e}")
+        
+        # Also collect any additional *.log files (in case there are other logs)
+        for log_file in self.build_dir.glob("*.log"):
+            if log_file.is_file() and not log_file.name.startswith(f"{self.config.package_name}-"): # Avoid re-copying if pattern matched
+                dest_file = self.artifacts_path / log_file.name
+                if not dest_file.exists():  # Don't duplicate if already copied above
+                    try:
+                        shutil.copy2(log_file, dest_file)
+                        self.logger.debug(f"Copied additional log file {log_file.name} to {dest_file}")
+                    except Exception as e:
+                        self.logger.warning(f"Failed to copy additional log file {log_file.name}: {e}")        
 
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
@@ -498,6 +564,7 @@ class ArchPackageBuilder:
                     # For now, let's not make it fatal here.
             return True # Success for 'nobuild' mode.
 
+        build_process_successful = False # Flag to track overall success of this method's core logic
         try:
             # All commands here run as 'builder' user from self.build_dir
             # HOME=/home/builder should be set from the calling script for the python env
@@ -523,56 +590,43 @@ class ArchPackageBuilder:
             if not built_package_files:
                 self.logger.error("No packages were built (no .pkg.tar.zst files found).")
                 self.result.error_message = "No .pkg.tar.zst files found after makepkg."
-                return False # Explicitly return False
-            
-            self.result.built_packages = [p.name for p in built_package_files]
-            self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
+                # build_process_successful remains False
+            else:
+                self.result.built_packages = [p.name for p in built_package_files]
+                self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
 
-            # Install the built package(s) locally (as builder, using sudo for pacman)
-            self.logger.info(f"Installing built package(s) locally: {', '.join(self.result.built_packages)}")
-            self.subprocess_runner.run_command(
-                ["sudo", "pacman", "--noconfirm", "-U"] + [str(p) for p in built_package_files]
-            )
-            if self.artifacts_path:
-                self.logger.info(f"Copying build artifacts to {self.artifacts_path}...")
-                # Start with PKGBUILD, .SRCINFO, and built package files
-                files_to_artifact_names = ["PKGBUILD", ".SRCINFO", ".BUILDINFO"]
-                
-                # Add only *.log files
-                self.logger.debug(f"Searching for *.log files in {self.build_dir}")
-                for log_file in self.build_dir.glob("*.log"):
-                    if log_file.is_file(): # Ensure it's a file
-                        files_to_artifact_names.append(log_file.name)
-                        self.logger.debug(f"Found log file for artifact: {log_file.name}")
-                
-                for file_name in set(files_to_artifact_names): # Use set to avoid duplicates if any
-                    src_file = self.build_dir / file_name
-                    if src_file.exists(): # Check if file actually exists in build_dir
-                        dest_file = self.artifacts_path / src_file.name 
-                        try:
-                            shutil.copy2(src_file, dest_file)
-                            self.logger.debug(f"Copied artifact {src_file.name} to {dest_file}")
-                        except Exception as e:
-                            self.logger.warning(f"Failed to copy artifact {src_file.name} to {dest_file}: {e}")
-                    else:
-                        self.logger.warning(f"Expected artifact file '{file_name}' not found in {self.build_dir}.")
+                # Install the built package(s) locally (as builder, using sudo for pacman)
+                self.logger.info(f"Installing built package(s) locally: {', '.join(self.result.built_packages)}")
+                self.subprocess_runner.run_command(
+                    ["sudo", "pacman", "--noconfirm", "-U"] + [str(p) for p in built_package_files]
+                )
+                build_process_successful = True # Mark as successful if packages built and installed
+
+            # --- NEW ARTIFACT COLLECTION METHOD ---
+            self._collect_build_artifacts()
+
+            if not build_process_successful: # If build (makepkg) failed or produced no packages
+                return False 
             
-            if self.config.build_mode == "build": # Only create GH release for "build" mode
-                if self.result.version: # Version must be known
+            # If build was successful, proceed with release etc.
+            if self.config.build_mode == "build": 
+                if self.result.version: 
                     self._create_release(built_package_files)
                 else:
                     self.logger.warning("Build mode is 'build' but no version determined. Skipping GitHub Release creation.")
-            return True
+            return True # Build success
 
         except subprocess.CalledProcessError as e: # Catch errors from run_command if check=True was used
             self.logger.error(f"Build process failed during command: {shlex.join(e.cmd)} (Return code: {e.returncode})", exc_info=self.config.debug)
             self.logger.error(f"Stdout: {e.stdout}")
             self.logger.error(f"Stderr: {e.stderr}")
             self.result.error_message = f"Build failed: {e.cmd} exited {e.returncode}. Stderr: {e.stderr[:200]}"
+            self._collect_build_artifacts() # <--- CALL HERE ON EXCEPTION
             return False
         except Exception as e: # Catch other Python exceptions
             self.logger.error(f"Build process failed with Python exception: {e}", exc_info=self.config.debug)
             self.result.error_message = f"Build failed due to Python error: {str(e)}"
+            self._collect_build_artifacts() # <--- CALL HERE ON EXCEPTION
             return False
 
     def _create_release(self, package_files: List[Path]):

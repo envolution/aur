@@ -728,10 +728,16 @@ class ArchPackageBuilder:
         
         try:
             # Git commit to local AUR clone
-            self.subprocess_runner.run_command(["git", "commit", "-m", final_commit_msg])
+            env = os.environ.copy()
+            env["GIT_AUTHOR_NAME"] = os.environ.get("GIT_COMMIT_USER_NAME", "Github Actions")
+            env["GIT_AUTHOR_EMAIL"] = os.environ.get("GIT_COMMIT_USER_EMAIL", "default@example.com")
+            env["GIT_COMMITTER_NAME"] = env["GIT_AUTHOR_NAME"]
+            env["GIT_COMMITTER_EMAIL"] = env["GIT_AUTHOR_EMAIL"]
+
+            self.subprocess_runner.run_command(["git", "commit", "-m", final_commit_msg], env=env)
             
             # Git push to AUR remote
-            self.subprocess_runner.run_command(["git", "push", "origin", "master"]) # Or main, depending on AUR's default
+            self.subprocess_runner.run_command(["git", "push", "origin", "master"], env=env) # Or main, depending on AUR's default
             self.logger.info("Changes successfully committed and pushed to AUR.")
 
             # Sync changes back to the source GitHub repository

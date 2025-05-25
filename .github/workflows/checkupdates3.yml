@@ -124,7 +124,6 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AUR_MAINTAINER_NAME: envolution
           GIT_COMMIT_USER_NAME: envolution
           GIT_COMMIT_USER_EMAIL: involution@gmail.com
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}

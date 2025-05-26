@@ -219,11 +219,10 @@ class CommandRunner:
 
 # --- PKGBUILD Parser (Sources variables from PKGBUILD files) ---
 class PKGBUILDParser:
-    def __init__(self, runner: CommandRunner, logger: logging.Logger):
-        self.runner = runner # Uses root usually to read files, then builder to source? Or just builder?
-                            # Safest: Copy to a temp dir owned by builder, then source.
-                            # For now: Assumes files are readable by user running the sourcing.
+    def __init__(self, runner: CommandRunner, logger: logging.Logger, config: Config): # MODIFIED: Added config parameter
+        self.runner = runner
         self.logger = logger
+        self.config = config # MODIFIED: Store config object
 
 # (Within ArchPackageManager class, PKGBUILDParser class)
 
@@ -845,7 +844,7 @@ class ArchPackageManager:
         self.runner = CommandRunner(self.logger) # For root/workflow user commands
         self.builder_runner = CommandRunner(self.logger, default_user=BUILDER_USER, default_home=BUILDER_HOME)
 
-        self.pkgbuild_parser = PKGBUILDParser(self.builder_runner, self.logger) # Sourcing PKGBUILDs as builder
+        self.pkgbuild_parser = PKGBUILDParser(self.builder_runner, self.logger, self.config) # MODIFIED: Pass self.config
         self.aur_fetcher = AURInfoFetcher(self.logger)
         self.nvchecker = NVCheckerRunner(self.builder_runner, self.logger, self.config) # Global and single package
         self.version_comparator = VersionComparator(self.logger)
@@ -1718,13 +1717,20 @@ class ArchPackageManager:
 
                     build_res = build_results_map.get(pkgbase)
                     if build_res: # This package was attempted to be built
+                        # MODIFIED: Changed build_res.new_version_built to build_res.target_version_for_build or final_pkgbuild_version_in_clone
+                        # MODIFIED: Changed build_res.git_changes_committed_aur to build_res.git_commit_to_aur_ok and build_res.git_push_to_aur_ok
+                        # MODIFIED: Changed build_res.github_release_created_updated to build_res.github_release_ok
+                        # MODIFIED: Changed build_res.source_repo_files_synced to build_res.source_repo_sync_ok
+                        
+                        version_shown_in_summary = build_res.final_pkgbuild_version_in_clone or build_res.target_version_for_build or "Unknown"
+
                         if build_res.success:
-                            status_text = f"✅ Built: v{build_res.new_version_built or 'Unknown'}"
-                            if build_res.git_changes_committed_aur: details_text += "AUR updated. "
-                            if build_res.github_release_created_updated: details_text += "GH Release. "
-                            if build_res.source_repo_files_synced: details_text += "Source repo synced."
+                            status_text = f"✅ Built: v{version_shown_in_summary}"
+                            if build_res.git_commit_to_aur_ok and build_res.git_push_to_aur_ok : details_text += "AUR updated. "
+                            if build_res.github_release_ok: details_text += "GH Release. "
+                            if build_res.source_repo_sync_ok: details_text += "Source repo synced."
                         else:
-                            status_text = f"❌ Build Failed: v{build_res.new_version_built or local_ver_str}"
+                            status_text = f"❌ Build Failed: v{version_shown_in_summary}"
                             details_text = f"<small>{build_res.error_message.replace('|','-').replace(chr(10),'<br>') if build_res.error_message else 'Unknown error'}</small>"
                         
                         if build_res.log_artifact_subdir and self.config.github_run_id:

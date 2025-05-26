@@ -16,6 +16,13 @@ BUILDER_HOME = Path(os.getenv("BUILDER_HOME", f"/home/{BUILDER_USER}"))
 NVCHECKER_RUN_DIR = Path(os.getenv("NVCHECKER_RUN_DIR", str(BUILDER_HOME / "nvchecker-run")))
 PACKAGE_BUILD_BASE_DIR = Path(os.getenv("PACKAGE_BUILD_BASE_DIR", str(BUILDER_HOME / "pkg_builds")))
 
+GITHUB_WORKSPACE = Path(os.getenv("GITHUB_WORKSPACE", ""))
+PKGBUILD_ROOT = os.getenv("PKGBUILD_ROOT", "")
+PKGBUILD_ROOT_PATH_STR = os.path.normpath(str(GITHUB_WORKSPACE / PKGBUILD_ROOT.lstrip("/")))
+
+ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
+
+ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
 GITHUB_WORKSPACE = os.getenv("GITHUB_WORKSPACE", "")
 PKGBUILD_ROOT = os.getenv("PKGBUILD_ROOT", "")
 PKGBUILD_ROOT_PATH_STR = os.path.normpath(f"{GITHUB_WORKSPACE}/{PKGBUILD_ROOT.lstrip('/')}")

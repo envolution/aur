@@ -18,7 +18,7 @@ PACKAGE_BUILD_BASE_DIR = Path(os.getenv("PACKAGE_BUILD_BASE_DIR", str(BUILDER_HO
 
 GITHUB_WORKSPACE = os.getenv("GITHUB_WORKSPACE", "")
 PKGBUILD_ROOT = os.getenv("PKGBUILD_ROOT", "")
-PKGBUILD_ROOT_PATH_STR = os.path.normpath(f"{GITHUB_WORKSPACE.rstrip('/')}/{PKGBUILD_ROOT.lstrip('/')}")
+PKGBUILD_ROOT_PATH_STR = os.path.normpath(f"{GITHUB_WORKSPACE}/{PKGBUILD_ROOT.lstrip('/')}")
 
 ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
 

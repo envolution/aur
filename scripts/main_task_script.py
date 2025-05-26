@@ -214,42 +214,96 @@ def run_aur_updater_cli() -> Optional[List[Dict[str, Any]]]:
         cmd.append("--debug")
 
     try:
-        run_command(cmd, cwd=NVCHECKER_RUN_DIR) # Run from NVCHECKER_RUN_DIR
+        # Run the command, don't check=True immediately, check its output first
+        proc_result = run_command(cmd, cwd=NVCHECKER_RUN_DIR, check=False) 
         
+        # Log stdout/stderr regardless of exit code for better debugging
+        if proc_result.stdout:
+            log_debug(f"AUR Updater CLI STDOUT:\n{proc_result.stdout.strip()}")
+        if proc_result.stderr:
+            log_debug(f"AUR Updater CLI STDERR:\n{proc_result.stderr.strip()}")
+
+        if proc_result.returncode != 0:
+            log_error("AUR_UPDATER_NON_ZERO", f"aur_package_updater_cli.py exited with code {proc_result.returncode}.")
+            # Even if it exited non-zero, it might have written a partial or error JSON
+            # We'll proceed to check the file, but this is a strong indicator of a problem.
+
+        # Check file existence and size rigorously
         if not UPDATER_CLI_OUTPUT_JSON_PATH.is_file():
-            log_error("AUR_UPDATER_FAIL", f"Output file {UPDATER_CLI_OUTPUT_JSON_PATH} not found after script execution.")
+            log_error("AUR_UPDATER_NO_FILE", f"Output file {UPDATER_CLI_OUTPUT_JSON_PATH} was NOT created.")
             end_group()
             return None
+        
+        file_size = UPDATER_CLI_OUTPUT_JSON_PATH.stat().st_size
+        if file_size < 5: # Arbitrary small number, e.g., for "{}" or "[]"
+            log_error("AUR_UPDATER_EMPTY_OUTPUT", f"Output file {UPDATER_CLI_OUTPUT_JSON_PATH} is too small (size: {file_size} bytes). Content might be invalid or empty.")
+            # Try to read and log content if small, it might be an error message
+            try:
+                with open(UPDATER_CLI_OUTPUT_JSON_PATH, "r") as f_small:
+                    small_content = f_small.read()
+                log_debug(f"Small file content of {UPDATER_CLI_OUTPUT_JSON_PATH}: {small_content}")
+            except Exception as read_err:
+                log_debug(f"Could not read small file content: {read_err}")
+            
+            # If the script also had a non-zero exit, it's definitely a failure.
+            if proc_result.returncode != 0:
+                end_group()
+                return None
+            # If exit code was 0 but file is too small, it's still problematic.
+            # Depending on aur_package_updater_cli.py behavior, an empty JSON list "[]" might be valid if no packages found.
+            # However, if we expect packages, this is an error.
 
+        # Attempt to load JSON
         with open(UPDATER_CLI_OUTPUT_JSON_PATH, "r") as f:
             update_data = json.load(f)
         
-        log_notice("AUR_UPDATER_OK", f"aur_package_updater_cli.py ran. Output at {UPDATER_CLI_OUTPUT_JSON_PATH}")
+        # If the script had a non-zero exit code but we managed to parse some JSON,
+        # it's up to you if this data is trustworthy. For now, let's log and continue if JSON is valid.
+        if proc_result.returncode != 0:
+            log_warning("AUR_UPDATER_NON_ZERO_WITH_JSON", f"aur_package_updater_cli.py exited {proc_result.returncode} but valid JSON was parsed from output file.")
+
+        log_notice("AUR_UPDATER_OK", f"aur_package_updater_cli.py ran. Output at {UPDATER_CLI_OUTPUT_JSON_PATH} (Size: {file_size} bytes).")
         
         # Artifact the updater CLI output
         artifact_updater_output_path = ARTIFACTS_DIR / "updater_cli_output.json"
         try:
-            # Copy as runner user. Source file is owned by builder.
-            # sudo cp might be needed if runner can't read builder's files directly,
-            # but builder's home files are often readable by others.
-            # Simpler: sudo -u builder cp source dest
             run_command(["sudo", "-u", BUILDER_USER, "cp", str(UPDATER_CLI_OUTPUT_JSON_PATH), str(artifact_updater_output_path)])
             log_notice("ARTIFACT_OK", f"Copied updater CLI output to artifacts: {artifact_updater_output_path}")
         except Exception as e:
             log_warning("ARTIFACT_FAIL", f"Failed to copy {UPDATER_CLI_OUTPUT_JSON_PATH} to artifacts: {e}")
 
-        log_debug(f"Updater CLI output head: {str(update_data)[:500]}")
+        # log_debug(f"Updater CLI output head: {str(update_data)[:500]}") # This can be very verbose
+        if isinstance(update_data, list) and update_data:
+            log_debug(f"First element of Updater CLI output: {json.dumps(update_data[0], indent=2)}")
+        elif isinstance(update_data, dict) and update_data:
+             log_debug(f"Updater CLI output (dict): {json.dumps(update_data, indent=2)}")
+        else:
+            log_debug(f"Updater CLI output appears empty or not a list/dict: {update_data}")
+
+
         end_group()
         return update_data
-    except subprocess.CalledProcessError:
-        log_error("AUR_UPDATER_FAIL", "aur_package_updater_cli.py execution failed.")
-    except json.JSONDecodeError:
-        log_error("AUR_UPDATER_FAIL", f"Failed to parse JSON from {UPDATER_CLI_OUTPUT_JSON_PATH}.")
-    except Exception as e:
-        log_error("AUR_UPDATER_FAIL", f"An unexpected error occurred: {e}")
-    
-    end_group()
-    return None
+        
+    # except subprocess.CalledProcessError: # This path is less likely now with check=False
+    #     log_error("AUR_UPDATER_FAIL_EXEC", "aur_package_updater_cli.py execution failed (Caught CalledProcessError).")
+    #     end_group() # Should have been handled by run_command itself
+    #     return None
+    except json.JSONDecodeError as e:
+        log_error("AUR_UPDATER_JSON_DECODE_FAIL", f"Failed to parse JSON from {UPDATER_CLI_OUTPUT_JSON_PATH}. Error: {e}. File size: {UPDATER_CLI_OUTPUT_JSON_PATH.stat().st_size if UPDATER_CLI_OUTPUT_JSON_PATH.exists() else 'N/A'}")
+        # Attempt to log the problematic content
+        if UPDATER_CLI_OUTPUT_JSON_PATH.exists():
+            try:
+                with open(UPDATER_CLI_OUTPUT_JSON_PATH, "r") as f_err:
+                    err_content = f_err.read()
+                log_debug(f"Content of {UPDATER_CLI_OUTPUT_JSON_PATH} that failed to parse:\n{err_content[:1000]}") # Log first 1KB
+            except Exception as read_err:
+                log_debug(f"Could not read content of {UPDATER_CLI_OUTPUT_JSON_PATH} on JSON error: {read_err}")
+        end_group()
+        return None
+    except Exception as e: # Catch-all for other unexpected issues
+        log_error("AUR_UPDATER_UNEXPECTED_ERROR", f"An unexpected error occurred during aur_package_updater_cli.py processing: {type(e).__name__} - {e}")
+        end_group()
+        return None
 
 def get_packages_to_update(update_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     start_group("Identify Packages for Update from Updater CLI Output")

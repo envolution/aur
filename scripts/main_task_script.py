@@ -355,7 +355,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         bs_err = f"Unexpected error running/parsing buildscript2.py: {e}"; bs_ok = False
         log_error("BUILD_SCRIPT_PY_FAIL_UNEX", bs_err)
 
-    status_md = "✅ Success" if bs_ok else f"❌ Failure: <small>{bs_err.replace('|', '\\|').replace GITHUB_WORKSPACE/aur/maintain/build/lobe-chat('\n', '<br>')}</small>" if bs_err else "❌ Failure"
+    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{bs_err.replace('|', '\\|').replace(chr(10), '<br>')}</small>" if bs_err else "❌ Failure")
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
     log_link = "N/A"
     if pkg_artifact_dir.exists() and list(pkg_artifact_dir.glob(f"{pkg_name}*.log")) + list(pkg_artifact_dir.glob("*.log")):

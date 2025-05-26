@@ -22,13 +22,6 @@ PKGBUILD_ROOT_PATH_STR = os.path.normpath(str(GITHUB_WORKSPACE / PKGBUILD_ROOT.l
 
 ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
 
-ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
-GITHUB_WORKSPACE = os.getenv("GITHUB_WORKSPACE", "")
-PKGBUILD_ROOT = os.getenv("PKGBUILD_ROOT", "")
-PKGBUILD_ROOT_PATH_STR = os.path.normpath(f"{GITHUB_WORKSPACE}/{PKGBUILD_ROOT.lstrip('/')}")
-
-ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
-
 # This is the output from aur_package_updater_cli.py
 UPDATER_CLI_OUTPUT_JSON_PATH = NVCHECKER_RUN_DIR / "updater_cli_output.json"
 # This is the JSON consumed by buildscript2.py

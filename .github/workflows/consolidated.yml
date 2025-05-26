@@ -1,7 +1,7 @@
 name: Consolidated Arch Package Updater
 on:
-  #schedule:
-  #  - cron: '0 */12 * * *' # Runs every 12 hours
+  schedule:
+    - cron: '0 */12 * * *' # Runs every 12 hours
   workflow_dispatch:      # Allows manual triggering
 
 jobs:
@@ -30,8 +30,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        #with:
-        #  fetch-depth: 0
+        with:
+          # Fetch all history for all tags and branches so build script can create releases properly
+          fetch-depth: 0
 
       - name: Initialize pacman, update system, and install dependencies
         run: |
@@ -70,19 +71,19 @@ jobs:
       - name: Install paru (AUR helper) for 'builder'
         run: |
           set -e
-          cd /tmp
           echo "::group::Install paru (AUR helper)"
+          cd /tmp
           sudo -u builder HOME=/home/builder git clone https://aur.archlinux.org/paru-bin.git
           cd paru-bin
           sudo -u builder HOME=/home/builder makepkg -si --noconfirm
           echo -e "[options]\nBatchInstall\nBottomUp\nRemoveMake\nSudoLoop\nUseAsk" | tee /etc/paru.conf > /dev/null
           echo "::endgroup::"
 
-      - name: Pull AUR sourced dependencies for downstream workflows
+      - name: Install AUR sourced dependencies
         run: |
           set -e
-          echo "::group::Install paru sourced dependencies"
-          sudo -u builder paru -S --noconfirm python-looseversion
+          echo "::group::Install AUR sourced dependencies"
+          sudo -u builder paru -S --noconfirm --nocheck python-looseversion
           echo "::endgroup::"
 
       - name: Setup SSH key for AUR access by 'builder'
@@ -121,59 +122,28 @@ jobs:
 
       - name: Prepare and Execute Main Python Script
         shell: bash
-        env: # Pass GHA env vars to the Python script explicitly if needed by Python's os.getenv
-          # Python script already uses os.getenv for these, so they are inherited.
-          # The main point is to get the SCRIPT_PATH correct for the shell commands here.
-          AUR_MAINTAINER_NAME: ${{ env.AUR_MAINTAINER_NAME }}
-          GITHUB_REPO_OWNER_SLASH_NAME: ${{ env.GITHUB_REPO_OWNER_SLASH_NAME }}
-          PKGBUILD_FILES_ROOT: ${{ env.PKGBUILD_FILES_ROOT }}
-          GIT_COMMIT_USER_NAME: ${{ env.GIT_COMMIT_USER_NAME }}
-          GIT_COMMIT_USER_EMAIL: ${{ env.GIT_COMMIT_USER_EMAIL }}
-          GH_TOKEN_FOR_RELEASES_AND_NVCHECKER: ${{ env.GH_TOKEN_FOR_RELEASES_AND_NVCHECKER }}
-          AUR_SSH_PRIVATE_KEY_CONTENT: ${{ env.AUR_SSH_PRIVATE_KEY_CONTENT }}
-          ACTIONS_STEP_DEBUG: ${{ env.ACTIONS_STEP_DEBUG }}
-          GITHUB_RUN_ID_FOR_ARTIFACTS: ${{ env.GITHUB_RUN_ID_FOR_ARTIFACTS }}
-          GITHUB_STEP_SUMMARY_FILE_PATH: ${{ env.GITHUB_STEP_SUMMARY_FILE_PATH }}
         run: |
           set -e
           echo "::group::Execute Main Python Script"
+          SCRIPT_DIR="${GITHUB_WORKSPACE}/scripts" # Assuming your consolidated script is here
+          MAIN_SCRIPT_NAME="arch_package_manager.py" # Name of your consolidated script
           
-          # github.workspace is the root of the checked-out repository.
-          # e.g., /home/runner/work/aur/aur if your repo is 'aur'
-          echo "GITHUB_WORKSPACE is: ${{ github.workspace }}"
-          ls -la "${{ github.workspace }}" # List contents of workspace root
-          ls -la "${{ github.workspace }}/scripts" # List contents of scripts dir if it exists
-
-          # Define the expected path to the script RELATIVE to the workspace root
-          RELATIVE_SCRIPT_PATH="scripts/arch_package_manager.py"
-          ABSOLUTE_SCRIPT_PATH_IN_WORKSPACE="${{ github.workspace }}/${RELATIVE_SCRIPT_PATH}"
-          
-          echo "Checking for script at: ${ABSOLUTE_SCRIPT_PATH_IN_WORKSPACE}"
-          if [ ! -f "${ABSOLUTE_SCRIPT_PATH_IN_WORKSPACE}" ]; then
-            echo "::error title=Script Missing::Consolidated script ${ABSOLUTE_SCRIPT_PATH_IN_WORKSPACE} not found!"
-            echo "Listing directory structure for debugging:"
-            echo "Workspace root (${{ github.workspace }}):"
-            find "${{ github.workspace }}" -maxdepth 2 -ls
+          if [ ! -f "${SCRIPT_DIR}/${MAIN_SCRIPT_NAME}" ]; then
+            echo "::error title=Script Missing::Consolidated script ${SCRIPT_DIR}/${MAIN_SCRIPT_NAME} not found!"
             exit 1
           fi
 
-          # Destination for the script in builder's home
-          BUILDER_SCRIPT_DEST="/home/builder/arch_package_manager.py"
-
-          echo "Copying script from ${ABSOLUTE_SCRIPT_PATH_IN_WORKSPACE} to ${BUILDER_SCRIPT_DEST}"
-          cp "${ABSOLUTE_SCRIPT_PATH_IN_WORKSPACE}" "${BUILDER_SCRIPT_DEST}"
-          chown builder:builder "${BUILDER_SCRIPT_DEST}"
-          chmod +x "${BUILDER_SCRIPT_DEST}"
+          # Copy the script to a location accessible by builder, ensure it's executable
+          cp "${SCRIPT_DIR}/${MAIN_SCRIPT_NAME}" "/home/builder/${MAIN_SCRIPT_NAME}"
+          chown builder:builder "/home/builder/${MAIN_SCRIPT_NAME}"
+          chmod +x "/home/builder/${MAIN_SCRIPT_NAME}"
 
           echo "Running the main package management script..."
           # Execute as builder, ensuring HOME is set for tools like gh, git, nvchecker
-          # Explicitly pass necessary env vars to sudo's environment
-          # Note: Most env vars set in the 'env:' block of the step are automatically available
-          # to the sudo command if using -E.
           sudo -E -u builder \
             HOME="/home/builder" \
             PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/builder/.local/bin" \
-            python3 "${BUILDER_SCRIPT_DEST}"
+            python3 "/home/builder/${MAIN_SCRIPT_NAME}"
           echo "::endgroup::"
 
       - name: Upload build logs and artifacts

@@ -11,13 +11,15 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 
 # --- Constants and Configuration ---
-PKGBUILD_ROOT_PATH_STR = os.getenv("PKGBUILD_ROOT") # Get the new env var
 BUILDER_USER = "builder" # User for build operations
 BUILDER_HOME = Path(os.getenv("BUILDER_HOME", f"/home/{BUILDER_USER}"))
 NVCHECKER_RUN_DIR = Path(os.getenv("NVCHECKER_RUN_DIR", str(BUILDER_HOME / "nvchecker-run")))
 PACKAGE_BUILD_BASE_DIR = Path(os.getenv("PACKAGE_BUILD_BASE_DIR", str(BUILDER_HOME / "pkg_builds")))
 
-GITHUB_WORKSPACE = Path(os.getenv("GITHUB_WORKSPACE", "/github/workspace"))
+GITHUB_WORKSPACE = os.getenv("GITHUB_WORKSPACE", "")
+PKGBUILD_ROOT = os.getenv("PKGBUILD_ROOT", "")
+PKGBUILD_ROOT_PATH_STR = os.path.normpath(f"{GITHUB_WORKSPACE.rstrip('/')}/{PKGBUILD_ROOT.lstrip('/')}")
+
 ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
 
 # This is the output from aur_package_updater_cli.py

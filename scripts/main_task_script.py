@@ -134,6 +134,30 @@ def debug_path_permissions(path_to_debug_str: str, user_context: str, as_user: O
             if ls_result.stderr: log_debug(f"  LS STDERR: {ls_result.stderr.strip()}")
     except Exception as e:
         log_warning(f"[{user_context}{f' as {as_user}' if as_user else ''}] Exception running 'ls': {e}")
+
+    log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] Attempting to find PKGBUILD files under {path_to_debug} using 'find':")
+    find_cmd_list = ["find", str(path_to_debug), "-name", "PKGBUILD", "-type", "f", "-print"]
+    if as_user:
+        find_cmd_list = ["sudo", "-u", as_user] + find_cmd_list
+    
+    find_result = run_command(find_cmd_list, check=False, capture_output=True, print_command=True)
+    if find_result.returncode == 0:
+        found_files_by_find = find_result.stdout.strip().splitlines()
+        if found_files_by_find:
+            log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] 'find' found {len(found_files_by_find)} PKGBUILD file(s):")
+            for f_line_idx, f_line in enumerate(found_files_by_find):
+                if f_line_idx < 10: # Print first 10
+                    log_debug(f"  {f_line}")
+                elif f_line_idx == 10:
+                    log_debug(f"  ... and {len(found_files_by_find) - 10} more.")
+                    break 
+        else:
+            log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] 'find' command ran successfully but found no PKGBUILD files.")
+    else:
+        log_warning(f"[{user_context}{f' as {as_user}' if as_user else ''}] '{' '.join(find_cmd_list)}' FAILED with code {find_result.returncode}.")
+        if find_result.stdout: log_debug(f"  FIND STDOUT: {find_result.stdout.strip()}")
+        if find_result.stderr: log_debug(f"  FIND STDERR: {find_result.stderr.strip()}")
+
     end_group()
 
 # --- Core Functions ---
@@ -149,7 +173,7 @@ def setup_environment() -> bool:
     try: run_command(["sudo", "chown", f"{BUILDER_USER}:{BUILDER_USER}", str(ARTIFACTS_DIR)], check=False)
     except: log_warning("SETUP_CHOWN_WARN", f"chown {ARTIFACTS_DIR} to {BUILDER_USER} failed.")
 
-    scripts_to_copy = ["buildscript2.py", "aur_package_updater_cli.py"]
+    scripts_to_copy = ["buildscript2.py", "pkgbuild_to_json.py", "aur_package_updater_cli.py"]
     scripts_source_base = GITHUB_WORKSPACE / "scripts" 
     for script_name in scripts_to_copy:
         source_path = scripts_source_base / script_name

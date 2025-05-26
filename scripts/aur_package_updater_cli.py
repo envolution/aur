@@ -114,12 +114,36 @@ def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path):
 
     cmd = [sys.executable, actual_script_path] + pkg_files
     local_logger.debug(f"Calling pkgbuild_to_json.py (cmd snippet): {' '.join(cmd[:3])} ...")
+
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=90)
-        if proc.stderr: local_logger.warning(f"pkgbuild_to_json.py STDERR:\n{proc.stderr.strip()}")
-        if proc.returncode != 0: local_logger.error(f"pkgbuild_to_json.py failed (code {proc.returncode})."); return local_data_by_pkgbase
+        
+        if proc.returncode != 0:
+            # Enhanced logging for failure
+            local_logger.error(f"Call to '{actual_script_path}' (command: \"{' '.join(cmd)}\") failed with return code {proc.returncode}.")
+            if proc.stdout and proc.stdout.strip():
+                local_logger.error(f"STDOUT from failed call:\n{proc.stdout.strip()}")
+            else:
+                local_logger.error("STDOUT from failed call was empty.")
+            if proc.stderr and proc.stderr.strip():
+                local_logger.error(f"STDERR from failed call:\n{proc.stderr.strip()}")
+            else:
+                local_logger.error("STDERR from failed call was empty.")
+            return local_data_by_pkgbase # Exit this function
+
+        # Existing stderr warning (if return code was 0 but there's stderr)
+        if proc.stderr and proc.stderr.strip(): 
+            local_logger.warning(f"pkgbuild_to_json.py STDERR (though command exited 0):\n{proc.stderr.strip()}")
+        
         res_json = proc.stdout
-        if not res_json.strip(): local_logger.warning("pkgbuild_to_json.py no STDOUT."); return local_data_by_pkgbase
+        if not res_json.strip(): 
+            local_logger.warning(f"pkgbuild_to_json.py (command: \"{' '.join(cmd)}\") produced no STDOUT. Cannot parse local package data.")
+            return local_data_by_pkgbase
+        
+        parsed_items = json.loads(res_json)
+        if not parsed_items: # Check if the JSON parsed to an empty list/dict
+                local_logger.warning(f"pkgbuild_to_json.py (command: \"{' '.join(cmd)}\") produced valid but empty JSON. No package data extracted.")
+                return local_data_by_pkgbase
         
         parsed_items = json.loads(res_json)
         count = 0

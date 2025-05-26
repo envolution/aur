@@ -14,7 +14,7 @@ jobs:
       # --- Core Configuration ---
       AUR_MAINTAINER_NAME: "envolution" # Your AUR Maintainer Name
       GITHUB_REPO_OWNER_SLASH_NAME: "${{ github.repository }}" # e.g., "YourUser/YourRepo"
-      PKGBUILD_FILES_ROOT: "${{ github.workspace }}/maintain/build" # Root dir in repo for your PKGBUILDs structure
+      PKGBUILD_FILES_ROOT: "${{ github.workspace }}/maintain" # Root dir in repo for your PKGBUILDs structure
       GIT_COMMIT_USER_NAME: "envolution"
       GIT_COMMIT_USER_EMAIL: "involution@gmail.com"
 
@@ -119,6 +119,24 @@ jobs:
           sudo -u builder HOME=/home/builder git config --global user.name "${{ env.GIT_COMMIT_USER_NAME }}"
           sudo -u builder HOME=/home/builder git config --global user.email "${{ env.GIT_COMMIT_USER_EMAIL }}"
           echo "::endgroup::"
+
+      - name: Create and permission Artifacts directory
+        shell: bash
+        run: |
+          set -e
+          echo "::group::Prepare Artifacts Directory"
+          # GITHUB_WORKSPACE is /github/workspace inside the container
+          ARTIFACTS_DIR_IN_CONTAINER="${GITHUB_WORKSPACE}/artifacts"
+          
+          echo "Creating artifacts directory: ${ARTIFACTS_DIR_IN_CONTAINER}"
+          mkdir -p "${ARTIFACTS_DIR_IN_CONTAINER}"
+          
+          echo "Setting ownership of ${ARTIFACTS_DIR_IN_CONTAINER} to builder user..."
+          chown builder:builder "${ARTIFACTS_DIR_IN_CONTAINER}"
+          
+          echo "Artifacts directory prepared."
+          ls -ld "${ARTIFACTS_DIR_IN_CONTAINER}" # Verify permissions
+          echo "::endgroup::"          
 
       - name: Prepare and Execute Main Python Script
         shell: bash

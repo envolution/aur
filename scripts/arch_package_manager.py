@@ -695,13 +695,11 @@ class ArchPackageManager:
                 log_error("EnvSetupFail", f"Failed to create/chown dir {d_path}: {e}")
                 end_group(); return False
 
-        try: # Artifacts dir is in workspace, GHA runner (root) creates, builder needs to write into subdirs
-            self.config.artifacts_dir_base.mkdir(parents=True, exist_ok=True)
-            self.runner.run(["chown", f"{BUILDER_USER}:{BUILDER_USER}", str(self.config.artifacts_dir_base)], check=False) # Best effort chown
-            self.logger.info(f"Ensured artifacts base directory: {self.config.artifacts_dir_base}")
-        except Exception as e:
-            log_error("EnvSetupFail", f"Failed to create artifacts base dir {self.config.artifacts_dir_base}: {e}")
+        # Verify the base artifacts directory (created by GHA workflow now)
+        if not self.config.artifacts_dir_base.is_dir():
+            log_error("EnvSetupFail", f"Base artifacts directory {self.config.artifacts_dir_base} was not created by the workflow.")
             end_group(); return False
+        self.logger.info(f"Base artifacts directory confirmed: {self.config.artifacts_dir_base}")
         
         # Check critical paths
         if not self.config.pkgbuild_files_root_in_workspace.is_dir():

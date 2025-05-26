@@ -486,67 +486,98 @@ class ArchPackageBuilder:
         if not self.artifacts_path:
             self.logger.debug("No artifacts directory configured, skipping artifact collection.")
             return
-            
-        self.logger.info(f"Collecting build artifacts to {self.artifacts_path}...")
-        
+
+        # Ensure the CWD is self.build_dir when collecting artifacts
+        # This is important if this function is called from the finally block in run()
+        # where CWD might have been restored.
+        original_cwd_for_artifact_collection = Path.cwd()
+        if self.build_dir.exists() and self.build_dir.is_dir():
+            os.chdir(self.build_dir)
+            self.logger.debug(f"Temporarily changed CWD to {self.build_dir} for artifact collection.")
+        else:
+            self.logger.warning(f"Build directory {self.build_dir} does not exist or is not a directory. Cannot collect artifacts from it.")
+            if Path.cwd() != original_cwd_for_artifact_collection: # Safety check if chdir happened before failure
+                 os.chdir(original_cwd_for_artifact_collection)
+            return
+
+        self.logger.info(f"Collecting build artifacts from {self.build_dir} to {self.artifacts_path}...")
+
         # Files to collect from the build directory root
-        root_artifacts = ["PKGBUILD", ".SRCINFO"]
-        
-        # Package-specific files from pkg/ subdirectory
-        pkg_subdir = self.build_dir / "pkg" / self.config.package_name
+        root_artifacts = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml"] # Added .nvchecker.toml
+
+        # Package-specific files from pkg/ subdirectory (relative to current dir, which is self.build_dir)
+        pkg_subdir_relative = Path("pkg") / self.config.package_name
         pkg_artifacts = [".BUILDINFO", ".MTREE", ".PKGINFO"]
-        
+
         # Collect root-level artifacts
         for file_name in root_artifacts:
-            src_file = self.build_dir / file_name
-            if src_file.exists():
+            src_file = Path(file_name) # Relative to self.build_dir
+            if src_file.exists() and src_file.is_file():
                 dest_file = self.artifacts_path / file_name
                 try:
                     shutil.copy2(src_file, dest_file)
-                    self.logger.debug(f"Copied artifact {file_name} to {dest_file}")
+                    self.logger.debug(f"Copied artifact '{file_name}' to '{dest_file}'")
                 except Exception as e:
-                    self.logger.warning(f"Failed to copy artifact {file_name}: {e}")
+                    self.logger.warning(f"Failed to copy artifact '{file_name}': {e}")
             else:
-                self.logger.debug(f"Artifact file {file_name} not found in build directory")
-        
-        # Collect package-specific artifacts from pkg/ subdirectory
-        if pkg_subdir.exists():
+                self.logger.debug(f"Root artifact file '{file_name}' not found in build directory or not a file.")
+
+        # Collect package-specific artifacts from pkg/package_name/ subdirectory
+        if pkg_subdir_relative.exists() and pkg_subdir_relative.is_dir():
             for file_name in pkg_artifacts:
-                src_file = pkg_subdir / file_name
-                if src_file.exists():
-                    dest_file = self.artifacts_path / file_name
+                src_file = pkg_subdir_relative / file_name
+                if src_file.exists() and src_file.is_file():
+                    dest_file = self.artifacts_path / file_name # Store them at the root of the package's artifact dir
                     try:
                         shutil.copy2(src_file, dest_file)
-                        self.logger.debug(f"Copied pkg artifact {file_name} to {dest_file}")
+                        self.logger.debug(f"Copied pkg artifact '{file_name}' from '{pkg_subdir_relative}' to '{dest_file}'")
                     except Exception as e:
-                        self.logger.warning(f"Failed to copy pkg artifact {file_name}: {e}")
+                        self.logger.warning(f"Failed to copy pkg artifact '{file_name}': {e}")
                 else:
-                    self.logger.debug(f"Package artifact {file_name} not found in {pkg_subdir}")
+                    self.logger.debug(f"Package artifact '{file_name}' not found in '{pkg_subdir_relative}' or not a file.")
         else:
-            self.logger.debug(f"Package subdirectory {pkg_subdir} does not exist")
-        
-        # Collect log files (pattern: PACKAGENAME-*.log)
-        log_pattern = f"{self.config.package_name}-*.log"
-        self.logger.debug(f"Searching for log files with pattern: {log_pattern}")
-        for log_file in self.build_dir.glob(log_pattern):
-            if log_file.is_file():
-                dest_file = self.artifacts_path / log_file.name
-                try:
-                    shutil.copy2(log_file, dest_file)
-                    self.logger.debug(f"Copied log file {log_file.name} to {dest_file}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to copy log file {log_file.name}: {e}")
-        
-        # Also collect any additional *.log files (in case there are other logs)
-        for log_file in self.build_dir.glob("*.log"):
-            if log_file.is_file() and not log_file.name.startswith(f"{self.config.package_name}-"): # Avoid re-copying if pattern matched
-                dest_file = self.artifacts_path / log_file.name
-                if not dest_file.exists():  # Don't duplicate if already copied above
+            self.logger.debug(f"Package subdirectory '{pkg_subdir_relative}' does not exist in {self.build_dir}.")
+
+        # Collect log files (pattern: PACKAGENAME-*.log and general *.log)
+        # makepkg might produce logs like <pkgname>-<arch>.log
+        log_patterns = [f"{self.config.package_name}*.log", "*.log"]
+        copied_logs = set()
+
+        for pattern in log_patterns:
+            self.logger.debug(f"Searching for log files with pattern: '{pattern}' in {self.build_dir}")
+            for log_file in Path(".").glob(pattern): # Relative to self.build_dir
+                if log_file.is_file() and log_file.name not in copied_logs:
+                    dest_file = self.artifacts_path / log_file.name
                     try:
                         shutil.copy2(log_file, dest_file)
-                        self.logger.debug(f"Copied additional log file {log_file.name} to {dest_file}")
+                        self.logger.debug(f"Copied log file '{log_file.name}' to '{dest_file}'")
+                        copied_logs.add(log_file.name)
                     except Exception as e:
-                        self.logger.warning(f"Failed to copy additional log file {log_file.name}: {e}")        
+                        self.logger.warning(f"Failed to copy log file '{log_file.name}': {e}")
+                elif log_file.name in copied_logs:
+                    self.logger.debug(f"Log file '{log_file.name}' already copied, skipping.")
+
+
+        # Collect built package files (.pkg.tar.zst)
+        package_file_patterns = [f"{self.config.package_name}*.pkg.tar.zst", "*.pkg.tar.zst"]
+        copied_packages = set()
+        for pattern in package_file_patterns:
+            for pkg_file_path in Path(".").glob(pattern): # Relative to self.build_dir
+                if pkg_file_path.is_file() and pkg_file_path.name not in copied_packages:
+                    dest_pkg_file = self.artifacts_path / pkg_file_path.name
+                    try:
+                        shutil.copy2(pkg_file_path, dest_pkg_file)
+                        self.logger.info(f"Copied built package '{pkg_file_path.name}' to artifacts.")
+                        copied_packages.add(pkg_file_path.name)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to copy built package '{pkg_file_path.name}' to artifacts: {e}")
+                elif pkg_file_path.name in copied_packages:
+                     self.logger.debug(f"Package file '{pkg_file_path.name}' already copied, skipping.")
+
+
+        # Restore original CWD
+        os.chdir(original_cwd_for_artifact_collection)
+        self.logger.debug(f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection.")
 
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
@@ -560,28 +591,27 @@ class ArchPackageBuilder:
                     self.logger.info(".SRCINFO regenerated.")
                 except Exception as e:
                     self.logger.warning(f"Failed to regenerate .SRCINFO in '{self.config.build_mode}' mode: {e}")
-                    # Not fatal for 'nobuild', but might be for 'test' if it implies a build.
-                    # For now, let's not make it fatal here.
+            # Do NOT call _collect_build_artifacts here anymore
             return True # Success for 'nobuild' mode.
 
         build_process_successful = False # Flag to track overall success of this method's core logic
         try:
             # All commands here run as 'builder' user from self.build_dir
             # HOME=/home/builder should be set from the calling script for the python env
-            
+
             self.logger.info("Updating checksums in PKGBUILD (updpkgsums)...")
             self.subprocess_runner.run_command(["updpkgsums"]) # This modifies PKGBUILD
             self.result.changes_detected = True # Assume updpkgsums implies changes or PKGBUILD was already changed
-            
+
             self.logger.info("Regenerating .SRCINFO file...")
             srcinfo_result = self.subprocess_runner.run_command(["makepkg", "--printsrcinfo"])
             (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
-            self.result.changes_detected = True 
+            self.result.changes_detected = True
 
-            self.logger.info(f"Starting package build (makepkg -Lcs --noconfirm --needed --noprogressbar) in {self.build_dir}...")
-            # Added -c (clean up work Dirs), -s (install deps), --needed, --noprogressbar
-            # HOME is inherited, should be /home/builder.
-            self.subprocess_runner.run_command(["makepkg", "-Lcs", "--noconfirm", "--needed", "--noprogressbar"]) 
+            self.logger.info(f"Starting package build (makepkg -Lcs --noconfirm --needed --noprogressbar --log) in {self.build_dir}...")
+            # Added -c (clean up work Dirs), -s (install deps), --needed, --noprogressbar, --log
+            self.subprocess_runner.run_command(["makepkg", "-Lcs", "--noconfirm", "--needed", "--noprogressbar", "--log"])
+
 
             built_package_files = sorted(self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")) # More specific glob
             if not built_package_files: # If main package not found, try any .pkg.tar.zst
@@ -602,15 +632,14 @@ class ArchPackageBuilder:
                 )
                 build_process_successful = True # Mark as successful if packages built and installed
 
-            # --- NEW ARTIFACT COLLECTION METHOD ---
-            self._collect_build_artifacts()
+            # REMOVE _collect_build_artifacts() call from here
 
             if not build_process_successful: # If build (makepkg) failed or produced no packages
-                return False 
-            
+                return False
+
             # If build was successful, proceed with release etc.
-            if self.config.build_mode == "build": 
-                if self.result.version: 
+            if self.config.build_mode == "build":
+                if self.result.version:
                     self._create_release(built_package_files)
                 else:
                     self.logger.warning("Build mode is 'build' but no version determined. Skipping GitHub Release creation.")
@@ -621,12 +650,12 @@ class ArchPackageBuilder:
             self.logger.error(f"Stdout: {e.stdout}")
             self.logger.error(f"Stderr: {e.stderr}")
             self.result.error_message = f"Build failed: {e.cmd} exited {e.returncode}. Stderr: {e.stderr[:200]}"
-            self._collect_build_artifacts() # <--- CALL HERE ON EXCEPTION
+            # REMOVE _collect_build_artifacts() call from here
             return False
         except Exception as e: # Catch other Python exceptions
             self.logger.error(f"Build process failed with Python exception: {e}", exc_info=self.config.debug)
             self.result.error_message = f"Build failed due to Python error: {str(e)}"
-            self._collect_build_artifacts() # <--- CALL HERE ON EXCEPTION
+            # REMOVE _collect_build_artifacts() call from here
             return False
 
     def _create_release(self, package_files: List[Path]):
@@ -846,41 +875,42 @@ class ArchPackageBuilder:
         elif self.build_dir and self.build_dir.exists():
              self.logger.warning(f"Not cleaning up {self.build_dir} as it's not relative to base build dir {self.config.base_build_dir} or some other issue.")
 
-
     def run(self) -> Dict[str, Any]:
-        original_cwd = Path.cwd() # Should be NVCHECKER_RUN_DIR
+        original_cwd = Path.cwd()
         self.logger.info(f"buildscript2.py started. Original CWD: {original_cwd}. HOME env: {os.environ.get('HOME')}")
         self.logger.info(f"Package: {self.config.package_name}, Build Mode: {self.config.build_mode}")
         self.logger.info(f"Using base build directory: {self.config.base_build_dir}")
-        self.logger.info(f"Package specific build dir will be: {self.build_dir} (created now)")
-        # build_dir is created in __init__
+        self.logger.info(f"Package specific build dir will be: {self.build_dir}")
+
+        # Assume success unless an exception occurs or a step explicitly sets self.result.success = False
+        # The BuildResult dataclass defaults success to True, so this line might be redundant
+        # but it emphasizes the optimistic start.
+        self.result.success = True
 
         try:
             # 1. Authenticate with GitHub (if needed, gh auth status checks this)
-            #    Run this before changing directory, in case gh relies on CWD for some config.
             try:
                 # Check auth status without input to avoid hanging if no token.
-                # Errors here are not fatal, authenticate_github will try login.
-                self.subprocess_runner.run_command(["gh", "auth", "status"], check=False) 
+                self.subprocess_runner.run_command(["gh", "auth", "status"], check=False)
             except Exception: # Catch broader exceptions if gh not found etc.
                  pass # Let authenticate_github handle it.
 
             if "gh auth status" in self.subprocess_runner.run_command(["gh", "auth", "status"], check=False).stderr: # Crude check
                 self.logger.info("GitHub token might not be pre-authenticated or gh has issues. Attempting login.")
                 if not self.authenticate_github():
-                    # self.result.error_message is set by authenticate_github
-                    self.result.success = False
+                    self.result.success = False # Error message is set by authenticate_github
+                    # Raise to stop further processing if auth is critical
                     raise RuntimeError(self.result.error_message or "GitHub authentication failed critically.")
 
             # 2. Setup build environment (clone AUR repo, cd into it)
-            self.setup_build_environment() # This changes CWD to self.build_dir (e.g., /home/builder/pkg_builds/build-pkg-xyz)
+            self.setup_build_environment() # This changes CWD to self.build_dir
 
             # 3. Collect package files from workspace to build_dir
-            self.collect_package_files() 
+            self.collect_package_files()
 
             # 4. Process dependencies (install them using paru)
-            if not self.process_dependencies(): 
-                self.result.success = False
+            if not self.process_dependencies():
+                self.result.success = False # Error message set by process_dependencies
                 raise Exception(self.result.error_message or "Dependency processing failed")
 
             # 5. Check for version updates (nvchecker, updates PKGBUILD if new version)
@@ -891,33 +921,36 @@ class ArchPackageBuilder:
 
             # 6. Build package (makepkg, local install, create GH release)
             #    This also handles .SRCINFO generation if PKGBUILD changed.
-            if not self.build_package(): 
+            if not self.build_package(): # This will run or skip based on build_mode
                 self.result.success = False
-                raise Exception(self.result.error_message or "Package build failed")
+                # Error message should be set by build_package() if it returned False
+                raise Exception(self.result.error_message or "Package build/preparation failed")
 
             # 7. Process local source files listed in JSON (updates self.tracked_files for git commit)
-            #    Run this *after* potential PKGBUILD changes (version, updpkgsums) and *before* commit.
             if not self.process_package_sources():
                 self.result.success = False
                 raise Exception(self.result.error_message or "Processing package sources from JSON failed")
 
             # 8. Commit and push to AUR, then sync back to source GitHub repo
-            #    Only run if changes were detected (e.g. version update, .SRCINFO, updpkgsums)
-            #    or if commit_and_push itself finds changes (e.g. manual file changes copied in)
             if self.result.changes_detected or self.config.build_mode in ["build", "test"]: # Force attempt if building/testing
                  if not self.commit_and_push():
                     # commit_and_push sets its own error message. If it returns False due to actual error:
                     if self.result.error_message and "failed" in self.result.error_message.lower():
                         self.result.success = False
+                        # Error message already set by commit_and_push
                         raise Exception(self.result.error_message)
-                    # If it returned False due to "no changes" but we expected changes, it's an anomaly.
-                    # For now, trust its return for "no changes" vs actual failure.
+                    # If commit_and_push returned False due to "no changes", but changes_detected was true,
+                    # it is not considered a failure of the overall process here.
+                    # If commit_and_push returned False due to "no changes" and changes_detected was false,
+                    # that's also fine, just nothing to push.
             else:
                 self.logger.info("No changes detected by earlier steps (like version update or PKGBUILD modification). Skipping AUR commit and push.")
 
+            # If we reached here without an exception, and no step explicitly set self.result.success to False
+            # then it's considered a success.
+            if self.result.success: # Check the flag that might have been set False by a failing step
+                 self.logger.info(f"Successfully processed package {self.config.package_name}")
 
-            self.result.success = True # If all steps above passed or were handled.
-            self.logger.info(f"Successfully processed package {self.config.package_name}")
 
         except Exception as e:
             self.logger.error(f"Exception during run for package {self.config.package_name}: {str(e)}", exc_info=self.config.debug)
@@ -925,14 +958,16 @@ class ArchPackageBuilder:
             if not self.result.error_message: # Ensure an error message is present
                 self.result.error_message = str(e)
         finally:
+            # Call artifact collection here to ensure it runs
+            self._collect_build_artifacts()
+
             # Change back to original CWD before cleanup, especially if cleanup needs relative paths from original CWD
             if Path.cwd() != original_cwd:
-                os.chdir(original_cwd) 
-                self.logger.debug(f"Restored current directory to {original_cwd}")
-            self.cleanup() # Cleanup the package-specific build directory
-            
-        return asdict(self.result)
+                os.chdir(original_cwd)
+                self.logger.debug(f"Restored current directory to {original_cwd} before cleanup.")
+            self.cleanup()
 
+        return asdict(self.result)            
 
 def main():
     parser = argparse.ArgumentParser(

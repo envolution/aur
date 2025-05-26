@@ -8,35 +8,56 @@ import sys
 import tempfile
 import glob
 import logging
-from packaging import version as packaging_version
+# from packaging import version as packaging_version # No longer primary
+from looseversion import LooseVersion # Import LooseVersion
 
 # --- Logging Setup ---
 logging.basicConfig(format='%(levelname)s: %(name)s: %(message)s', level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("aur_updater_cli")
 
-# --- Version Comparison Function ---
+# --- Version Comparison Function (Using LooseVersion) ---
 def compare_package_versions(base_ver1_str: str, rel1_str: str,
                              base_ver2_str: str, rel2_str: str) -> str:
     comp_logger = logging.getLogger("aur_updater_cli.compare")
+
     if base_ver1_str is None and base_ver2_str is None: return "same"
     if base_ver1_str is None: return "upgrade"
     if base_ver2_str is None: return "downgrade"
+
+    # Normalize common non-standard characters before LooseVersion, e.g., '_' to '.'
+    # LooseVersion might handle some of this, but explicit normalization can help.
+    norm_base1_str = base_ver1_str.replace('_', '.')
+    norm_base2_str = base_ver2_str.replace('_', '.')
+    
+    if base_ver1_str != norm_base1_str:
+        comp_logger.debug(f"Normalized base_ver1 '{base_ver1_str}' to '{norm_base1_str}'")
+    if base_ver2_str != norm_base2_str:
+        comp_logger.debug(f"Normalized base_ver2 '{base_ver2_str}' to '{norm_base2_str}'")
+
     try:
-        parsed_base1 = packaging_version.parse(base_ver1_str)
-        parsed_base2 = packaging_version.parse(base_ver2_str)
-    except packaging_version.InvalidVersion as e:
-        comp_logger.error(f"Err parsing base: '{base_ver1_str}' or '{base_ver2_str}': {e}")
+        # LooseVersion is generally very tolerant and doesn't raise InvalidVersion like packaging.version
+        # It attempts to make sense of almost any string.
+        lv1 = LooseVersion(norm_base1_str)
+        lv2 = LooseVersion(norm_base2_str)
+    except Exception as e: # Catch any unexpected error during LooseVersion instantiation
+        comp_logger.error(f"Error instantiating LooseVersion for '{norm_base1_str}' or '{norm_base2_str}': {e}")
         return "unknown"
-    if parsed_base1 < parsed_base2: return "upgrade"
-    if parsed_base1 > parsed_base2: return "downgrade"
+
+    # Compare LooseVersion objects
+    if lv1 < lv2: return "upgrade"
+    if lv1 > lv2: return "downgrade"
+
+    # Base versions are equivalent according to LooseVersion, compare release numbers
     try:
         num_rel1 = int(rel1_str) if rel1_str and rel1_str.strip() and rel1_str.isdigit() else 0
         num_rel2 = int(rel2_str) if rel2_str and rel2_str.strip() and rel2_str.isdigit() else 0
     except ValueError:
-        comp_logger.error(f"Invalid non-int release: '{rel1_str}' or '{rel2_str}' with base '{base_ver1_str}'.")
+        comp_logger.error(f"Invalid non-integer release: '{rel1_str}' or '{rel2_str}' with base '{base_ver1_str}'.")
         return "unknown"
+    
     if num_rel1 < num_rel2: return "upgrade"
     if num_rel1 > num_rel2: return "downgrade"
+    
     return "same"
 
 # --- Helper to construct full version string for display ---
@@ -48,6 +69,8 @@ def _get_full_version_string(v_str, r_str):
     return v_str
 
 # --- Data Fetching Functions ---
+# (fetch_aur_data, fetch_local_pkgbuild_data, run_nvchecker remain unchanged from the last version
+#  as they focus on data gathering, not the comparison logic itself)
 def fetch_aur_data(maintainer):
     aur_logger = logging.getLogger("aur_updater_cli.aur")
     aur_data_by_pkgbase = {}
@@ -197,8 +220,7 @@ def process_and_compare_data(all_data_by_pkgbase):
     output_list = [] 
 
     for pkgbase_key, data in all_data_by_pkgbase.items():
-        # Filter out entries that don't have a local PKGBUILD file associated.
-        if not data.get("pkgfile"):
+        if not data.get("pkgfile"): # Filter out entries without a local PKGBUILD
             proc_logger.debug(f"PkgBase {pkgbase_key} has no local PKGBUILD file. Skipping from final output.")
             continue
 
@@ -216,7 +238,7 @@ def process_and_compare_data(all_data_by_pkgbase):
             "errors": [], "local_is_ahead": False,
             "is_update_candidate": True, "is_update": False,
             "update_source": None, "new_version_for_update": None, 
-            "comparison_details": {} # Only store essential comparisons
+            "comparison_details": {}
         }
 
         nv_base, aur_base, aur_r, local_base, local_r = (pkg_entry.get(k) for k in 
@@ -242,17 +264,19 @@ def process_and_compare_data(all_data_by_pkgbase):
         # Update determination
         update_found = False
         if nv_base:
-            cltn = compare_package_versions(local_base, local_r, nv_base, None)
-            catn = compare_package_versions(aur_base, aur_r, nv_base, None)
-            # These are not added to comparison_details per request, but used for logic
-            if cltn == "upgrade" and catn == "upgrade":
+            comp_local_to_nv = compare_package_versions(local_base, local_r, nv_base, None)
+            comp_aur_to_nv = compare_package_versions(aur_base, aur_r, nv_base, None)
+            # No longer adding these to comparison_details unless specifically needed for debugging
+            # pkg_entry['comparison_details']['local_full_to_nv_base'] = ...
+            # pkg_entry['comparison_details']['aur_full_to_nv_base'] = ...
+            if comp_local_to_nv == "upgrade" and comp_aur_to_nv == "upgrade":
                 pkg_entry.update({'is_update': True, 'update_source': 'nvchecker (new pkg)' if not local_base and not aur_base else 'nvchecker', 'new_version_for_update': nv_base })
                 update_found = True
         
         if not update_found and aur_base:
-            clta = compare_package_versions(local_base, local_r, aur_base, aur_r)
-            pkg_entry['comparison_details']['local_full_to_aur_full'] = f"Local({_get_full_version_string(local_base, local_r)}) to AUR({_get_full_version_string(aur_base, aur_r)}) -> {clta}"
-            if clta == "upgrade": 
+            comp_local_to_aur = compare_package_versions(local_base, local_r, aur_base, aur_r)
+            pkg_entry['comparison_details']['local_full_to_aur_full'] = f"Local({_get_full_version_string(local_base, local_r)}) to AUR({_get_full_version_string(aur_base, aur_r)}) -> {comp_local_to_aur}"
+            if comp_local_to_aur == "upgrade": 
                 pkg_entry.update({'is_update': True, 'update_source': 'aur (new pkg)' if not local_base else 'aur', 'new_version_for_update': _get_full_version_string(aur_base, aur_r)})
                 update_found = True
         
@@ -261,17 +285,14 @@ def process_and_compare_data(all_data_by_pkgbase):
             ahead_nv = compare_package_versions(local_base, local_r, nv_base, None) == "downgrade"
             expected_comparisons = (1 if aur_base else 0) + (1 if nv_base else 0)
             actual_ahead_count = (1 if ahead_aur and aur_base else 0) + (1 if ahead_nv and nv_base else 0)
-            
             if expected_comparisons > 0 and actual_ahead_count == expected_comparisons:
-                pkg_entry['local_is_ahead'] = True
-            elif expected_comparisons == 0: # Local exists, but no AUR/NV to compare against
-                pkg_entry['local_is_ahead'] = True 
+                 pkg_entry['local_is_ahead'] = True
+            elif expected_comparisons == 0:
+                 pkg_entry['local_is_ahead'] = True 
         
-        # Logging update status or no update
         if pkg_entry['is_update']: proc_logger.info(f"Update for {pkgbase_key} (Name {display_name}): to {pkg_entry['new_version_for_update']} via {pkg_entry['update_source']}")
         elif pkg_entry['local_is_ahead']: proc_logger.info(f"Local version for {pkgbase_key} (Name {display_name}) is ahead.")
         elif not pkg_entry['errors']: proc_logger.info(f"No update for {pkgbase_key} (Name {display_name}).")
-        
         output_list.append(pkg_entry)
     return output_list
 
@@ -287,16 +308,13 @@ def generate_summary(processed_output_list, stream=sys.stderr):
         if pkg_data['is_update']:
             src = pkg_data['update_source']
             new_ver = pkg_data['new_version_for_update']
-            
-            # Determine 'from' version for summary
             old_ver_display = "N/A"
+
             if 'nvchecker' in src:
-                # Prefer local, then AUR as the "old" version NVChecker is updating from
                 old_local_full = _get_full_version_string(pkg_data.get('pkgver'), pkg_data.get('pkgrel'))
                 old_aur_full = _get_full_version_string(pkg_data.get('aur-pkgver'), pkg_data.get('aur-pkgrel'))
                 if old_local_full : old_ver_display = old_local_full
                 elif old_aur_full: old_ver_display = old_aur_full
-                # nvchecker-raw-log might also have old_version, but our consolidated is better
             elif 'aur' in src:
                 old_local_full = _get_full_version_string(pkg_data.get('pkgver'), pkg_data.get('pkgrel'))
                 if old_local_full: old_ver_display = old_local_full

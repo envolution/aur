@@ -85,7 +85,8 @@ class Config:
 @dataclasses.dataclass
 class PKGBUILDInfo:
     pkgbase: Optional[str] = None
-    pkgname: Optional[str] = None # Typically first from pkgname=() or same as pkgbase
+    pkgname: Optional[str] = None # This will be the primary/first pkgname
+    all_pkgnames: List[str] = dataclasses.field(default_factory=list) # If pkgname is an array    
     pkgver: Optional[str] = None
     pkgrel: Optional[str] = None
     depends: List[str] = dataclasses.field(default_factory=list)
@@ -224,112 +225,303 @@ class PKGBUILDParser:
                             # For now: Assumes files are readable by user running the sourcing.
         self.logger = logger
 
-    def _parse_variable_section(self, lines: List[str], start_marker: str, end_marker: str, is_array: bool) -> Union[Optional[str], List[str]]:
-        try:
-            start_idx = lines.index(start_marker)
-            end_idx = lines.index(end_marker)
-            values = [line.strip() for line in lines[start_idx + 1:end_idx] if line.strip()]
-            if is_array:
-                return values
-            return values[0] if values else None
-        except ValueError: # Marker not found
-            return [] if is_array else None
+# (Within ArchPackageManager class, PKGBUILDParser class)
 
     def _source_and_extract_pkgbuild_vars(self, pkgbuild_file_path: Path) -> PKGBUILDInfo:
         """Sources a single PKGBUILD using a bash script and extracts variables."""
         info = PKGBUILDInfo(pkgfile_abs_path=pkgbuild_file_path)
         
-        # Bash script to source PKGBUILD and echo variables
-        # Ensure PKGBUILD path is escaped for shell
         escaped_pkgbuild_path = shlex.quote(str(pkgbuild_file_path))
+        
+        # More robust bash script
         bash_script = f"""
+        # Save original shell options
+        _SHELL_OPTS_OLD=$(set +o)
+        # Set options for this script part:
+        # -e: exit immediately if a command exits with a non-zero status.
+        # -u: treat unset variables and parameters as an error.
+        # We will temporarily disable -u for sourcing as PKGBUILDs might have unset vars
+        # that are conditionally set or default later.
         set -e
+
         PKGBUILD_DIR=$(dirname {escaped_pkgbuild_path})
         cd "$PKGBUILD_DIR" # Source from its own directory context
 
         # Unset common variables to avoid interference from environment
-        unset pkgbase pkgname pkgver pkgrel epoch depends makedepends checkdepends source
-        
-        . {escaped_pkgbuild_path} # Source the PKGBUILD
+        # and prevent execution of build functions.
+        unset pkgbase pkgname pkgver pkgrel epoch \
+              depends makedepends checkdepends optdepends provides conflicts replaces options \
+              source md5sums sha1sums sha224sums sha256sums sha384sums sha512sums b2sums
 
-        echo "PKGBASE_START"; echo "${{pkgbase:-}}"; echo "PKGBASE_END"
-        echo "PKGNAME_START"; echo "${{pkgname[0]:-${{pkgbase:-}}}}"; echo "PKGNAME_END" # Default to first pkgname or pkgbase
-        echo "PKGVER_START";  echo "${{pkgver:-}}"; echo "PKGVER_END"
-        echo "PKGREL_START";  echo "${{pkgrel:-}}"; echo "PKGREL_END"
+        # Define build functions as no-ops to prevent them from running during sourcing
+        pkgver() {{ :; }}
+        prepare() {{ :; }}
+        build() {{ :; }}
+        check() {{ :; }}
+        package() {{ :; }}
+        # Add any other common split package functions if they might be called globally
+        package_prepend() {{ :; }}; package_append() {{ :; }};
+        for _func_name in $(declare -F | awk '{{print $3}}' | grep -E '^package_'); do
+            eval "$_func_name() {{ :; }}"
+        done
+
+        # Source the PKGBUILD. Temporarily disable 'nounset' as PKGBUILDs are not always strict.
+        set +u 
+        . {escaped_pkgbuild_path}
+        set -u # Re-enable nounset if it was on before (restored by _SHELL_OPTS_OLD later)
+
+        # --- Echo variables with placeholders for unset/empty ---
+        # This part should run even if sourcing had minor issues, so disable -e temporarily
+        set +e
+
+        echo "PKGBASE_START"; echo "${{pkgbase:-__VAR_NOT_SET__}}"; echo "PKGBASE_END"
         
-        echo "DEPENDS_START";      if [ "${{#depends[@]}}" -gt 0 ]; then printf '%s\\n' "${{depends[@]}}"; fi; echo "DEPENDS_END"
-        echo "MAKEDEPENDS_START";  if [ "${{#makedepends[@]}}" -gt 0 ]; then printf '%s\\n' "${{makedepends[@]}}"; fi; echo "MAKEDEPENDS_END"
-        echo "CHECKDEPENDS_START"; if [ "${{#checkdepends[@]}}" -gt 0 ]; then printf '%s\\n' "${{checkdepends[@]}}"; fi; echo "CHECKDEPENDS_END"
-        echo "SOURCES_START";      if [ "${{#source[@]}}" -gt 0 ]; then printf '%s\\n' "${{source[@]}}"; fi; echo "SOURCES_END"
+        # For pkgname, handle scalar or first element of array
+        _primary_pkgname_val="__VAR_NOT_SET__"
+        if [ -n "${{pkgname+x}}" ]; then # Check if pkgname is set at all
+            if declare -p pkgname 2>/dev/null | grep -q '^declare -a'; then # Is it an array?
+                _primary_pkgname_val="${{pkgname[0]:-__VAR_NOT_SET__}}" # First element or placeholder
+            else
+                _primary_pkgname_val="${{pkgname:-__VAR_NOT_SET__}}" # Scalar or placeholder
+            fi
+        fi
+        echo "PRIMARY_PKGNAME_START"; echo "${{_primary_pkgname_val}}"; echo "PRIMARY_PKGNAME_END"
+
+        _print_array() {{
+            local var_name="$1"
+            # Check if the variable is set and is an array
+            if [ -n "${{!var_name+x}}" ] && declare -p "$var_name" 2>/dev/null | grep -q '^declare -a'; then
+                local -n arr="$var_name" # Nameref to the actual array
+                if [ "${{#arr[@]}}" -gt 0 ]; then
+                    printf '%s\\n' "${{arr[@]}}";
+                else
+                    echo "__EMPTY_ARRAY__" # Explicit marker for empty array
+                fi
+            elif [ -n "${{!var_name+x}}" ]; then # It's set but not an array (scalar)
+                 echo "${{!var_name}}" # Print the scalar value
+            else # Not set at all
+                echo "__EMPTY_ARRAY__" # Treat as empty array if not set for array contexts
+            fi
+        }}
+
+        echo "ALL_PKGNAMES_START"; _print_array pkgname; echo "ALL_PKGNAMES_END"
+        echo "PKGVER_START";  echo "${{pkgver:-__VAR_NOT_SET__}}"; echo "PKGVER_END"
+        echo "PKGREL_START";  echo "${{pkgrel:-__VAR_NOT_SET__}}"; echo "PKGREL_END"
+        
+        echo "DEPENDS_START";      _print_array depends;       echo "DEPENDS_END"
+        echo "MAKEDEPENDS_START";  _print_array makedepends;   echo "MAKEDEPENDS_END"
+        echo "CHECKDEPENDS_START"; _print_array checkdepends; echo "CHECKDEPENDS_END"
+        echo "SOURCES_START";      _print_array source;       echo "SOURCES_END"
+        
+        # Restore original shell options
+        eval "$_SHELL_OPTS_OLD"
         """
         try:
-            # Run bash script as builder user for safety, if PKGBUILDs are from workspace
-            # Files must be readable by builder user.
             result = self.runner.run(
-                ['bash', '-c', bash_script],
-                check=False, # Parse output even on error to capture stderr
-                run_as_user=BUILDER_USER, # Important: source PKGBUILDs as non-root
+                ['bash', '-c', bash_script], # Bash implies running with its default startup files if any, use --noprofile --norc if pure env needed
+                check=False, 
+                run_as_user=BUILDER_USER,
                 user_home_dir=BUILDER_HOME
             )
 
-            if result.returncode != 0:
-                info.error = f"Bash script failed (RC {result.returncode}): {result.stderr[:200]}"
-                self.logger.warning(f"Failed to source {pkgbuild_file_path}: {info.error}")
+            # Always log stderr from bash script if present
+            if result.stderr.strip():
+                self.logger.debug(f"Bash stderr for {pkgbuild_file_path} (RC {result.returncode}):\n{result.stderr.strip()}")
+
+            # Log stdout in debug mode or if parsing fails later
+            if self.config.debug_mode or result.returncode != 0: # Also log stdout if sourcing failed
+                 if result.stdout.strip():
+                    self.logger.debug(f"Bash stdout for {pkgbuild_file_path}:\n{result.stdout.strip()}")
+                 else:
+                    self.logger.debug(f"Bash stdout for {pkgbuild_file_path} was empty.")
+
+
+            if result.returncode != 0 and not result.stdout.strip():
+                # If bash script failed *and* produced no stdout, it's likely a critical error during sourcing.
+                info.error = f"Bash script sourcing failed (RC {result.returncode}) with no variable output."
+                if result.stderr.strip():
+                    info.error += f" Stderr: {result.stderr.strip()[:150]}"
+                self.logger.warning(f"Critical sourcing failure for {pkgbuild_file_path}: {info.error}")
                 return info
 
             output_lines = result.stdout.splitlines()
             
-            info.pkgbase = self._parse_variable_section(output_lines, "PKGBASE_START", "PKGBASE_END", False)
-            info.pkgname = self._parse_variable_section(output_lines, "PKGNAME_START", "PKGNAME_END", False)
-            info.pkgver = self._parse_variable_section(output_lines, "PKGVER_START", "PKGVER_END", False)
-            info.pkgrel = self._parse_variable_section(output_lines, "PKGREL_START", "PKGREL_END", False)
-            info.depends = self._parse_variable_section(output_lines, "DEPENDS_START", "DEPENDS_END", True)
-            info.makedepends = self._parse_variable_section(output_lines, "MAKEDEPENDS_START", "MAKEDEPENDS_END", True)
-            info.checkdepends = self._parse_variable_section(output_lines, "CHECKDEPENDS_START", "CHECKDEPENDS_END", True)
-            info.sources = self._parse_variable_section(output_lines, "SOURCES_START", "SOURCES_END", True)
+            # Robust parsing helper
+            def _parse_section_robust(start_marker: str, end_marker: str, is_array: bool) -> Union[Optional[str], List[str]]:
+                raw_values = []
+                in_section = False
+                for line_idx, line_content in enumerate(output_lines):
+                    if line_content == start_marker:
+                        in_section = True
+                        continue
+                    if line_content == end_marker:
+                        in_section = False
+                        break 
+                    if in_section:
+                        raw_values.append(line_content) # Keep original, don't strip yet for placeholder checks
+                
+                if is_array:
+                    if not raw_values or raw_values == ["__EMPTY_ARRAY__"]:
+                        return []
+                    # Filter out any potential empty strings that might have slipped through if not using placeholder
+                    return [v for v in raw_values if v.strip()] 
+                else: # Scalar
+                    if not raw_values or raw_values[0] == "__VAR_NOT_SET__":
+                        return None
+                    return raw_values[0].strip() # Strip scalar value here
 
-            if not info.pkgbase: # Critical if pkgbase is missing
-                 info.error = "pkgbase could not be extracted."
-                 self.logger.warning(f"No pkgbase from {pkgbuild_file_path}")
+            # Explicitly parse raw values first
+            raw_pkgbase_val = _parse_section_robust("PKGBASE_START", "PKGBASE_END", False)
+            raw_primary_pkgname_val = _parse_section_robust("PRIMARY_PKGNAME_START", "PRIMARY_PKGNAME_END", False)
             
+            info.all_pkgnames = _parse_section_robust("ALL_PKGNAMES_START", "ALL_PKGNAMES_END", True)
+
+            # --- DERIVE PKGBASE (KEY for dictionary) ---
+            if raw_pkgbase_val:
+                info.pkgbase = raw_pkgbase_val
+            elif raw_primary_pkgname_val:
+                info.pkgbase = raw_primary_pkgname_val
+                self.logger.debug(f"Derived pkgbase '{info.pkgbase}' from primary_pkgname for {pkgbuild_file_path}")
+            else:
+                info.pkgbase = None # Will trigger fallback to directory name later if pkgver is present
+
+            # Set the display/primary pkgname field
+            info.pkgname = raw_primary_pkgname_val if raw_primary_pkgname_val else info.pkgbase
+
+            # Parse other essential variables
+            info.pkgver = _parse_section_robust("PKGVER_START", "PKGVER_END", False)
+            info.pkgrel = _parse_section_robust("PKGREL_START", "PKGREL_END", False)
+            if info.pkgrel is None and info.pkgver is not None : # If pkgver is set but pkgrel is not, default pkgrel to 1
+                info.pkgrel = "1"
+
+
+            info.depends = _parse_section_robust("DEPENDS_START", "DEPENDS_END", True)
+            info.makedepends = _parse_section_robust("MAKEDEPENDS_START", "MAKEDEPENDS_END", True)
+            info.checkdepends = _parse_section_robust("CHECKDEPENDS_START", "CHECKDEPENDS_END", True)
+            info.sources = _parse_section_robust("SOURCES_START", "SOURCES_END", True)
+            
+            # --- Final Validation for this stage (before directory fallback) ---
+            current_errors = []
+            if result.returncode != 0: # If sourcing script had errors, note it even if we got some vars
+                err_msg = f"Sourcing script exited with RC {result.returncode}."
+                if result.stderr.strip(): err_msg += f" Stderr hint: {result.stderr.strip()[:100]}"
+                current_errors.append(err_msg)
+
+            if not info.pkgbase and not info.pkgname: # If we couldn't even get a name candidate
+                current_errors.append("Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.")
+            
+            if not info.pkgver:
+                current_errors.append("pkgver could not be extracted.")
+            
+            if current_errors:
+                info.error = "; ".join(current_errors)
+                # Log as warning here, as the fetch_all_local_pkgbuild_data might apply fallbacks or skip
+                self.logger.debug(f"Issues after parsing {pkgbuild_file_path}: {info.error}")
+
         except Exception as e:
-            info.error = f"Exception sourcing PKGBUILD: {type(e).__name__} - {e}"
-            self.logger.error(f"Error processing {pkgbuild_file_path}: {info.error}", exc_info=True)
+            info.error = f"Python exception during PKGBUILD processing for {pkgbuild_file_path}: {type(e).__name__} - {e}"
+            self.logger.error(info.error, exc_info=self.config.debug_mode)
         
-        return info
+        return info        
+
+# (Within ArchPackageManager class, PKGBUILDParser class)
 
     def fetch_all_local_pkgbuild_data(self, pkgbuild_root_dir: Path) -> Dict[str, PKGBUILDInfo]:
-        """Finds all PKGBUILD files and parses them."""
+        """Finds all PKGBUILD files and parses them, applying fallbacks if necessary."""
         start_group("Parsing Local PKGBUILD Files")
         self.logger.info(f"Searching for PKGBUILDs in {pkgbuild_root_dir}...")
         
+        # Using rglob to recursively find PKGBUILD files
         pkgbuild_files = list(pkgbuild_root_dir.rglob("PKGBUILD"))
-        self.logger.info(f"Found {len(pkgbuild_files)} PKGBUILD file(s).")
+        self.logger.info(f"Found {len(pkgbuild_files)} PKGBUILD file(s) to process.")
 
         results_by_pkgbase: Dict[str, PKGBUILDInfo] = {}
         if not pkgbuild_files:
-            self.logger.warning("No PKGBUILD files found.")
+            self.logger.warning("No PKGBUILD files found in the specified root directory.")
             end_group()
             return results_by_pkgbase
 
-        # Parallel processing
-        # Note: runner is passed to the class, not per method call, if it's always the same.
-        # Here, _source_and_extract_pkgbuild_vars is a method, so it has self.
-        num_workers = os.cpu_count() or 1
+        num_workers = os.cpu_count() or 1 # Ensure at least 1 worker
+        self.logger.info(f"Processing PKGBUILDs using up to {num_workers} worker(s).")
+
         with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            future_to_path = {executor.submit(self._source_and_extract_pkgbuild_vars, path): path for path in pkgbuild_files}
+            future_to_path = {
+                executor.submit(self._source_and_extract_pkgbuild_vars, filepath): filepath
+                for filepath in pkgbuild_files
+            }
+
             for future in as_completed(future_to_path):
-                pkg_info = future.result()
-                if pkg_info.error or not pkg_info.pkgbase:
-                    self.logger.warning(f"Skipping {pkg_info.pkgfile_abs_path} due to error: {pkg_info.error or 'No pkgbase'}")
-                    continue
+                original_filepath = future_to_path[future]
+                try:
+                    pkg_info = future.result() # This pkg_info has pkgbase derived (or None) by _source_and_extract_pkgbuild_vars
+                except Exception as exc:
+                    # This catches exceptions from the worker process itself (rare if _source_and_extract_pkgbuild_vars handles its own)
+                    self.logger.error(f"Worker process for {original_filepath} generated an unhandled exception: {exc}", exc_info=self.config.debug_mode)
+                    # Create a minimal PKGBUILDInfo to represent this failure
+                    pkg_info = PKGBUILDInfo(
+                        pkgfile_abs_path=original_filepath,
+                        error=f"Worker process exception: {exc}"
+                    )
+                    # Continue to the error handling logic below
+
+                # --- Apply directory name fallback for pkgbase if still needed ---
+                # This happens if neither 'pkgbase=' nor 'pkgname=' was found in the PKGBUILD by the sourcing script.
+                # We require pkgver to be present for a PKGBUILD to be considered minimally valid for this fallback.
+                if not pkg_info.pkgbase and pkg_info.pkgver and pkg_info.pkgfile_abs_path:
+                    # Only apply if pkgver is present, otherwise the PKGBUILD is likely too broken
+                    derived_from_dir = pkg_info.pkgfile_abs_path.parent.name
+                    self.logger.warning(
+                        f"PKGBUILD {pkg_info.pkgfile_abs_path.name} in dir '{pkg_info.pkgfile_abs_path.parent.name}' has no explicit pkgbase/primary_pkgname. "
+                        f"Falling back to directory name '{derived_from_dir}' as pkgbase (pkgver: {pkg_info.pkgver})."
+                    )
+                    pkg_info.pkgbase = derived_from_dir
+                    if not pkg_info.pkgname: # Also set the display pkgname if it wasn't set
+                        pkg_info.pkgname = derived_from_dir
+                    
+                    # Attempt to clear a "could not be determined" error if we just fixed pkgbase,
+                    # but preserve other sourcing errors if they existed.
+                    if pkg_info.error and "Neither pkgbase nor a primary pkgname could be determined" in pkg_info.error:
+                        # Replace only that specific part of the error message
+                        pkg_info.error = pkg_info.error.replace("Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.", "").strip("; ")
+                        if not pkg_info.error.strip(): # If that was the only error
+                            pkg_info.error = None 
                 
+                # --- Final Validation and Storage ---
+                # A PKGBUILDInfo is considered valid for storage if it has a pkgbase AND a pkgver.
+                # Any 'error' field is for informational purposes or later filtering.
+                if not pkg_info.pkgbase:
+                    current_error = "Critical: pkgbase could not be determined even after fallbacks."
+                    pkg_info.error = (pkg_info.error + "; " if pkg_info.error else "") + current_error
+                if not pkg_info.pkgver:
+                    current_error = "Critical: pkgver could not be extracted."
+                    pkg_info.error = (pkg_info.error + "; " if pkg_info.error else "") + current_error
+                
+                if not pkg_info.pkgbase or not pkg_info.pkgver:
+                    self.logger.error(
+                        f"Skipping {pkg_info.pkgfile_abs_path or original_filepath} due to critical missing data: "
+                        f"{pkg_info.error or ('Missing pkgbase' if not pkg_info.pkgbase else 'Missing pkgver')}"
+                    )
+                    continue # Skip this PKGBUILD entirely if critical info is missing
+                
+                # Log if there were non-critical errors during parsing but we are still proceeding
+                if pkg_info.error:
+                    self.logger.warning(f"PKGBUILD {pkg_info.pkgfile_abs_path.name} (pkgbase: {pkg_info.pkgbase}) processed with issues: {pkg_info.error}")
+
+                # Handle duplicate pkgbase entries
                 if pkg_info.pkgbase in results_by_pkgbase:
-                    self.logger.warning(f"Duplicate pkgbase '{pkg_info.pkgbase}' found. Overwriting entry from {results_by_pkgbase[pkg_info.pkgbase].pkgfile_abs_path} with {pkg_info.pkgfile_abs_path}")
+                    self.logger.warning(
+                        f"Duplicate pkgbase '{pkg_info.pkgbase}' encountered. "
+                        f"Original from: '{results_by_pkgbase[pkg_info.pkgbase].pkgfile_abs_path}'. "
+                        f"New from: '{pkg_info.pkgfile_abs_path}'. Overwriting with the new entry."
+                    )
                 results_by_pkgbase[pkg_info.pkgbase] = pkg_info
-                self.logger.debug(f"Parsed local: {pkg_info.pkgbase} (v{pkg_info.pkgver}-{pkg_info.pkgrel}) from {pkg_info.pkgfile_abs_path.name}")
+                self.logger.debug(
+                    f"Stored local PKGBUILD info for: {pkg_info.pkgbase} "
+                    f"(Name: {pkg_info.pkgname}, Version: {pkg_info.pkgver}-{pkg_info.pkgrel}) "
+                    f"from file: {pkg_info.pkgfile_abs_path.name}"
+                )
         
-        self.logger.info(f"Successfully parsed data for {len(results_by_pkgbase)} unique pkgbase(s).")
+        self.logger.info(f"Successfully processed and stored data for {len(results_by_pkgbase)} unique pkgbase entries from local PKGBUILDs.")
         end_group()
         return results_by_pkgbase
 

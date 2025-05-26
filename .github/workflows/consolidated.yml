@@ -49,7 +49,7 @@ jobs:
           pacman -Syu --noconfirm --needed \
             archlinux-keyring git base-devel pacman-contrib openssh github-cli \
             jq expac python python-pip nvchecker sudo \
-            python-requests # Key Python libs for the script
+            python-requests python-lxml # Key Python libs for the script
           echo "::endgroup::"
 
       - name: Setup non-root user 'builder'

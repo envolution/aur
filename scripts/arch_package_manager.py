@@ -303,7 +303,7 @@ class PKGBUILDParser:
         start_group("Parsing Local PKGBUILD Files")
         self.logger.info(f"Searching for PKGBUILDs in {pkgbuild_root_dir}...")
         
-        pkgbuild_files = list(pkgbuild_root_dir.glob("**/PKGBUILD"))
+        pkgbuild_files = list(pkgbuild_root_dir.rglob("PKGBUILD"))
         self.logger.info(f"Found {len(pkgbuild_files)} PKGBUILD file(s).")
 
         results_by_pkgbase: Dict[str, PKGBUILDInfo] = {}
@@ -421,7 +421,7 @@ class NVCheckerRunner:
         start_group("Running Global NVChecker")
         results_by_pkgbase: Dict[str, Dict[str, Any]] = {}
         
-        toml_files = list(pkgbuild_root_dir.glob("**/.*nvchecker.toml")) # Catches .nvchecker.toml and .nvchecker.ini etc.
+        toml_files = list(pkgbuild_root_dir.rglob(".nvchecker.toml")) # Catches .nvchecker.toml and .nvchecker.ini etc.
         if not toml_files:
             self.logger.info("No .nvchecker.toml files found. Skipping global NVChecker run.")
             end_group(); return results_by_pkgbase

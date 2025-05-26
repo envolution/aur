@@ -31,7 +31,7 @@ SECRET_GHUK_VALUE = os.getenv("SECRET_GHUK_VALUE")
 AUR_MAINTAINER_NAME = os.getenv("AUR_MAINTAINER_NAME")
 GH_TOKEN = os.getenv("GH_TOKEN")
 GITHUB_REPOSITORY = os.getenv("GITHUB_REPOSITORY")
-GITHUB_RUN_ID = os.getenv("GITHUB_RUN_ID") # Corrected from GITHUB_RUNID
+GITHUB_RUN_ID = os.getenv("GITHUB_RUN_ID")
 GITHUB_STEP_SUMMARY_FILE = os.getenv("GITHUB_STEP_SUMMARY")
 PKGBUILD_ROOT_PATH_STR = os.getenv("PKGBUILD_ROOT")
 
@@ -265,8 +265,10 @@ def generate_package_details_for_buildscript(pkgs_info: List[Dict[str, Any]]) ->
     if not pkgs_info:
         log_notice("JSON_GEN_SKIP", "No packages for buildscript's JSON input.")
         try: # Write empty JSON if no packages
-            with open(PACKAGE_DETAILS_JSON_PATH, "w") as f: json.dump({}, f) # Write as runner
-            run_command(["sudo", "-u", BUILDER_USER, "mv", str(PACKAGE_DETAILS_JSON_PATH), str(PACKAGE_DETAILS_JSON_PATH)]) # Chown trick
+            # Create as runner, then mv as builder to chown
+            temp_empty_json = NVCHECKER_RUN_DIR / "temp_empty.json"
+            with open(temp_empty_json, "w") as f: json.dump({}, f) 
+            run_command(["sudo", "-u", BUILDER_USER, "mv", str(temp_empty_json), str(PACKAGE_DETAILS_JSON_PATH)])
         except Exception as e: log_error("JSON_GEN_EMPTY_FAIL", f"Failed to write empty {PACKAGE_DETAILS_JSON_PATH}: {e}"); end_group(); return False
         end_group(); return True
 
@@ -355,11 +357,18 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         bs_err = f"Unexpected error running/parsing buildscript2.py: {e}"; bs_ok = False
         log_error("BUILD_SCRIPT_PY_FAIL_UNEX", bs_err)
 
+    # CORRECTED LINE:
     status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{bs_err.replace('|', '\\|').replace(chr(10), '<br>')}</small>" if bs_err else "❌ Failure")
+    
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
     log_link = "N/A"
-    if pkg_artifact_dir.exists() and list(pkg_artifact_dir.glob(f"{pkg_name}*.log")) + list(pkg_artifact_dir.glob("*.log")):
-        log_link = f"See 'build-artifacts-{GITHUB_RUN_ID}' (<tt>{pkg_name}/</tt> subdir)"
+    if pkg_artifact_dir.exists(): # Check if directory exists before globbing
+        # Combine globs efficiently
+        logs_found = list(pkg_artifact_dir.glob(f"{pkg_name}*.log"))
+        logs_found.extend(p for p in pkg_artifact_dir.glob("*.log") if p not in logs_found) # Add unique general logs
+        if logs_found:
+            log_link = f"See 'build-artifacts-{GITHUB_RUN_ID}' (<tt>{pkg_name}/</tt> subdir)"
+
     if GITHUB_STEP_SUMMARY_FILE:
         with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"| **{pkg_name}** | {bs_ver} | {status_md} | {bs_chg_str} | {aur_link} | {log_link} |\n")
@@ -388,26 +397,26 @@ def main():
              with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| **SETUP** | N/A | ❌ Failure: Env setup | - | - | Check Logs |\n")
         sys.exit(1)
 
-    # Determine path_root_for_cli logic
     path_root_for_cli_actual = PKGBUILD_ROOT_PATH_STR if PKGBUILD_ROOT_PATH_STR else str(GITHUB_WORKSPACE)
     log_notice("PATH_ROOT_CONFIG", f"Using --path-root='{path_root_for_cli_actual}' for Updater CLI (derived from PKGBUILD_ROOT: '{PKGBUILD_ROOT_PATH_STR}')")
 
-    # Pre-CLI Debugging of the path_root_for_cli_actual
     log_notice("PRE_CLI_DEBUG", f"Debugging PKGBUILD_ROOT ('{path_root_for_cli_actual}') access before Updater CLI.")
-    debug_path_permissions(path_root_for_cli_actual, "runner") # As runner user
-    debug_path_permissions(path_root_for_cli_actual, BUILDER_USER, as_user=BUILDER_USER) # As builder user
+    debug_path_permissions(path_root_for_cli_actual, "runner") 
+    debug_path_permissions(path_root_for_cli_actual, BUILDER_USER, as_user=BUILDER_USER) 
 
-    # Example of debugging a specific known package subdirectory and PKGBUILD file
-    # This should be adapted if "lobe-chat" is not always the package to check
-    # For general use, this specific subdir check might be too specific or commented out.
     # known_pkg_name_for_debug = "lobe-chat" 
-    # known_pkg_dir_for_debug = Path(path_root_for_cli_actual) / known_pkg_name_for_debug
-    # log_notice("PRE_CLI_DEBUG_SUBDIR", f"Debugging specific subdir: {known_pkg_dir_for_debug}")
-    # debug_path_permissions(str(known_pkg_dir_for_debug), "runner")
-    # debug_path_permissions(str(known_pkg_dir_for_debug), BUILDER_USER, as_user=BUILDER_USER)
-    # known_pkgbuild_file_for_debug = known_pkg_dir_for_debug / "PKGBUILD"
-    # debug_path_permissions(str(known_pkgbuild_file_for_debug), "runner")
-    # debug_path_permissions(str(known_pkgbuild_file_for_debug), BUILDER_USER, as_user=BUILDER_USER)
+    # if Path(path_root_for_cli_actual, known_pkg_name_for_debug).exists(): # Only debug if base known_pkg_name_for_debug dir exists
+    #     known_pkg_dir_for_debug = Path(path_root_for_cli_actual) / known_pkg_name_for_debug
+    #     log_notice("PRE_CLI_DEBUG_SUBDIR", f"Debugging specific subdir: {known_pkg_dir_for_debug}")
+    #     debug_path_permissions(str(known_pkg_dir_for_debug), "runner")
+    #     debug_path_permissions(str(known_pkg_dir_for_debug), BUILDER_USER, as_user=BUILDER_USER)
+    #     known_pkgbuild_file_for_debug = known_pkg_dir_for_debug / "PKGBUILD"
+    #     if known_pkgbuild_file_for_debug.parent.exists(): # Check parent exists before debugging file
+    #         debug_path_permissions(str(known_pkgbuild_file_for_debug), "runner")
+    #         debug_path_permissions(str(known_pkgbuild_file_for_debug), BUILDER_USER, as_user=BUILDER_USER)
+    # else:
+    #     log_debug(f"Skipping specific subdir debug for '{known_pkg_name_for_debug}' as its base directory does not exist under '{path_root_for_cli_actual}'.")
+
 
     if not create_nvchecker_keyfile():
         log_warning("MAIN_WARN", "create_nvchecker_keyfile had issues. Updater CLI might have limited functionality.")

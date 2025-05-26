@@ -217,6 +217,8 @@ def run_aur_updater_cli() -> Optional[List[Dict[str, Any]]]:
         "--maintainer", AUR_MAINTAINER_NAME,
         "--path-root", path_root_for_cli, # USE THE DETERMINED PATH HERE
         "--output-file", str(UPDATER_CLI_OUTPUT_JSON_PATH), 
+        "--summary",
+        "--debug",
     ]
     if KEYFILE_PATH.exists():
          cmd.extend(["--key-toml", str(KEYFILE_PATH)])

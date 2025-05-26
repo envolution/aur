@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 
 # --- Constants and Configuration ---
+PKGBUILD_ROOT_PATH_STR = os.getenv("PKGBUILD_ROOT") # Get the new env var
 BUILDER_USER = "builder" # User for build operations
 BUILDER_HOME = Path(os.getenv("BUILDER_HOME", f"/home/{BUILDER_USER}"))
 NVCHECKER_RUN_DIR = Path(os.getenv("NVCHECKER_RUN_DIR", str(BUILDER_HOME / "nvchecker-run")))
@@ -190,7 +191,6 @@ def create_nvchecker_keyfile() -> bool:
     
     end_group()
     return True
-
 def run_aur_updater_cli() -> Optional[List[Dict[str, Any]]]:
     start_group("Run AUR Package Updater CLI")
     script_path = NVCHECKER_RUN_DIR / "aur_package_updater_cli.py"
@@ -199,13 +199,21 @@ def run_aur_updater_cli() -> Optional[List[Dict[str, Any]]]:
         end_group()
         return None
 
-    # aur_package_updater_cli.py will be run as builder and write its output
-    # to UPDATER_CLI_OUTPUT_JSON_PATH inside NVCHECKER_RUN_DIR (which builder owns)
+    # Determine the path-root for the updater CLI
+    path_root_for_cli = ""
+    if PKGBUILD_ROOT_PATH_STR:
+        path_root_for_cli = PKGBUILD_ROOT_PATH_STR
+        log_notice("PATH_ROOT_INFO", f"Using PKGBUILD_ROOT='{path_root_for_cli}' for --path-root.")
+    else:
+        path_root_for_cli = str(GITHUB_WORKSPACE)
+        log_notice("PATH_ROOT_INFO", f"PKGBUILD_ROOT env var not set. Defaulting --path-root to GITHUB_WORKSPACE='{path_root_for_cli}'.")
+
+
     cmd = [
         "sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}",
         "python3", str(script_path),
         "--maintainer", AUR_MAINTAINER_NAME,
-        "--path-root", str(GITHUB_WORKSPACE), # Path for PKGBUILDs and .nvchecker.toml files
+        "--path-root", path_root_for_cli, # USE THE DETERMINED PATH HERE
         "--output-file", str(UPDATER_CLI_OUTPUT_JSON_PATH), 
     ]
     if KEYFILE_PATH.exists():

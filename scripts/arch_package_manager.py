@@ -658,7 +658,7 @@ class NVCheckerRunner:
             
             concatenated_toml_content = "".join(content_list_for_toml)
             # Write the concatenated TOML file as builder
-            self.builder_runner.run(
+            self.runner.run(
                 ["bash", "-c", f"echo {shlex.quote(concatenated_toml_content)} > {shlex.quote(str(all_nv_tomls_path))}"],
                 check=True
             )
@@ -666,15 +666,15 @@ class NVCheckerRunner:
 
             # 3. Write oldver.json as builder into its CWD
             oldver_json_content_str = json.dumps({"version": 2, "data": oldver_data_for_nvchecker})
-            self.builder_runner.run(
+            self.runner.run(
                 ["bash", "-c", f"echo {shlex.quote(oldver_json_content_str)} > {shlex.quote(str(oldver_json_path))}"],
                 check=True
             )
             log_debug(f"Oldver JSON ({oldver_json_path.name}) written by builder to CWD ({self.config.nvchecker_run_dir}):\n{oldver_json_content_str}")
 
             # 4. Ensure newver.json exists, is empty, and builder-owned in its CWD (for nvchecker to write to)
-            self.builder_runner.run(["touch", str(newver_json_path)], check=True)
-            self.builder_runner.run(["truncate", "-s", "0", str(newver_json_path)], check=True)
+            self.runner.run(["touch", str(newver_json_path)], check=True)
+            self.runner.run(["truncate", "-s", "0", str(newver_json_path)], check=True)
             log_debug(f"Ensured newver.json ({newver_json_path.name}) is empty and builder-owned in CWD ({self.config.nvchecker_run_dir}).")
 
             # 5. Prepare and run nvchecker command

@@ -192,7 +192,7 @@ class CommandRunner:
         try:
             result = subprocess.run(
                 final_cmd, check=check, text=True, capture_output=capture_output,
-                cwd=cwd, env=current_env, input=input_data, timeout=300 # 5 min timeout
+                cwd=cwd, env=current_env, input=input_data, timeout=1800 # 5 min timeout
             )
             if result.stdout and print_command and capture_output: log_debug(f"CMD STDOUT: {result.stdout.strip()[:500]}")
             if result.stderr and print_command and capture_output: log_debug(f"CMD STDERR: {result.stderr.strip()[:500]}")
@@ -629,6 +629,9 @@ class NVCheckerRunner:
         all_nv_tomls_path = self.config.nvchecker_run_dir / "all_project_nv.toml"
         oldver_json_path = self.config.nvchecker_run_dir / "oldver.json"
         newver_json_path = self.config.nvchecker_run_dir / "newver.json" # nvchecker reads this if it exists, writes to it
+        if not self.config.nvchecker_run_dir.exists():
+             self.runner.run(["mkdir", "-p", str(self.config.nvchecker_run_dir)], run_as_user="root")
+        self.runner.run(["chown", f"{BUILDER_USER}:{BUILDER_USER}", str(self.config.nvchecker_run_dir)], run_as_user="root", check=False)
 
         try:
             # Concatenate all .toml files
@@ -643,15 +646,21 @@ class NVCheckerRunner:
                     continue
             all_nv_tomls_path.write_text("".join(content))
 
-            # Write oldver.json
-            with open(oldver_json_path, "w") as f:
-                json.dump({"version": 2, "data": oldver_data_for_nvchecker}, f)
+            # Write oldver.json as builder
+            self.builder_runner.run(
+                ["python3", "-c", f"import json; import sys; json.dump({{'version': 2, 'data': {oldver_data_for_nvchecker}}}, sys.stdout)"],
+                capture_output=True, # Capture stdout to write to file
+                print_command=False # Avoid verbose logging of this specific command's args
+            ) # This produces output to stdout, now write it
+            oldver_json_path.write_text(self.builder_runner.run(...).stdout) # Re-run to get stdout is inefficient, better to capture
+            # More robust way to write oldver.json as builder
+            oldver_json_content = json.dumps({"version": 2, "data": oldver_data_for_nvchecker})
+            self.builder_runner.run(["tee", str(oldver_json_path)], input_data=oldver_json_content, capture_output=False)
             log_debug(f"Oldver JSON for NVChecker: {json.dumps(oldver_data_for_nvchecker, indent=2, sort_keys=True)[:500]}")
 
-            # Ensure newver.json is empty if it exists, or nvchecker will use its contents
-            if newver_json_path.exists(): newver_json_path.unlink()
-            newver_json_path.write_text("{}")
-
+            # Ensure newver.json is empty and builder-owned if it exists, or nvchecker will use its contents
+            self.builder_runner.run(["touch", str(newver_json_path)]) # Ensure it exists and is builder-owned
+            self.builder_runner.run(["truncate", "-s", "0", str(newver_json_path)]) # Empty it
 
             cmd = ['nvchecker', '-c', all_nv_tomls_path.name, '--logger=json']
             if keyfile_to_use and keyfile_to_use.is_file():
@@ -673,6 +682,10 @@ class NVCheckerRunner:
             # Prioritize reading from newver.json as it's the primary output mechanism for versions
             if newver_json_path.is_file():
                 try:
+                    # Read as builder to ensure permissions
+                    read_proc = self.builder_runner.run(["cat", str(newver_json_path)], capture_output=True, check=True)
+                    content = read_proc.stdout
+                    
                     if not content.strip(): # Handle empty newver.json
                         self.logger.info("newver.json is empty, no new versions from file.")
                     else:
@@ -712,7 +725,7 @@ class NVCheckerRunner:
                                     })
                                     self.logger.info(f"NVCR (newver.json): {name} -> {version_val_str}")
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"Failed to parse newver.json from NVChecker: {e}. Content: {newver_json_path.read_text()[:200]}")
+                    self.logger.error(f"Failed to parse newver.json from NVChecker: {e}. Content: {content[:200]}")
                 except Exception as e: # Catch any other error during processing
                     self.logger.error(f"Error processing newver.json: {e}")
 
@@ -1172,8 +1185,11 @@ class ArchPackageManager:
 
             # Clone AUR repository
             aur_repo_url = f"ssh://aur@aur.archlinux.org/{pkgbase}.git"
+            self.logger.info(f"Attempting to clone AUR repo: {aur_repo_url} into {op_result.aur_clone_dir_abs}")
             self.builder_runner.run(["git", "clone", aur_repo_url, str(op_result.aur_clone_dir_abs)])
             self.logger.info(f"Cloned AUR repo for {pkgbase} into {op_result.aur_clone_dir_abs}")
+            # Verify clone
+            self.builder_runner.run(["git", "status"], cwd=op_result.aur_clone_dir_abs, check=True)
 
             # Overlay files from workspace
             source_pkg_dir_in_workspace = pkg_status.local_pkgbuild_info.pkgfile_abs_path.parent
@@ -1392,6 +1408,7 @@ class ArchPackageManager:
         self.logger.info(f"Handling GitHub release {tag_name} for {pkgbase} in repo {self.config.github_repo}.")
         
         try:
+            gh_env_extra = {"GITHUB_TOKEN": self.config.gh_token}
             # gh release upload will create if not exists, and clobber assets if it does.
             # Simpler than create then upload separately.
             # However, this doesn't allow setting release notes easily if created implicitly.
@@ -1399,7 +1416,8 @@ class ArchPackageManager:
 
             # Check if release exists
             gh_release_view_cmd = ["gh", "release", "view", tag_name, "--repo", self.config.github_repo]
-            view_res = self.builder_runner.run(gh_release_view_cmd, cwd=op_result.aur_clone_dir_abs, check=False)
+            view_res = self.builder_runner.run(gh_release_view_cmd, cwd=op_result.aur_clone_dir_abs, check=False, env_extra=gh_env_extra)
+            
 
             release_notes = f"Automated CI release for {pkgbase} {version_for_tag}.\n\nTo install, run:\n`sudo pacman -U {op_result.built_package_archive_files[0].name}` (adjust filename if multiple files)"
 
@@ -1409,7 +1427,8 @@ class ArchPackageManager:
                                        "--repo", self.config.github_repo,
                                        "--title", release_title,
                                        "--notes", release_notes]
-                self.builder_runner.run(gh_release_create_cmd, cwd=op_result.aur_clone_dir_abs, check=True)
+                self.builder_runner.run(gh_release_create_cmd, cwd=op_result.aur_clone_dir_abs, check=True, env_extra=gh_env_extra)
+                
             else: # Release exists, maybe edit notes
                 self.logger.info(f"Release {tag_name} already exists. Will update assets.")
                 # Optionally edit notes:
@@ -1420,7 +1439,7 @@ class ArchPackageManager:
             for pkg_archive_path_abs in op_result.built_package_archive_files:
                 upload_cmd = ["gh", "release", "upload", tag_name, str(pkg_archive_path_abs),
                               "--repo", self.config.github_repo, "--clobber"]
-                self.builder_runner.run(upload_cmd, cwd=op_result.aur_clone_dir_abs, check=True)
+                self.builder_runner.run(upload_cmd, cwd=op_result.aur_clone_dir_abs, check=True, env_extra=gh_env_extra)
             self.logger.info(f"Uploaded assets to GitHub release {tag_name}.")
             op_result.github_release_ok = True
             return True
@@ -1467,6 +1486,11 @@ class ArchPackageManager:
                 return False
             self.logger.warning(f"'git add' reported minor issues for {pkgbase} (e.g. non-critical file not found), continuing. Stderr: {e_add.stderr}")
 
+        # Verify it's a git repo before status check
+        if not (op_result.aur_clone_dir_abs / ".git").is_dir():
+            op_result.error_message = f"AUR clone directory {op_result.aur_clone_dir_abs} is not a git repository. Clone may have failed."
+            self.logger.error(op_result.error_message)
+            return False            
 
         status_res = self.builder_runner.run(["git", "status", "--porcelain"], cwd=op_result.aur_clone_dir_abs, check=True)
         if not status_res.stdout.strip() and not op_result.changes_made_to_aur_clone_files: # Check our flag too
@@ -1547,6 +1571,7 @@ class ArchPackageManager:
             path_in_source_repo_relative_to_workspace = pkg_status.pkgbuild_dir_rel_to_workspace / file_name_in_clone
             
             self.logger.info(f"Attempting to sync '{file_name_in_clone}' to source repo path: '{path_in_source_repo_relative_to_workspace}'")
+            gh_env_extra = {"GITHUB_TOKEN": self.config.gh_token}
             try:
                 content_bytes = file_path_in_aur_clone_abs.read_bytes()
                 content_b64 = base64.b64encode(content_bytes).decode("utf-8")
@@ -1569,7 +1594,7 @@ class ArchPackageManager:
                 gh_api_put_url = f"repos/{self.config.github_repo}/contents/{str(path_in_source_repo_relative_to_workspace)}"
                 self.builder_runner.run(
                     ["gh", "api", "--method", "PUT", gh_api_put_url] + update_fields,
-                    check=True
+                    check=True, env_extra=gh_env_extra
                 )
                 self.logger.info(f"Successfully synced '{file_name_in_clone}' to source repo path '{path_in_source_repo_relative_to_workspace}'.")
                 op_result.files_synced_to_source_repo.append(str(path_in_source_repo_relative_to_workspace))
@@ -1619,7 +1644,7 @@ class ArchPackageManager:
                 # or if builder doesn't have permission to remove the base dir itself.
                 # Since builder_runner creates these, and builder owns them, builder should be able to remove.
                 # However, to be safe, use root runner.
-                self.runner.run(["rm", "-rf", str(op_result.package_specific_build_dir_abs)], check=True)
+                self.runner.run(["rm", "-rf", str(op_result.package_specific_build_dir_abs)], check=True, run_as_user="root")
                 return True
             except Exception as e:
                 error_detail = f"Failed to cleanup package build directory {op_result.package_specific_build_dir_abs}: {e}"

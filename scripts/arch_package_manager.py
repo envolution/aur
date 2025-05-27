@@ -606,167 +606,167 @@ class NVCheckerRunner:
         except Exception as e:
             self.logger.error(f"Failed to create NVChecker keyfile: {e}")
             return None
+# (Within NVCheckerRunner class in arch_package_manager.py)
 
     def run_global_nvchecker(self, pkgbuild_root_dir: Path, oldver_data_for_nvchecker: Dict[str, Dict[str, str]]) -> Dict[str, Dict[str, Any]]:
-        """Runs nvchecker across all .nvchecker.toml files found."""
-        start_group("Running Global NVChecker")
+        """
+        Runs nvchecker across all .nvchecker.toml files found.
+        Relies on nvchecker's STDOUT JSON log for version information.
+        """
+        start_group("Running Global NVChecker (STDOUT JSON Log Mode)")
         results_by_pkgbase: Dict[str, Dict[str, Any]] = {}
         
-        toml_files = list(pkgbuild_root_dir.rglob(".nvchecker.toml")) # Catches .nvchecker.toml and .nvchecker.ini etc.
+        toml_files = list(pkgbuild_root_dir.rglob(".nvchecker.toml"))
         if not toml_files:
             self.logger.info("No .nvchecker.toml files found. Skipping global NVChecker run.")
             end_group(); return results_by_pkgbase
         
         self.logger.info(f"Found {len(toml_files)} .nvchecker.toml files.")
 
-        keyfile_to_use = self._generate_nvchecker_keyfile() # Generates if token exists
-
-        # NVChecker needs to run in a temp dir where it can write oldver/newver json
-        # and the concatenated toml.
-        # self.config.nvchecker_run_dir is already builder-owned.
-        
-        # Create inputs in the designated nvchecker_run_dir
+        # Prepare paths within the builder-owned nvchecker_run_dir
         all_nv_tomls_path = self.config.nvchecker_run_dir / "all_project_nv.toml"
         oldver_json_path = self.config.nvchecker_run_dir / "oldver.json"
-        newver_json_path = self.config.nvchecker_run_dir / "newver.json" # nvchecker reads this if it exists, writes to it
-        if not self.config.nvchecker_run_dir.exists():
-             self.runner.run(["mkdir", "-p", str(self.config.nvchecker_run_dir)], run_as_user="root")
-        self.runner.run(["chown", f"{BUILDER_USER}:{BUILDER_USER}", str(self.config.nvchecker_run_dir)], run_as_user="root", check=False)
+        newver_json_path = self.config.nvchecker_run_dir / "newver.json" # Must exist and be writable for nvchecker
+
+        # 1. Ensure nvchecker_run_dir exists and is fully builder-owned
+        if not self.config.nvchecker_run_dir.is_dir():
+            self.runner.run(["mkdir", "-p", str(self.config.nvchecker_run_dir)], check=True) # Create as root/workflow user
+        # Chown the entire directory to builder
+        self.runner.run(["chown", "-R", f"{BUILDER_USER}:{BUILDER_USER}", str(self.config.nvchecker_run_dir)], check=True, run_as_user="root")
+        self.logger.info(f"Ensured {self.config.nvchecker_run_dir} exists and is owned by {BUILDER_USER}")
+
+        keyfile_to_use = self._generate_nvchecker_keyfile() # Creates and chowns to builder if GH_TOKEN exists
 
         try:
-            # Concatenate all .toml files
-            content = ["[__config__]\n", f"oldver = '{oldver_json_path.name}'\n", f"newver = '{newver_json_path.name}'\n\n"]
+            # 2. Concatenate all .toml files and write as builder
+            # The __config__ section tells nvchecker where to find/put oldver and newver files by name, relative to CWD.
+            content_list_for_toml = [
+                "[__config__]\n",
+                f"oldver = '{oldver_json_path.name}'\n", # Name of oldver file in CWD
+                f"newver = '{newver_json_path.name}'\n", # Name of newver file in CWD
+                "\n"
+            ]
             for tf_path in toml_files:
                 try:
-                    # Ensure builder can read these toml files from workspace
                     rel_path_from_workspace = tf_path.relative_to(GITHUB_WORKSPACE)
-                    content.extend([f"# Source: {rel_path_from_workspace}\n", tf_path.read_text(), "\n\n"])
+                    # Ensure PKGBUILD sources are readable by builder if they are not already
+                    # This should have been handled by a chmod in the GHA workflow already
+                    content_list_for_toml.extend([f"# Source: {rel_path_from_workspace}\n", tf_path.read_text(), "\n\n"])
                 except Exception as e:
                     self.logger.warning(f"Error reading {tf_path}: {e}. Skipping.")
                     continue
-            all_nv_tomls_path.write_text("".join(content))
-
-            # Write oldver.json as builder
+            
+            concatenated_toml_content = "".join(content_list_for_toml)
+            # Write the concatenated TOML file as builder
             self.builder_runner.run(
-                ["python3", "-c", f"import json; import sys; json.dump({{'version': 2, 'data': {oldver_data_for_nvchecker}}}, sys.stdout)"],
-                capture_output=True, # Capture stdout to write to file
-                print_command=False # Avoid verbose logging of this specific command's args
-            ) # This produces output to stdout, now write it
-            oldver_json_path.write_text(self.builder_runner.run(...).stdout) # Re-run to get stdout is inefficient, better to capture
-            # More robust way to write oldver.json as builder
-            oldver_json_content = json.dumps({"version": 2, "data": oldver_data_for_nvchecker})
-            self.builder_runner.run(["tee", str(oldver_json_path)], input_data=oldver_json_content, capture_output=False)
-            log_debug(f"Oldver JSON for NVChecker: {json.dumps(oldver_data_for_nvchecker, indent=2, sort_keys=True)[:500]}")
+                ["bash", "-c", f"echo {shlex.quote(concatenated_toml_content)} > {shlex.quote(str(all_nv_tomls_path))}"],
+                check=True
+            )
+            log_debug(f"NVChecker TOML config ({all_nv_tomls_path.name}) written by builder to CWD ({self.config.nvchecker_run_dir}):\n{concatenated_toml_content[:1000]}...")
 
-            # Ensure newver.json is empty and builder-owned if it exists, or nvchecker will use its contents
-            self.builder_runner.run(["touch", str(newver_json_path)]) # Ensure it exists and is builder-owned
-            self.builder_runner.run(["truncate", "-s", "0", str(newver_json_path)]) # Empty it
+            # 3. Write oldver.json as builder into its CWD
+            oldver_json_content_str = json.dumps({"version": 2, "data": oldver_data_for_nvchecker})
+            self.builder_runner.run(
+                ["bash", "-c", f"echo {shlex.quote(oldver_json_content_str)} > {shlex.quote(str(oldver_json_path))}"],
+                check=True
+            )
+            log_debug(f"Oldver JSON ({oldver_json_path.name}) written by builder to CWD ({self.config.nvchecker_run_dir}):\n{oldver_json_content_str}")
 
+            # 4. Ensure newver.json exists, is empty, and builder-owned in its CWD (for nvchecker to write to)
+            self.builder_runner.run(["touch", str(newver_json_path)], check=True)
+            self.builder_runner.run(["truncate", "-s", "0", str(newver_json_path)], check=True)
+            log_debug(f"Ensured newver.json ({newver_json_path.name}) is empty and builder-owned in CWD ({self.config.nvchecker_run_dir}).")
+
+            # 5. Prepare and run nvchecker command
+            # Command will use file names relative to its CWD (self.config.nvchecker_run_dir)
             cmd = ['nvchecker', '-c', all_nv_tomls_path.name, '--logger=json']
             if keyfile_to_use and keyfile_to_use.is_file():
-                cmd.extend(['-k', keyfile_to_use.name]) # Use relative name as running in that CWD
+                # keyfile_to_use path is absolute, ensure nvchecker can access it if it's also in nvchecker_run_dir
+                # Or make its path relative to CWD for the command if nvchecker supports that better.
+                # Using absolute path for keyfile should be fine. It's already builder-owned.
+                cmd.extend(['-k', str(keyfile_to_use)]) # Use absolute path for keyfile
 
-            self.logger.info(f"Running NVChecker with concatenated TOML... (CWD: {self.config.nvchecker_run_dir})")
+            self.logger.info(f"Running NVChecker command: {shlex.join(cmd)} (CWD: {self.config.nvchecker_run_dir})")
             
-            # Run nvchecker as builder user from its run_dir
-            proc = self.runner.run(cmd, cwd=self.config.nvchecker_run_dir, check=False, run_as_user=BUILDER_USER, user_home_dir=BUILDER_HOME)
+            # Run nvchecker as builder user from its run_dir.
+            proc = self.runner.run( # self.runner runs as root, then sudo's to builder
+                cmd, 
+                cwd=self.config.nvchecker_run_dir, # nvchecker CWD
+                check=False, 
+                run_as_user=BUILDER_USER, 
+                user_home_dir=BUILDER_HOME
+            )
             
+            log_debug(f"NVChecker raw STDOUT:\n{proc.stdout}")
+            log_debug(f"NVChecker raw STDERR:\n{proc.stderr}")
+            log_debug(f"NVChecker return code: {proc.returncode}")
+
             if proc.returncode != 0:
-                self.logger.error(f"NVChecker exited with code {proc.returncode}.")
-            if proc.stderr:
-                self.logger.warning(f"NVChecker STDERR:\n{proc.stderr.strip()}")
+                self.logger.error(f"NVChecker exited with code {proc.returncode}. Check raw STDERR above for details.")
+            if proc.stderr.strip(): # Stderr might contain useful info even on success
+                 self.logger.info(f"NVChecker STDERR (Info/Warnings):\n{proc.stderr.strip()}")
             
-            # NVChecker with --logger=json outputs JSON log lines to STDOUT
-            # It also writes results to newver.json specified in its config
-            
-            # Prioritize reading from newver.json as it's the primary output mechanism for versions
-            if newver_json_path.is_file():
-                try:
-                    # Read as builder to ensure permissions
-                    read_proc = self.builder_runner.run(["cat", str(newver_json_path)], capture_output=True, check=True)
-                    content = read_proc.stdout
-                    
-                    if not content.strip(): # Handle empty newver.json
-                        self.logger.info("newver.json is empty, no new versions from file.")
-                    else:
-                        new_versions_root = json.loads(content)
-                        # newver.json format can be:
-                        # 1. {"version": 2, "data": {"pkg1": "ver", "pkg2": {"version": "ver"}}} (current standard)
-                        # 2. {"pkg1": "ver1", ...} (older format or simple output)
-                        
-                        data_to_iterate = {}
-                        if isinstance(new_versions_root, dict):
-                            if "version" in new_versions_root and new_versions_root.get("version") == 2 and "data" in new_versions_root:
-                                data_to_iterate = new_versions_root.get("data", {})
-                            else:
-                                # Potentially old format or direct key-value map
-                                data_to_iterate = new_versions_root
-                        
-                        if not isinstance(data_to_iterate, dict):
-                            self.logger.error(f"Expected a dictionary for package data in newver.json, but got {type(data_to_iterate)}. Content: {content[:200]}")
-                        else:
-                            for name, data_item in data_to_iterate.items():
-                                version_val = None
-                                if isinstance(data_item, str):
-                                    version_val = data_item
-                                elif isinstance(data_item, dict):
-                                    version_val = data_item.get("version")
-                                elif isinstance(data_item, (int, float)): # Handle direct numeric versions
-                                    self.logger.debug(f"NVCR (newver.json): {name} version is numeric ({type(data_item).__name__}: {data_item}), converting to string.")
-                                    version_val = str(data_item)
-                                else:
-                                    self.logger.warning(f"NVCR (newver.json): Unknown data type for '{name}': {type(data_item)}, value: {str(data_item)[:100]}")
+            # --- Processing NVChecker's STDOUT JSON log ---
+            # This is now the SOLE source for nvchecker_new_version in this logic
+            if not proc.stdout.strip():
+                self.logger.warning("NVChecker produced no STDOUT. No version information can be extracted from logs.")
 
-                                if version_val is not None: # Check for None, not just falsiness
-                                    version_val_str = str(version_val) # Ensure it's a string
-                                    results_by_pkgbase.setdefault(name, {}).update({
-                                        "nvchecker_new_version": version_val_str,
-                                        "nvchecker_event": "updated" # Assume updated if version present in newver
-                                    })
-                                    self.logger.info(f"NVCR (newver.json): {name} -> {version_val_str}")
-                except json.JSONDecodeError as e:
-                    self.logger.error(f"Failed to parse newver.json from NVChecker: {e}. Content: {content[:200]}")
-                except Exception as e: # Catch any other error during processing
-                    self.logger.error(f"Error processing newver.json: {e}")
-
-
-            # Fallback or augment with STDOUT json log parsing if needed (more detailed events)
-            for line in proc.stdout.strip().split('\n'):
+            for line_num, line in enumerate(proc.stdout.strip().split('\n')):
                 if not line.strip(): continue
+                log_debug(f"NVCR STDOUT Log Line {line_num + 1}: {line}")
                 try:
                     entry = json.loads(line)
-                    if entry.get("logger_name") != "nvchecker.core": continue # Focus on core events
+                    # Focus on core events that indicate version status
+                    if entry.get("logger_name") != "nvchecker.core": 
+                        log_debug(f"  Skipping log line: logger_name is '{entry.get('logger_name')}'")
+                        continue
                     
-                    pkg_name_nv = entry.get("name") # This is the nvchecker entry name (usually pkgbase)
-                    if not pkg_name_nv: continue
+                    pkg_name_nv = entry.get("name")
+                    if not pkg_name_nv: 
+                        log_debug(f"  Skipping log line: 'name' field is missing or empty.")
+                        continue
 
-                    current_result = results_by_pkgbase.setdefault(pkg_name_nv, {})
-                    current_result["nvchecker_raw_log"] = entry # Store full log line
+                    current_result_for_pkg = results_by_pkgbase.setdefault(pkg_name_nv, {})
+                    current_result_for_pkg["nvchecker_raw_log"] = entry # Always store raw log
                     
                     event = entry.get("event")
-                    if event: current_result["nvchecker_event"] = event
+                    if event: 
+                        current_result_for_pkg["nvchecker_event"] = event
+                        self.logger.debug(f"  PKG '{pkg_name_nv}': Event set to '{event}'")
+
+                    version_from_log_entry = entry.get("version") # This is the new version if event is 'updated' or current if 'up-to-date'
                     
-                    # If newver.json didn't provide a version, or if this log has more detail
-                    if "nvchecker_new_version" not in current_result and entry.get("version"):
-                        current_result["nvchecker_new_version"] = entry.get("version")
+                    if event == "updated" and version_from_log_entry is not None:
+                        new_ver_str = str(version_from_log_entry)
+                        current_result_for_pkg["nvchecker_new_version"] = new_ver_str
+                        self.logger.info(f"  PKG '{pkg_name_nv}': Event 'updated'. New version set to '{new_ver_str}' (from STDOUT log). Old: {entry.get('old_version','N/A')}")
+                    elif event == "up-to-date":
+                         self.logger.info(f"  PKG '{pkg_name_nv}': Event 'up-to-date' at version '{version_from_log_entry}'. No 'nvchecker_new_version' set from this event.")
+                    elif event == "no-result":
+                        self.logger.warning(f"  PKG '{pkg_name_nv}': Event 'no-result'. Message: {entry.get('msg','')}")
+                    elif entry.get("level") == "error" or entry.get("exc_info"): # Explicit error log from nvchecker
+                        self.logger.warning(f"  PKG '{pkg_name_nv}': Logged ERROR by nvchecker. Message: {entry.get('exc_info', entry.get('msg',''))}")
                     
-                    # Log detailed events
-                    msg_prefix = f"NVCR (stdout): {pkg_name_nv}"
-                    if event == "updated": self.logger.info(f"{msg_prefix} UPDATED {entry.get('old_version','N/A')} -> {entry.get('version','N/A')}")
-                    elif event == "up-to-date": self.logger.info(f"{msg_prefix} UP-TO-DATE at {entry.get('version','N/A')}")
-                    elif event == "no-result": self.logger.warning(f"{msg_prefix} NO-RESULT. {entry.get('msg','')}")
-                    elif entry.get("level") == "error" or entry.get("exc_info"):
-                        self.logger.warning(f"{msg_prefix} ERROR - {entry.get('exc_info', entry.get('msg',''))}")
+                    # If nvchecker_new_version was set, ensure nvchecker_event reflects it if it was generic
+                    if current_result_for_pkg.get("nvchecker_new_version") and current_result_for_pkg.get("nvchecker_event") != "updated":
+                        if current_result_for_pkg.get("nvchecker_event"): # Log if we're changing event due to version presence
+                             self.logger.debug(f"  PKG '{pkg_name_nv}': Found nvchecker_new_version, ensuring event is 'updated' (was '{current_result_for_pkg.get('nvchecker_event')}').")
+                        current_result_for_pkg["nvchecker_event"] = "updated"
+
 
                 except json.JSONDecodeError:
                     self.logger.warning(f"Failed to parse NVChecker JSON log line: {line[:100]}...")
         
         except FileNotFoundError: # nvchecker command itself not found
             self.logger.critical("nvchecker command not found. Ensure it is installed and in PATH for the builder user.")
-        except Exception as e:
+        except subprocess.CalledProcessError as e_subproc: # Errors from builder_runner file ops
+             self.logger.error(f"Subprocess error during NVChecker setup/file ops: {e_subproc}. Command: '{e_subproc.cmd}'. Stderr: {e_subproc.stderr}", exc_info=self.config.debug_mode)
+        except Exception as e: # Other unexpected errors
             self.logger.error(f"Global NVChecker execution failed: {e}", exc_info=self.config.debug_mode)
 
-        self.logger.info(f"NVChecker global run finished. Found potential updates for {len(results_by_pkgbase)} pkgbase(s).")
+        # Final count of packages for which a version was actually found
+        packages_with_new_version = sum(1 for pkg_data in results_by_pkgbase.values() if pkg_data.get("nvchecker_new_version"))
+        self.logger.info(f"NVChecker global run finished. Found 'nvchecker_new_version' for {packages_with_new_version} pkgbase(s).")
         end_group()
         return results_by_pkgbase
 

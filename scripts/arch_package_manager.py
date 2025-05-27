@@ -358,30 +358,30 @@ class PKGBUILDParser:
             self.logger.error(info.error, exc_info=self.config.debug_mode)
         return info
 
-   def fetch_all_local_pkgbuild_data(self, pkgbuild_root_dir: Path) -> Dict[str, PKGBUILDInfo]:
-        start_group("Parsing Local PKGBUILD Files"); self.logger.info(f"Searching PKGBUILDs in {pkgbuild_root_dir}...")
-        pkgbuild_files = list(pkgbuild_root_dir.rglob("PKGBUILD")); self.logger.info(f"Found {len(pkgbuild_files)} PKGBUILDs.")
-        results_by_pkgbase: Dict[str, PKGBUILDInfo] = {};
-        if not pkgbuild_files: self.logger.warning("No PKGBUILD files found."); end_group(); return results_by_pkgbase
-        num_workers = min(os.cpu_count() or 1, len(pkgbuild_files)); self.logger.info(f"Processing PKGBUILDs using up to {num_workers} worker(s).")
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            f_to_p = {executor.submit(self._source_and_extract_pkgbuild_vars, fp): fp for fp in pkgbuild_files}
-            for f in as_completed(f_to_p):
-                o_fp=f_to_p[f];
-                try: pI=f.result()
-                except Exception as exc: self.logger.error(f"Worker for {o_fp} unhandled exception: {exc}",exc_info=self.config.debug_mode);pI=PKGBUILDInfo(pkgfile_abs_path=o_fp,error=f"Worker exc: {exc}")
-                if not pI.pkgbase and pI.pkgver and pI.pkgfile_abs_path:
-                    d_f_d=pI.pkgfile_abs_path.parent.name;self.logger.warning(f"PKGBUILD {pI.pkgfile_abs_path.name} no pkgbase/primary_pkgname. Fallback to dir '{d_f_d}' (pkgver: {pI.pkgver}).");pI.pkgbase=d_f_d
-                    if not pI.pkgname:pI.pkgname=d_f_d
-                    if pI.error and "Neither pkgbase nor a primary pkgname could be determined" in pI.error:pI.error=pI.error.replace("Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.","").strip("; ");
-                    if not (pI.error or "").strip():pI.error=None
-                if not pI.pkgbase: pI.error=(pI.error+"; " if pI.error else "")+"Critical: pkgbase undetermined."
-                if not pI.pkgver: pI.error=(pI.error+"; " if pI.error else "")+"Critical: pkgver not extracted."
-                if not pI.pkgbase or not pI.pkgver: self.logger.error(f"Skipping {pI.pkgfile_abs_path or o_fp} critical missing data: {pI.error or 'Unknown'}"); continue
-                if pI.error: self.logger.warning(f"PKGBUILD {pI.pkgfile_abs_path.name} (pkgbase: {pI.pkgbase}) processed with issues: {pI.error}")
-                if pI.pkgbase in results_by_pkgbase: self.logger.warning(f"Duplicate pkgbase '{pI.pkgbase}'. Original: '{results_by_pkgbase[pI.pkgbase].pkgfile_abs_path}'. New: '{pI.pkgfile_abs_path}'. Overwriting.")
-                results_by_pkgbase[pI.pkgbase]=pI; self.logger.debug(f"Stored local PKGBUILD: {pI.pkgbase} (Name: {pI.pkgname}, Ver: {pI.pkgver}-{pI.pkgrel}) from: {pI.pkgfile_abs_path.name}")
-        self.logger.info(f"Successfully processed {len(results_by_pkgbase)} unique pkgbase entries."); end_group(); return results_by_pkgbase
+    def fetch_all_local_pkgbuild_data(self, pkgbuild_root_dir: Path) -> Dict[str, PKGBUILDInfo]:
+            start_group("Parsing Local PKGBUILD Files"); self.logger.info(f"Searching PKGBUILDs in {pkgbuild_root_dir}...")
+            pkgbuild_files = list(pkgbuild_root_dir.rglob("PKGBUILD")); self.logger.info(f"Found {len(pkgbuild_files)} PKGBUILDs.")
+            results_by_pkgbase: Dict[str, PKGBUILDInfo] = {};
+            if not pkgbuild_files: self.logger.warning("No PKGBUILD files found."); end_group(); return results_by_pkgbase
+            num_workers = min(os.cpu_count() or 1, len(pkgbuild_files)); self.logger.info(f"Processing PKGBUILDs using up to {num_workers} worker(s).")
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                f_to_p = {executor.submit(self._source_and_extract_pkgbuild_vars, fp): fp for fp in pkgbuild_files}
+                for f in as_completed(f_to_p):
+                    o_fp=f_to_p[f];
+                    try: pI=f.result()
+                    except Exception as exc: self.logger.error(f"Worker for {o_fp} unhandled exception: {exc}",exc_info=self.config.debug_mode);pI=PKGBUILDInfo(pkgfile_abs_path=o_fp,error=f"Worker exc: {exc}")
+                    if not pI.pkgbase and pI.pkgver and pI.pkgfile_abs_path:
+                        d_f_d=pI.pkgfile_abs_path.parent.name;self.logger.warning(f"PKGBUILD {pI.pkgfile_abs_path.name} no pkgbase/primary_pkgname. Fallback to dir '{d_f_d}' (pkgver: {pI.pkgver}).");pI.pkgbase=d_f_d
+                        if not pI.pkgname:pI.pkgname=d_f_d
+                        if pI.error and "Neither pkgbase nor a primary pkgname could be determined" in pI.error:pI.error=pI.error.replace("Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.","").strip("; ");
+                        if not (pI.error or "").strip():pI.error=None
+                    if not pI.pkgbase: pI.error=(pI.error+"; " if pI.error else "")+"Critical: pkgbase undetermined."
+                    if not pI.pkgver: pI.error=(pI.error+"; " if pI.error else "")+"Critical: pkgver not extracted."
+                    if not pI.pkgbase or not pI.pkgver: self.logger.error(f"Skipping {pI.pkgfile_abs_path or o_fp} critical missing data: {pI.error or 'Unknown'}"); continue
+                    if pI.error: self.logger.warning(f"PKGBUILD {pI.pkgfile_abs_path.name} (pkgbase: {pI.pkgbase}) processed with issues: {pI.error}")
+                    if pI.pkgbase in results_by_pkgbase: self.logger.warning(f"Duplicate pkgbase '{pI.pkgbase}'. Original: '{results_by_pkgbase[pI.pkgbase].pkgfile_abs_path}'. New: '{pI.pkgfile_abs_path}'. Overwriting.")
+                    results_by_pkgbase[pI.pkgbase]=pI; self.logger.debug(f"Stored local PKGBUILD: {pI.pkgbase} (Name: {pI.pkgname}, Ver: {pI.pkgver}-{pI.pkgrel}) from: {pI.pkgfile_abs_path.name}")
+            self.logger.info(f"Successfully processed {len(results_by_pkgbase)} unique pkgbase entries."); end_group(); return results_by_pkgbase
 
 # --- AUR Info Fetcher ---
 class AURInfoFetcher: # (Content unchanged)

@@ -122,7 +122,7 @@ jobs:
           echo "::group::Configure Git for 'builder' user"
           sudo -u builder HOME=/home/builder git config --global user.name "${{ env.GIT_COMMIT_USER_NAME }}"
           sudo -u builder HOME=/home/builder git config --global user.email "${{ env.GIT_COMMIT_USER_EMAIL }}"
-          sudo -u builder HOME=/home/builder git config --global init.defaultBranch "master"
+          sudo -u builder HOME=/home/builder git config --global init.defaultBranch "master" # Or main, as appropriate for your usage
           echo "::endgroup::"
 
       - name: Create and permission Artifacts directory

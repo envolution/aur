@@ -128,6 +128,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Prepare and Execute Main Python Script
+        id: execute_python_script # Add an ID to this step
         shell: bash
         run: |
           set -e
@@ -151,19 +152,17 @@ jobs:
       - name: Commit and push workspace changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: Automated package updates by CI" # Default message
-          # Attempt to use dynamic commit message if file exists and is not empty
-          commit_options: >-
-            ${{ steps.execute_python_script.outputs.commit_message_file_exists == 'true' && 
-            steps.execute_python_script.outputs.commit_message_file_non_empty == 'true' ? 
-            format('--file={0}', env.COMMIT_MESSAGE_FILE) : '' }}
+          # Default commit message if the dynamic one isn't generated or is empty
+          commit_message: "chore: Automated package updates by CI"
+          # Use commit_options to pass the --file argument conditionally
+          commit_options: ${{ steps.execute_python_script.outputs.commit_message_file_exists == 'true' && steps.execute_python_script.outputs.commit_message_file_non_empty == 'true' && format('--file={0}', env.COMMIT_MESSAGE_FILE) || '' }}
           commit_user_name: "${{ env.GIT_COMMIT_USER_NAME }}"
           commit_user_email: "${{ env.GIT_COMMIT_USER_EMAIL }}"
-          # Only commit if the commit message file was generated (implies changes)
-          # This logic is now implicitly handled: if COMMIT_MESSAGE_FILE is empty or not found,
-          # or if --file points to an empty message, git commit might fail or do nothing.
-          # The action itself will detect if there are any staged changes.
-          # Add_options: '--no-verify' # If you have pre-commit hooks you want to bypass for CI commits
+          # The action will only commit if there are actual changes in the workspace.
+          # We ensure the commit message file is present (even if empty) so the --file option doesn't cause an error.
+          # If the file is empty, git commit --file will use the default "chore: Automated package updates by CI"
+          # or fail if the file doesn't exist AND no commit_message is provided.
+          # To be safe, we always create the file in the Python script.
         id: auto_commit_action
 
       - name: Upload build logs and artifacts

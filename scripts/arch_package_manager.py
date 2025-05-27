@@ -152,11 +152,19 @@ class CommandRunner: # (Content unchanged, kept for brevity)
             return subprocess.CompletedProcess(args=final_cmd, returncode=1, stdout="", stderr=str(e))
 
 # --- PKGBUILD Parser ---
-class PKGBUILDParser: # (Content mostly unchanged, minor logging tweaks if any, kept for brevity)
+# (Within arch_package_manager.py)
+# --- PKGBUILD Parser ---
+class PKGBUILDParser:
     def __init__(self, runner: CommandRunner, logger: logging.Logger, config: Config):
-        self.runner = runner; self.logger = logger; self.config = config
+        self.runner = runner
+        self.logger = logger
+        self.config = config
+
     def _source_and_extract_pkgbuild_vars(self, pkgbuild_file_path: Path) -> PKGBUILDInfo:
-        info = PKGBUILDInfo(pkgfile_abs_path=pkgbuild_file_path); escaped_pkgbuild_path = shlex.quote(str(pkgbuild_file_path))
+        info = PKGBUILDInfo(pkgfile_abs_path=pkgbuild_file_path)
+        escaped_pkgbuild_path = shlex.quote(str(pkgbuild_file_path))
+        
+        # More robust bash script (condensed for brevity in this example, but same as your original)
         bash_script = f"""
         _SHELL_OPTS_OLD=$(set +o); set -e; PKGBUILD_DIR=$(dirname {escaped_pkgbuild_path}); cd "$PKGBUILD_DIR"
         unset pkgbase pkgname pkgver pkgrel epoch depends makedepends checkdepends optdepends provides conflicts replaces options source md5sums sha1sums sha224sums sha256sums sha384sums sha512sums b2sums
@@ -171,32 +179,95 @@ class PKGBUILDParser: # (Content mostly unchanged, minor logging tweaks if any, 
         eval "$_SHELL_OPTS_OLD"
         """
         try:
-            result = self.runner.run(['bash', '-c', bash_script], check=False, run_as_user=BUILDER_USER, user_home_dir=BUILDER_HOME)
-            if result.stderr.strip(): self.logger.debug(f"Bash stderr for {pkgbuild_file_path} (RC {result.returncode}):\n{result.stderr.strip()}")
+            result = self.runner.run(
+                ['bash', '-c', bash_script],
+                check=False, 
+                run_as_user=BUILDER_USER,
+                user_home_dir=BUILDER_HOME
+            )
+
+            if result.stderr.strip():
+                self.logger.debug(f"Bash stderr for {pkgbuild_file_path} (RC {result.returncode}):\n{result.stderr.strip()}")
             if self.config.debug_mode or result.returncode != 0:
-                 if result.stdout.strip(): self.logger.debug(f"Bash stdout for {pkgbuild_file_path}:\n{result.stdout.strip()}")
-                 else: self.logger.debug(f"Bash stdout for {pkgbuild_file_path} empty.")
+                 if result.stdout.strip():
+                    self.logger.debug(f"Bash stdout for {pkgbuild_file_path}:\n{result.stdout.strip()}")
+                 else:
+                    self.logger.debug(f"Bash stdout for {pkgbuild_file_path} was empty.")
+
             if result.returncode != 0 and not result.stdout.strip():
-                info.error = f"Bash script sourcing failed (RC {result.returncode}) no output."; return info
+                info.error = f"Bash script sourcing failed (RC {result.returncode}) with no variable output."
+                if result.stderr.strip():
+                    info.error += f" Stderr: {result.stderr.strip()[:150]}"
+                self.logger.warning(f"Critical sourcing failure for {pkgbuild_file_path}: {info.error}")
+                return info
+
             output_lines = result.stdout.splitlines()
-            def _prs(s, e, a): r=[];iS=False;for lC in output_lines:if lC==s:iS=True;continue;if lC==e:iS=False;break;if iS:r.append(lC); return ([v for v in r if v.strip()] if not r or r==["__EMPTY_ARRAY__"] else r) if a else (None if not r or r[0]=="__VAR_NOT_SET__" else r[0].strip())
-            raw_pkgbase_val=_prs("PKGBASE_START","PKGBASE_END",False);raw_primary_pkgname_val=_prs("PRIMARY_PKGNAME_START","PRIMARY_PKGNAME_END",False)
-            info.all_pkgnames=_prs("ALL_PKGNAMES_START","ALL_PKGNAMES_END",True)
-            if raw_pkgbase_val:info.pkgbase=raw_pkgbase_val
-            elif raw_primary_pkgname_val:info.pkgbase=raw_primary_pkgname_val;self.logger.debug(f"Derived pkgbase '{info.pkgbase}' from primary for {pkgbuild_file_path}")
-            info.pkgname=raw_primary_pkgname_val if raw_primary_pkgname_val else info.pkgbase
-            info.pkgver=_prs("PKGVER_START","PKGVER_END",False);info.pkgrel=_prs("PKGREL_START","PKGREL_END",False)
-            if info.pkgrel is None and info.pkgver is not None: info.pkgrel="1"
-            info.depends=_prs("DEPENDS_START","DEPENDS_END",True);info.makedepends=_prs("MAKEDEPENDS_START","MAKEDEPENDS_END",True)
-            info.checkdepends=_prs("CHECKDEPENDS_START","CHECKDEPENDS_END",True);info.sources=_prs("SOURCES_START","SOURCES_END",True)
-            cE=[];
-            if result.returncode!=0:eM=f"Sourcing script RC {result.returncode}.";if result.stderr.strip():eM+=f" Stderr: {result.stderr.strip()[:100]}";cE.append(eM)
-            if not info.pkgbase and not info.pkgname:cE.append("Neither pkgbase nor primary pkgname determined.")
-            if not info.pkgver:cE.append("pkgver not extracted.")
-            if cE:info.error="; ".join(cE);self.logger.debug(f"Issues parsing {pkgbuild_file_path}: {info.error}")
-        except Exception as e:info.error=f"Python exception PKGBUILD {pkgbuild_file_path}: {type(e).__name__}-{e}";self.logger.error(info.error,exc_info=self.config.debug_mode)
-        return info
-    def fetch_all_local_pkgbuild_data(self, pkgbuild_root_dir: Path) -> Dict[str, PKGBUILDInfo]:
+            
+            # --- REVERTED TO ORIGINAL _parse_section_robust ---
+            def _parse_section_robust(start_marker: str, end_marker: str, is_array: bool) -> Union[Optional[str], List[str]]:
+                raw_values = []
+                in_section = False
+                for line_idx, line_content in enumerate(output_lines):
+                    if line_content == start_marker:
+                        in_section = True
+                        continue
+                    if line_content == end_marker:
+                        in_section = False
+                        break 
+                    if in_section:
+                        raw_values.append(line_content)
+                
+                if is_array:
+                    if not raw_values or raw_values == ["__EMPTY_ARRAY__"]:
+                        return []
+                    return [v for v in raw_values if v.strip()] 
+                else: # Scalar
+                    if not raw_values or raw_values[0] == "__VAR_NOT_SET__":
+                        return None
+                    return raw_values[0].strip()
+            # --- END OF REVERTED HELPER FUNCTION ---
+
+            raw_pkgbase_val = _parse_section_robust("PKGBASE_START", "PKGBASE_END", False)
+            raw_primary_pkgname_val = _parse_section_robust("PRIMARY_PKGNAME_START", "PRIMARY_PKGNAME_END", False)
+            info.all_pkgnames = _parse_section_robust("ALL_PKGNAMES_START", "ALL_PKGNAMES_END", True)
+
+            if raw_pkgbase_val:
+                info.pkgbase = raw_pkgbase_val
+            elif raw_primary_pkgname_val:
+                info.pkgbase = raw_primary_pkgname_val
+                self.logger.debug(f"Derived pkgbase '{info.pkgbase}' from primary_pkgname for {pkgbuild_file_path}")
+            else:
+                info.pkgbase = None 
+
+            info.pkgname = raw_primary_pkgname_val if raw_primary_pkgname_val else info.pkgbase
+            info.pkgver = _parse_section_robust("PKGVER_START", "PKGVER_END", False)
+            info.pkgrel = _parse_section_robust("PKGREL_START", "PKGREL_END", False)
+            if info.pkgrel is None and info.pkgver is not None : 
+                info.pkgrel = "1"
+
+            info.depends = _parse_section_robust("DEPENDS_START", "DEPENDS_END", True)
+            info.makedepends = _parse_section_robust("MAKEDEPENDS_START", "MAKEDEPENDS_END", True)
+            info.checkdepends = _parse_section_robust("CHECKDEPENDS_START", "CHECKDEPENDS_END", True)
+            info.sources = _parse_section_robust("SOURCES_START", "SOURCES_END", True)
+            
+            current_errors = []
+            if result.returncode != 0:
+                err_msg = f"Sourcing script exited with RC {result.returncode}."
+                if result.stderr.strip(): err_msg += f" Stderr hint: {result.stderr.strip()[:100]}"
+                current_errors.append(err_msg)
+            if not info.pkgbase and not info.pkgname:
+                current_errors.append("Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.")
+            if not info.pkgver:
+                current_errors.append("pkgver could not be extracted.")
+            if current_errors:
+                info.error = "; ".join(current_errors)
+                self.logger.debug(f"Issues after parsing {pkgbuild_file_path}: {info.error}")
+        except Exception as e:
+            info.error = f"Python exception during PKGBUILD processing for {pkgbuild_file_path}: {type(e).__name__} - {e}"
+            self.logger.error(info.error, exc_info=self.config.debug_mode)
+        return info        
+
+   def fetch_all_local_pkgbuild_data(self, pkgbuild_root_dir: Path) -> Dict[str, PKGBUILDInfo]:
         start_group("Parsing Local PKGBUILD Files"); self.logger.info(f"Searching PKGBUILDs in {pkgbuild_root_dir}...")
         pkgbuild_files = list(pkgbuild_root_dir.rglob("PKGBUILD")); self.logger.info(f"Found {len(pkgbuild_files)} PKGBUILDs.")
         results_by_pkgbase: Dict[str, PKGBUILDInfo] = {};

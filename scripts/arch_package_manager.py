@@ -33,7 +33,15 @@ COMMIT_MESSAGE_FILENAME = os.getenv(
 
 
 # --- GitHub Actions Logging Helpers ---
-def _log_gha(level: str, title: str, message: str, file: Optional[str] = None, line: Optional[str] = None, end_line: Optional[str] = None, col: Optional[str] = None, end_column: Optional[str] = None):
+def _log_gha(
+    level: str,
+    title: str,
+    message: str,
+    file: Optional[str] = None,
+    line: Optional[str] = None,
+    end_line: Optional[str] = None,
+    col: Optional[str] = None,
+     end_column: Optional[str] = None):
     sanitized_message = str(message).replace(
         '%', '%25').replace('\r', '%0D').replace('\n', '%0A')
     sanitized_title = str(title).replace(
@@ -145,7 +153,11 @@ class BuildOpResult:
 
 
 class CommandRunner:  # (Content unchanged, kept for brevity)
-    def __init__(self, logger: logging.Logger, default_user: Optional[str] = None, default_home: Optional[Path] = None):
+    def __init__(
+    self,
+    logger: logging.Logger,
+    default_user: Optional[str] = None,
+     default_home: Optional[Path] = None):
         self.logger = logger
         self.default_user = default_user
         self.default_home = default_home
@@ -163,7 +175,8 @@ class CommandRunner:  # (Content unchanged, kept for brevity)
             if home_for_run: sudo_prefix.append(f"HOME={str(home_for_run)}")
             final_cmd = sudo_prefix + final_cmd
             if user_to_run == BUILDER_USER:
-                current_env["PATH"] = f"/usr/local/bin:/usr/bin:/bin:{home_for_run / '.local/bin' if home_for_run else ''}"
+                current_env["PATH"] = f"/usr/local/bin:/usr/bin:/bin:{
+    home_for_run / '.local/bin' if home_for_run else ''}"
         if env_extra: current_env.update(env_extra)
         if print_command: log_debug(
             f"Running command: {shlex.join(final_cmd)} (CWD: {cwd or '.'})")
@@ -185,33 +198,41 @@ class CommandRunner:  # (Content unchanged, kept for brevity)
             log_error("CMD_TIMEOUT",
                       f"Command '{shlex.join(final_cmd)}' timed out.");
             if check: raise
-            return subprocess.CompletedProcess(args=final_cmd, returncode=124, stdout=e.stdout or "", stderr=e.stderr or "TimeoutExpired")
+            return subprocess.CompletedProcess(
+    args=final_cmd,
+    returncode=124,
+    stdout=e.stdout or "",
+     stderr=e.stderr or "TimeoutExpired")
         except FileNotFoundError as e:
             log_error("CMD_NOT_FOUND", f"Command not found: {final_cmd[0]}.");
             if check: raise
-            return subprocess.CompletedProcess(args=final_cmd, returncode=127, stdout="", stderr=str(e))
+            return subprocess.CompletedProcess(
+    args=final_cmd, returncode=127, stdout="", stderr=str(e))
         except Exception as e:
             log_error("CMD_UNEXPECTED_ERROR",
                       f"Unexpected error running '{shlex.join(final_cmd)}': {type(e).__name__} - {e}")
             if check: raise
-            return subprocess.CompletedProcess(args=final_cmd, returncode=1, stdout="", stderr=str(e))
-
-# --- PKGBUILD Parser ---
-# (Within arch_package_manager.py)
-# --- PKGBUILD Parser ---
+            return subprocess.CompletedProcess(
+    args=final_cmd, returncode=1, stdout="", stderr=str(e))
 
 
 class PKGBUILDParser:
-    def __init__(self, runner: CommandRunner, logger: logging.Logger, config: Config):
+    def __init__(
+    self,
+    runner: CommandRunner,
+    logger: logging.Logger,
+     config: Config):
         self.runner = runner
         self.logger = logger
         self.config = config
 
-    def _source_and_extract_pkgbuild_vars(self, pkgbuild_file_path: Path) -> PKGBUILDInfo:
+    def _source_and_extract_pkgbuild_vars(
+    self, pkgbuild_file_path: Path) -> PKGBUILDInfo:
         info = PKGBUILDInfo(pkgfile_abs_path=pkgbuild_file_path)
         escaped_pkgbuild_path = shlex.quote(str(pkgbuild_file_path))
 
-        # More robust bash script (condensed for brevity in this example, but same as your original)
+        # More robust bash script (condensed for brevity in this example, but
+        # same as your original)
         bash_script = f"""
         _SHELL_OPTS_OLD=$(set +o); set -e; PKGBUILD_DIR=$(dirname {escaped_pkgbuild_path}); cd "$PKGBUILD_DIR"
         unset pkgbase pkgname pkgver pkgrel epoch depends makedepends checkdepends optdepends provides conflicts replaces options source md5sums sha1sums sha224sums sha256sums sha384sums sha512sums b2sums
@@ -245,7 +266,8 @@ class PKGBUILDParser:
                         f"Bash stdout for {pkgbuild_file_path} was empty.")
 
             if result.returncode != 0 and not result.stdout.strip():
-                info.error = f"Bash script sourcing failed (RC {result.returncode}) with no variable output."
+                info.error = f"Bash script sourcing failed (RC {
+    result.returncode}) with no variable output."
                 if result.stderr.strip():
                     info.error += f" Stderr: {result.stderr.strip()[:150]}"
                 self.logger.warning(
@@ -255,7 +277,10 @@ class PKGBUILDParser:
             output_lines = result.stdout.splitlines()
 
             # --- REVERTED TO ORIGINAL _parse_section_robust ---
-            def _parse_section_robust(start_marker: str, end_marker: str, is_array: bool) -> Union[Optional[str], List[str]]:
+            def _parse_section_robust(start_marker: str,
+    end_marker: str,
+    is_array: bool) -> Union[Optional[str],
+     List[str]]:
                 raw_values = []
                 in_section = False
                 for line_idx, line_content in enumerate(output_lines):
@@ -313,7 +338,8 @@ class PKGBUILDParser:
 
             current_errors = []
             if result.returncode != 0:
-                err_msg = f"Sourcing script exited with RC {result.returncode}."
+                err_msg = f"Sourcing script exited with RC {
+    result.returncode}."
                 if result.stderr.strip(
                 ): err_msg += f" Stderr hint: {result.stderr.strip()[:100]}"
                 current_errors.append(err_msg)
@@ -327,7 +353,8 @@ class PKGBUILDParser:
                 self.logger.debug(
                     f"Issues after parsing {pkgbuild_file_path}: {info.error}")
         except Exception as e:
-            info.error = f"Python exception during PKGBUILD processing for {pkgbuild_file_path}: {type(e).__name__} - {e}"
+            info.error = f"Python exception during PKGBUILD processing for {pkgbuild_file_path}: {
+    type(e).__name__} - {e}"
             self.logger.error(info.error, exc_info=self.config.debug_mode)
         return info
 

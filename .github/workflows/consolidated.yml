@@ -4,6 +4,10 @@ on:
     - cron: '0 */12 * * *' # Runs every 12 hours
   workflow_dispatch:      # Allows manual triggering
 
+concurrency:
+  group: ${{ github.workflow }}  # Ensures only one run per workflow
+  cancel-in-progress: true       # Cancel any currently running instance if a new one starts
+
 jobs:
   arch-package-task:
     runs-on: ubuntu-latest
@@ -48,7 +52,7 @@ jobs:
           echo "Updating system and installing core dependencies..."
           pacman -Syu --noconfirm --needed \
             archlinux-keyring git base-devel pacman-contrib openssh github-cli \
-            jq expac python python-pip nvchecker sudo \
+            jq expac python python-pip nvchecker sudo tree \
             python-requests python-lxml rsync # Key Python libs for the script
           echo "::endgroup::"
 

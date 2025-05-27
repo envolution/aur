@@ -1356,6 +1356,16 @@ class ArchPackageManager:
             self.builder_runner.run(makepkg_cmd, cwd=op_result.aur_clone_dir_abs, check=True)
             op_result.makepkg_ran_ok = True
             
+            self.logger.info(f"Directory structure of {op_result.aur_clone_dir_abs} after makepkg for {pkgbase}:")
+            tree_log_makepkg = self.builder_runner.run(
+                ["tree", "-L", "3"], # Show 3 levels deep, adjust as needed
+                cwd=op_result.aur_clone_dir_abs,
+                check=False, # Don't fail if tree command has issues, though unlikely
+                capture_output=True
+            )
+            if tree_log_makepkg.stdout: self.logger.info(f"\n{tree_log_makepkg.stdout.strip()}")
+            if tree_log_makepkg.stderr: self.logger.warning(f"Tree command stderr (after makepkg): {tree_log_makepkg.stderr.strip()}")            
+            
             # Collect built package files (*.pkg.tar.zst)
             # Prefer specific pkgbase name, then any pkg.tar.zst
             built_archives = sorted(list(op_result.aur_clone_dir_abs.glob(f"{pkgbase}*.pkg.tar.zst")))
@@ -1472,6 +1482,16 @@ class ArchPackageManager:
                     self.logger.warning(f"Local source '{src_filename_part}' for {pkgbase} listed in PKGBUILD/inputs but not found in AUR clone dir. Not staging for git.")
         
         self.logger.info(f"Files to stage for AUR commit for {pkgbase}: {files_to_stage_for_aur_commit}")
+
+        self.logger.info(f"Directory structure of {op_result.aur_clone_dir_abs} before git add for {pkgbase}:")
+        tree_log_git_add = self.builder_runner.run(
+            ["tree", "-L", "3", "-a"], # Show 3 levels deep, -a includes hidden files like .git
+            cwd=op_result.aur_clone_dir_abs,
+            check=False,
+            capture_output=True
+        )
+        if tree_log_git_add.stdout: self.logger.info(f"\n{tree_log_git_add.stdout.strip()}")
+        if tree_log_git_add.stderr: self.logger.warning(f"Tree command stderr (before git add): {tree_log_git_add.stderr.strip()}")        
         
         # Check if any of the staged files actually changed or are new
         # Run 'git add' first, then 'git status --porcelain'

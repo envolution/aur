@@ -673,15 +673,46 @@ class NVCheckerRunner:
             # Prioritize reading from newver.json as it's the primary output mechanism for versions
             if newver_json_path.is_file():
                 try:
-                    new_versions_content = json.loads(newver_json_path.read_text())
-                    # new_versions_content format: { "pkgbase1": "version1", "pkgbase2": {"version": "version2", "other_info": ...}, ... }
-                    for name, data in new_versions_content.items():
-                        version = data if isinstance(data, str) else data.get("version")
-                        if version:
-                             results_by_pkgbase.setdefault(name, {}).update({"nvchecker_new_version": version, "nvchecker_event": "updated"}) # Assume updated if version present
-                             self.logger.info(f"NVCR (newver.json): {name} -> {version}")
+                    if not content.strip(): # Handle empty newver.json
+                        self.logger.info("newver.json is empty, no new versions from file.")
+                    else:
+                        new_versions_root = json.loads(content)
+                        # newver.json format can be:
+                        # 1. {"version": 2, "data": {"pkg1": "ver", "pkg2": {"version": "ver"}}} (current standard)
+                        # 2. {"pkg1": "ver1", ...} (older format or simple output)
+                        
+                        data_to_iterate = {}
+                        if isinstance(new_versions_root, dict):
+                            if "version" in new_versions_root and new_versions_root.get("version") == 2 and "data" in new_versions_root:
+                                data_to_iterate = new_versions_root.get("data", {})
+                            else:
+                                # Potentially old format or direct key-value map
+                                data_to_iterate = new_versions_root
+                        
+                        if not isinstance(data_to_iterate, dict):
+                            self.logger.error(f"Expected a dictionary for package data in newver.json, but got {type(data_to_iterate)}. Content: {content[:200]}")
+                        else:
+                            for name, data_item in data_to_iterate.items():
+                                version_val = None
+                                if isinstance(data_item, str):
+                                    version_val = data_item
+                                elif isinstance(data_item, dict):
+                                    version_val = data_item.get("version")
+                                elif isinstance(data_item, (int, float)): # Handle direct numeric versions
+                                    self.logger.debug(f"NVCR (newver.json): {name} version is numeric ({type(data_item).__name__}: {data_item}), converting to string.")
+                                    version_val = str(data_item)
+                                else:
+                                    self.logger.warning(f"NVCR (newver.json): Unknown data type for '{name}': {type(data_item)}, value: {str(data_item)[:100]}")
+
+                                if version_val is not None: # Check for None, not just falsiness
+                                    version_val_str = str(version_val) # Ensure it's a string
+                                    results_by_pkgbase.setdefault(name, {}).update({
+                                        "nvchecker_new_version": version_val_str,
+                                        "nvchecker_event": "updated" # Assume updated if version present in newver
+                                    })
+                                    self.logger.info(f"NVCR (newver.json): {name} -> {version_val_str}")
                 except json.JSONDecodeError as e:
-                    self.logger.error(f"Failed to parse newver.json from NVChecker: {e}")
+                    self.logger.error(f"Failed to parse newver.json from NVChecker: {e}. Content: {newver_json_path.read_text()[:200]}")
                 except Exception as e: # Catch any other error during processing
                     self.logger.error(f"Error processing newver.json: {e}")
 
@@ -1148,7 +1179,7 @@ class ArchPackageManager:
             source_pkg_dir_in_workspace = pkg_status.local_pkgbuild_info.pkgfile_abs_path.parent
             self.logger.info(f"Overlaying files from {source_pkg_dir_in_workspace} to {op_result.aur_clone_dir_abs} using rsync")
             self.builder_runner.run([
-                "rsync", "-ah", "--delete", "--no-owner", "--no-group", # -a implies recursive, links, perms, times. -h human readable.
+                "rsync", "-rltvH", "--delete", "--no-owner", "--no-group", # -rltvH: recursive, links, times, verbose, hardlinks. No -p (permissions).
                 str(source_pkg_dir_in_workspace) + "/", # Trailing slash for content copy
                 str(op_result.aur_clone_dir_abs) + "/"
             ])

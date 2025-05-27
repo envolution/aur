@@ -22,18 +22,22 @@ from looseversion import LooseVersion
 
 # --- Constants ---
 BUILDER_USER = "builder"
-BUILDER_HOME = Path(os.getenv("BUILDER_HOME_OVERRIDE", f"/home/{BUILDER_USER}"))
+BUILDER_HOME = Path(
+    os.getenv("BUILDER_HOME_OVERRIDE", f"/home/{BUILDER_USER}"))
 GITHUB_WORKSPACE = Path(os.getenv("GITHUB_WORKSPACE", "/github/workspace"))
 NVCHECKER_RUN_TEMP_DIR_BASE = BUILDER_HOME / "nvchecker_run"
 PACKAGE_BUILD_TEMP_DIR_BASE = BUILDER_HOME / "pkg_builds"
 ARTIFACTS_OUTPUT_DIR_BASE = GITHUB_WORKSPACE / "artifacts"
-COMMIT_MESSAGE_FILENAME = os.getenv("COMMIT_MESSAGE_FILE", "WORKFLOW_COMMIT_MESSAGE.txt")
+COMMIT_MESSAGE_FILENAME = os.getenv(
+    "COMMIT_MESSAGE_FILE", "WORKFLOW_COMMIT_MESSAGE.txt")
 
 
 # --- GitHub Actions Logging Helpers ---
 def _log_gha(level: str, title: str, message: str, file: Optional[str] = None, line: Optional[str] = None, end_line: Optional[str] = None, col: Optional[str] = None, end_column: Optional[str] = None):
-    sanitized_message = str(message).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-    sanitized_title = str(title).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    sanitized_message = str(message).replace(
+        '%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+    sanitized_title = str(title).replace(
+        '%', '%25').replace('\r', '%0D').replace('\n', '%0A')
     props = [f"title={sanitized_title}"]
     if file: props.append(f"file={file}")
     if line: props.append(f"line={line}")
@@ -42,13 +46,26 @@ def _log_gha(level: str, title: str, message: str, file: Optional[str] = None, l
     if end_column: props.append(f"endColumn={end_column}")
     print(f"::{level} {','.join(props)}::{sanitized_message}")
 
-def log_notice(title: str, message: str, **kwargs): _log_gha("notice", title, message, **kwargs)
-def log_error(title: str, message: str, **kwargs): _log_gha("error", title, message, **kwargs)
-def log_warning(title: str, message: str, **kwargs): _log_gha("warning", title, message, **kwargs)
+
+def log_notice(title: str, message: str, **
+               kwargs): _log_gha("notice", title, message, **kwargs)
+
+
+def log_error(title: str, message: str, **
+              kwargs): _log_gha("error", title, message, **kwargs)
+
+
+def log_warning(title: str, message: str, **
+                kwargs): _log_gha("warning", title, message, **kwargs)
+
+
 def log_debug(message: str, **kwargs):
     if os.getenv("ACTIONS_STEP_DEBUG", "false").lower() == "true":
-        sanitized_message = str(message).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+        sanitized_message = str(message).replace(
+            '%', '%25').replace('\r', '%0D').replace('\n', '%0A')
         print(f"::debug::{sanitized_message}")
+
+
 def start_group(title: str): print(f"::group::{title}")
 def end_group(): print(f"::endgroup::")
 
@@ -65,49 +82,69 @@ class Config:
     nvchecker_run_dir: Path = NVCHECKER_RUN_TEMP_DIR_BASE
     package_build_base_dir: Path = PACKAGE_BUILD_TEMP_DIR_BASE
     artifacts_dir_base: Path = ARTIFACTS_OUTPUT_DIR_BASE
-    package_status_report_path: Path = NVCHECKER_RUN_TEMP_DIR_BASE / "package_status_report.json"
-    package_build_inputs_path: Path = NVCHECKER_RUN_TEMP_DIR_BASE / "package_build_inputs.json"
+    package_status_report_path: Path = NVCHECKER_RUN_TEMP_DIR_BASE / \
+        "package_status_report.json"
+    package_build_inputs_path: Path = NVCHECKER_RUN_TEMP_DIR_BASE / \
+        "package_build_inputs.json"
     nvchecker_keyfile_path: Path = NVCHECKER_RUN_TEMP_DIR_BASE / "nv_keyfile.toml"
-    debug_mode: bool = os.getenv("ACTIONS_STEP_DEBUG", "false").lower() == "true"
+    debug_mode: bool = os.getenv(
+        "ACTIONS_STEP_DEBUG", "false").lower() == "true"
     github_run_id: Optional[str] = os.getenv("GITHUB_RUN_ID_FOR_ARTIFACTS")
-    github_step_summary_file: Optional[Path] = Path(os.getenv("GITHUB_STEP_SUMMARY_FILE_PATH")) if os.getenv("GITHUB_STEP_SUMMARY_FILE_PATH") else None
-    updated_pkgbases_in_workspace: set = dataclasses.field(default_factory=set) # Stores pkgbases whose files were updated in workspace
+    github_step_summary_file: Optional[Path] = Path(os.getenv(
+        "GITHUB_STEP_SUMMARY_FILE_PATH")) if os.getenv("GITHUB_STEP_SUMMARY_FILE_PATH") else None
+    # Stores pkgbases whose files were updated in workspace
+    updated_pkgbases_in_workspace: set = dataclasses.field(default_factory=set)
 
 # --- Data Structures ---
+
+
 @dataclasses.dataclass
 class PKGBUILDInfo:
-    pkgbase: Optional[str] = None; pkgname: Optional[str] = None; all_pkgnames: List[str] = dataclasses.field(default_factory=list)
+    pkgbase: Optional[str] = None; pkgname: Optional[str] = None; all_pkgnames: List[str] = dataclasses.field(
+        default_factory=list)
     pkgver: Optional[str] = None; pkgrel: Optional[str] = None
-    depends: List[str] = dataclasses.field(default_factory=list); makedepends: List[str] = dataclasses.field(default_factory=list)
-    checkdepends: List[str] = dataclasses.field(default_factory=list); sources: List[str] = dataclasses.field(default_factory=list)
+    depends: List[str] = dataclasses.field(
+        default_factory=list); makedepends: List[str] = dataclasses.field(default_factory=list)
+    checkdepends: List[str] = dataclasses.field(
+        default_factory=list); sources: List[str] = dataclasses.field(default_factory=list)
     pkgfile_abs_path: Optional[Path] = None; error: Optional[str] = None
+
 
 @dataclasses.dataclass
 class PackageOverallStatus:
     pkgbase: str; pkgname_display: str
     local_pkgbuild_info: Optional[PKGBUILDInfo] = None
-    aur_version_str: Optional[str] = None; aur_pkgver: Optional[str] = None; aur_pkgrel: Optional[str] = None; aur_actual_pkgname: Optional[str] = None
-    nvchecker_new_version: Optional[str] = None; nvchecker_event: Optional[str] = None; nvchecker_raw_log: Optional[Dict[str, Any]] = None
-    comparison_errors: List[str] = dataclasses.field(default_factory=list); is_update_candidate: bool = True; needs_update: bool = False
+    aur_version_str: Optional[str] = None; aur_pkgver: Optional[
+        str] = None; aur_pkgrel: Optional[str] = None; aur_actual_pkgname: Optional[str] = None
+    nvchecker_new_version: Optional[str] = None; nvchecker_event: Optional[
+        str] = None; nvchecker_raw_log: Optional[Dict[str, Any]] = None
+    comparison_errors: List[str] = dataclasses.field(
+        default_factory=list); is_update_candidate: bool = True; needs_update: bool = False
     update_source_type: Optional[str] = None; version_for_update: Optional[str] = None; local_is_ahead: bool = False
     comparison_log: Dict[str, str] = dataclasses.field(default_factory=dict)
     pkgbuild_dir_rel_to_workspace: Optional[Path] = None
+
 
 @dataclasses.dataclass
 class BuildOpResult:
     package_name: str; success: bool = False
     target_version_for_build: Optional[str] = None; final_pkgbuild_version_in_clone: Optional[str] = None
-    built_package_archive_files: List[Path] = dataclasses.field(default_factory=list)
+    built_package_archive_files: List[Path] = dataclasses.field(
+        default_factory=list)
     setup_env_ok: bool = False; dependencies_installed_ok: bool = False; pkgbuild_versioned_ok: bool = False
     makepkg_ran_ok: bool = False; local_install_ok: bool = False
-    changes_made_to_aur_clone_files: bool = False # Tracks if files in AUR clone were changed (PKGBUILD, .SRCINFO etc.)
+    # Tracks if files in AUR clone were changed (PKGBUILD, .SRCINFO etc.)
+    changes_made_to_aur_clone_files: bool = False
     git_commit_to_aur_ok: bool = False; git_push_to_aur_ok: bool = False; github_release_ok: bool = False
-    workspace_files_updated_ok: bool = False # Tracks if files were copied back to workspace
+    # Tracks if files were copied back to workspace
+    workspace_files_updated_ok: bool = False
     error_message: Optional[str] = None; log_artifact_subdir: Optional[Path] = None
     package_specific_build_dir_abs: Optional[Path] = None; aur_clone_dir_abs: Optional[Path] = None
 
 # --- Command Runner ---
-class CommandRunner: # (Content unchanged, kept for brevity)
+
+
+class CommandRunner:  # (Content unchanged, kept for brevity)
     def __init__(self, logger: logging.Logger, default_user: Optional[str] = None, default_home: Optional[Path] = None):
         self.logger = logger
         self.default_user = default_user
@@ -125,21 +162,28 @@ class CommandRunner: # (Content unchanged, kept for brevity)
             sudo_prefix = ["sudo", "-E", "-u", user_to_run]
             if home_for_run: sudo_prefix.append(f"HOME={str(home_for_run)}")
             final_cmd = sudo_prefix + final_cmd
-            if user_to_run == BUILDER_USER: current_env["PATH"] = f"/usr/local/bin:/usr/bin:/bin:{home_for_run / '.local/bin' if home_for_run else ''}"
+            if user_to_run == BUILDER_USER:
+                current_env["PATH"] = f"/usr/local/bin:/usr/bin:/bin:{home_for_run / '.local/bin' if home_for_run else ''}"
         if env_extra: current_env.update(env_extra)
-        if print_command: log_debug(f"Running command: {shlex.join(final_cmd)} (CWD: {cwd or '.'})")
+        if print_command: log_debug(
+            f"Running command: {shlex.join(final_cmd)} (CWD: {cwd or '.'})")
         try:
-            result = subprocess.run(final_cmd, check=check, text=True, capture_output=capture_output, cwd=cwd, env=current_env, input=input_data, timeout=1800)
-            if result.stdout and print_command and capture_output: log_debug(f"CMD STDOUT: {result.stdout.strip()[:500]}")
-            if result.stderr and print_command and capture_output: log_debug(f"CMD STDERR: {result.stderr.strip()[:500]}")
+            result = subprocess.run(final_cmd, check=check, text=True, capture_output=capture_output,
+                                    cwd=cwd, env=current_env, input=input_data, timeout=1800)
+            if result.stdout and print_command and capture_output: log_debug(
+                f"CMD STDOUT: {result.stdout.strip()[:500]}")
+            if result.stderr and print_command and capture_output: log_debug(
+                f"CMD STDERR: {result.stderr.strip()[:500]}")
             return result
         except subprocess.CalledProcessError as e:
-            log_error("CMD_FAIL", f"Command '{shlex.join(e.cmd)}' failed with RC {e.returncode}. STDERR: {e.stderr.strip()[:500] if e.stderr else 'N/A'}")
+            log_error(
+                "CMD_FAIL", f"Command '{shlex.join(e.cmd)}' failed with RC {e.returncode}. STDERR: {e.stderr.strip()[:500] if e.stderr else 'N/A'}")
             if e.stdout: log_debug(f"FAIL STDOUT: {e.stdout.strip()}")
             if check: raise
             return e
         except subprocess.TimeoutExpired as e:
-            log_error("CMD_TIMEOUT", f"Command '{shlex.join(final_cmd)}' timed out.");
+            log_error("CMD_TIMEOUT",
+                      f"Command '{shlex.join(final_cmd)}' timed out.");
             if check: raise
             return subprocess.CompletedProcess(args=final_cmd, returncode=124, stdout=e.stdout or "", stderr=e.stderr or "TimeoutExpired")
         except FileNotFoundError as e:
@@ -147,13 +191,16 @@ class CommandRunner: # (Content unchanged, kept for brevity)
             if check: raise
             return subprocess.CompletedProcess(args=final_cmd, returncode=127, stdout="", stderr=str(e))
         except Exception as e:
-            log_error("CMD_UNEXPECTED_ERROR", f"Unexpected error running '{shlex.join(final_cmd)}': {type(e).__name__} - {e}")
+            log_error("CMD_UNEXPECTED_ERROR",
+                      f"Unexpected error running '{shlex.join(final_cmd)}': {type(e).__name__} - {e}")
             if check: raise
             return subprocess.CompletedProcess(args=final_cmd, returncode=1, stdout="", stderr=str(e))
 
 # --- PKGBUILD Parser ---
 # (Within arch_package_manager.py)
 # --- PKGBUILD Parser ---
+
+
 class PKGBUILDParser:
     def __init__(self, runner: CommandRunner, logger: logging.Logger, config: Config):
         self.runner = runner
@@ -163,7 +210,7 @@ class PKGBUILDParser:
     def _source_and_extract_pkgbuild_vars(self, pkgbuild_file_path: Path) -> PKGBUILDInfo:
         info = PKGBUILDInfo(pkgfile_abs_path=pkgbuild_file_path)
         escaped_pkgbuild_path = shlex.quote(str(pkgbuild_file_path))
-        
+
         # More robust bash script (condensed for brevity in this example, but same as your original)
         bash_script = f"""
         _SHELL_OPTS_OLD=$(set +o); set -e; PKGBUILD_DIR=$(dirname {escaped_pkgbuild_path}); cd "$PKGBUILD_DIR"
@@ -181,28 +228,32 @@ class PKGBUILDParser:
         try:
             result = self.runner.run(
                 ['bash', '-c', bash_script],
-                check=False, 
+                check=False,
                 run_as_user=BUILDER_USER,
                 user_home_dir=BUILDER_HOME
             )
 
             if result.stderr.strip():
-                self.logger.debug(f"Bash stderr for {pkgbuild_file_path} (RC {result.returncode}):\n{result.stderr.strip()}")
+                self.logger.debug(
+                    f"Bash stderr for {pkgbuild_file_path} (RC {result.returncode}):\n{result.stderr.strip()}")
             if self.config.debug_mode or result.returncode != 0:
                  if result.stdout.strip():
-                    self.logger.debug(f"Bash stdout for {pkgbuild_file_path}:\n{result.stdout.strip()}")
+                    self.logger.debug(
+                        f"Bash stdout for {pkgbuild_file_path}:\n{result.stdout.strip()}")
                  else:
-                    self.logger.debug(f"Bash stdout for {pkgbuild_file_path} was empty.")
+                    self.logger.debug(
+                        f"Bash stdout for {pkgbuild_file_path} was empty.")
 
             if result.returncode != 0 and not result.stdout.strip():
                 info.error = f"Bash script sourcing failed (RC {result.returncode}) with no variable output."
                 if result.stderr.strip():
                     info.error += f" Stderr: {result.stderr.strip()[:150]}"
-                self.logger.warning(f"Critical sourcing failure for {pkgbuild_file_path}: {info.error}")
+                self.logger.warning(
+                    f"Critical sourcing failure for {pkgbuild_file_path}: {info.error}")
                 return info
 
             output_lines = result.stdout.splitlines()
-            
+
             # --- REVERTED TO ORIGINAL _parse_section_robust ---
             def _parse_section_robust(start_marker: str, end_marker: str, is_array: bool) -> Union[Optional[str], List[str]]:
                 raw_values = []
@@ -213,59 +264,72 @@ class PKGBUILDParser:
                         continue
                     if line_content == end_marker:
                         in_section = False
-                        break 
+                        break
                     if in_section:
                         raw_values.append(line_content)
-                
+
                 if is_array:
                     if not raw_values or raw_values == ["__EMPTY_ARRAY__"]:
                         return []
-                    return [v for v in raw_values if v.strip()] 
-                else: # Scalar
+                    return [v for v in raw_values if v.strip()]
+                else:  # Scalar
                     if not raw_values or raw_values[0] == "__VAR_NOT_SET__":
                         return None
                     return raw_values[0].strip()
             # --- END OF REVERTED HELPER FUNCTION ---
 
-            raw_pkgbase_val = _parse_section_robust("PKGBASE_START", "PKGBASE_END", False)
-            raw_primary_pkgname_val = _parse_section_robust("PRIMARY_PKGNAME_START", "PRIMARY_PKGNAME_END", False)
-            info.all_pkgnames = _parse_section_robust("ALL_PKGNAMES_START", "ALL_PKGNAMES_END", True)
+            raw_pkgbase_val = _parse_section_robust(
+                "PKGBASE_START", "PKGBASE_END", False)
+            raw_primary_pkgname_val = _parse_section_robust(
+                "PRIMARY_PKGNAME_START", "PRIMARY_PKGNAME_END", False)
+            info.all_pkgnames = _parse_section_robust(
+                "ALL_PKGNAMES_START", "ALL_PKGNAMES_END", True)
 
             if raw_pkgbase_val:
                 info.pkgbase = raw_pkgbase_val
             elif raw_primary_pkgname_val:
                 info.pkgbase = raw_primary_pkgname_val
-                self.logger.debug(f"Derived pkgbase '{info.pkgbase}' from primary_pkgname for {pkgbuild_file_path}")
+                self.logger.debug(
+                    f"Derived pkgbase '{info.pkgbase}' from primary_pkgname for {pkgbuild_file_path}")
             else:
-                info.pkgbase = None 
+                info.pkgbase = None
 
             info.pkgname = raw_primary_pkgname_val if raw_primary_pkgname_val else info.pkgbase
-            info.pkgver = _parse_section_robust("PKGVER_START", "PKGVER_END", False)
-            info.pkgrel = _parse_section_robust("PKGREL_START", "PKGREL_END", False)
-            if info.pkgrel is None and info.pkgver is not None : 
+            info.pkgver = _parse_section_robust(
+                "PKGVER_START", "PKGVER_END", False)
+            info.pkgrel = _parse_section_robust(
+                "PKGREL_START", "PKGREL_END", False)
+            if info.pkgrel is None and info.pkgver is not None:
                 info.pkgrel = "1"
 
-            info.depends = _parse_section_robust("DEPENDS_START", "DEPENDS_END", True)
-            info.makedepends = _parse_section_robust("MAKEDEPENDS_START", "MAKEDEPENDS_END", True)
-            info.checkdepends = _parse_section_robust("CHECKDEPENDS_START", "CHECKDEPENDS_END", True)
-            info.sources = _parse_section_robust("SOURCES_START", "SOURCES_END", True)
-            
+            info.depends = _parse_section_robust(
+                "DEPENDS_START", "DEPENDS_END", True)
+            info.makedepends = _parse_section_robust(
+                "MAKEDEPENDS_START", "MAKEDEPENDS_END", True)
+            info.checkdepends = _parse_section_robust(
+                "CHECKDEPENDS_START", "CHECKDEPENDS_END", True)
+            info.sources = _parse_section_robust(
+                "SOURCES_START", "SOURCES_END", True)
+
             current_errors = []
             if result.returncode != 0:
                 err_msg = f"Sourcing script exited with RC {result.returncode}."
-                if result.stderr.strip(): err_msg += f" Stderr hint: {result.stderr.strip()[:100]}"
+                if result.stderr.strip(
+                ): err_msg += f" Stderr hint: {result.stderr.strip()[:100]}"
                 current_errors.append(err_msg)
             if not info.pkgbase and not info.pkgname:
-                current_errors.append("Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.")
+                current_errors.append(
+                    "Neither pkgbase nor a primary pkgname could be determined from PKGBUILD variables.")
             if not info.pkgver:
                 current_errors.append("pkgver could not be extracted.")
             if current_errors:
                 info.error = "; ".join(current_errors)
-                self.logger.debug(f"Issues after parsing {pkgbuild_file_path}: {info.error}")
+                self.logger.debug(
+                    f"Issues after parsing {pkgbuild_file_path}: {info.error}")
         except Exception as e:
             info.error = f"Python exception during PKGBUILD processing for {pkgbuild_file_path}: {type(e).__name__} - {e}"
             self.logger.error(info.error, exc_info=self.config.debug_mode)
-        return info        
+        return info
 
    def fetch_all_local_pkgbuild_data(self, pkgbuild_root_dir: Path) -> Dict[str, PKGBUILDInfo]:
         start_group("Parsing Local PKGBUILD Files"); self.logger.info(f"Searching PKGBUILDs in {pkgbuild_root_dir}...")

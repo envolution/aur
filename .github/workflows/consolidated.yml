@@ -5,55 +5,53 @@ on:
   workflow_dispatch:      # Allows manual triggering
 
 concurrency:
-  group: ${{ github.workflow }}  # Ensures only one run per workflow
-  cancel-in-progress: true       # Cancel any currently running instance if a new one starts
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 jobs:
   arch-package-task:
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
-      options: --privileged # Required for system-level changes like useradd, pacman
+      options: --privileged
     env:
       # --- Core Configuration ---
-      AUR_MAINTAINER_NAME: "envolution" # Your AUR Maintainer Name
-      GITHUB_REPO_OWNER_SLASH_NAME: "${{ github.repository }}" # e.g., "YourUser/YourRepo"
-      PKGBUILD_FILES_ROOT: "${{ github.workspace }}/maintain" # Root dir in repo for your PKGBUILDs structure
-      GIT_COMMIT_USER_NAME: "envolution"
-      GIT_COMMIT_USER_EMAIL: "involution@gmail.com"
+      AUR_MAINTAINER_NAME: "envolution"
+      GITHUB_REPO_OWNER_SLASH_NAME: "${{ github.repository }}"
+      PKGBUILD_FILES_ROOT: "${{ github.workspace }}/maintain"
+      GIT_COMMIT_USER_NAME: "envolution" # Used by git-auto-commit-action
+      GIT_COMMIT_USER_EMAIL: "involution@gmail.com" # Used by git-auto-commit-action
 
       # --- Secrets (Pass via GitHub Secrets UI) ---
-      GH_TOKEN_FOR_RELEASES_AND_NVCHECKER: "${{ secrets.GITHUB_TOKEN }}" # Standard GITHUB_TOKEN for releases and nvchecker GitHub key
-      AUR_SSH_PRIVATE_KEY_CONTENT: "${{ secrets.AUR_SSH_PRIVATE_KEY }}" # SSH private key for AUR
+      GH_TOKEN_FOR_RELEASES_AND_NVCHECKER: "${{ secrets.GITHUB_TOKEN }}" # Standard GITHUB_TOKEN
+      AUR_SSH_PRIVATE_KEY_CONTENT: "${{ secrets.AUR_SSH_PRIVATE_KEY }}"
 
       # --- GitHub Actions Specific ---
-      ACTIONS_STEP_DEBUG: "true" # Set to "false" for less verbose GHA logs, "true" for debug
+      ACTIONS_STEP_DEBUG: "true"
       GITHUB_RUN_ID_FOR_ARTIFACTS: "${{ github.run_id }}"
       GITHUB_STEP_SUMMARY_FILE_PATH: "${{ github.step_summary }}"
+      COMMIT_MESSAGE_FILE: "WORKFLOW_COMMIT_MESSAGE.txt" # File for dynamic commit message
+
+    permissions: # Permissions for the GITHUB_TOKEN
+      contents: write # Required for stefanzweifel/git-auto-commit-action to push changes
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch all history for all tags and branches so build script can create releases properly
-          fetch-depth: 0
+          fetch-depth: 0 # Fetch all history for all tags and branches
 
       - name: Initialize pacman, update system, and install dependencies
         run: |
           set -e
           echo "::group::Initialize pacman and Install Dependencies"
-          echo "Initializing pacman keyring..."
           pacman-key --init
           pacman-key --populate archlinux
-
-          echo "Enabling multilib repository..."
           sed -i "/\[multilib\]/,/Include/"'s/^#//' /etc/pacman.conf
-
-          echo "Updating system and installing core dependencies..."
           pacman -Syu --noconfirm --needed \
             archlinux-keyring git base-devel pacman-contrib openssh github-cli \
             jq expac python python-pip nvchecker sudo tree \
-            python-requests python-lxml rsync # Key Python libs for the script
+            python-requests python-lxml rsync
           echo "::endgroup::"
 
       - name: Setup non-root user 'builder'
@@ -64,8 +62,6 @@ jobs:
           useradd -m -s /bin/bash builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder
-
-          # Create common directories builder might need
           install -d -o builder -g builder -m 700 /home/builder/.gnupg
           install -d -o builder -g builder -m 755 /home/builder/.cache
           install -d -o builder -g builder -m 755 /home/builder/.local/share
@@ -97,32 +93,27 @@ jobs:
           echo "::group::Setup SSH key for AUR"
           SSH_DIR="/home/builder/.ssh"
           echo "${AUR_SSH_PRIVATE_KEY_CONTENT}" > "${SSH_DIR}/aur_key"
-          
           cat <<EOF > "${SSH_DIR}/config"
           Host aur.archlinux.org
             User aur
             IdentityFile ${SSH_DIR}/aur_key
-            StrictHostKeyChecking accept-new # Or use ssh-keyscan if preferred
+            StrictHostKeyChecking accept-new
           EOF
-
           chown -R builder:builder "${SSH_DIR}"
           chmod 700 "${SSH_DIR}"
           chmod 600 "${SSH_DIR}/aur_key" "${SSH_DIR}/config"
-          
           echo "SSH key setup for AUR complete."
-          ls -ldn "${SSH_DIR}" "${SSH_DIR}/aur_key" "${SSH_DIR}/config" # -n for numeric UID/GID
           echo "::endgroup::"
         env:
           AUR_SSH_PRIVATE_KEY_CONTENT: ${{ env.AUR_SSH_PRIVATE_KEY_CONTENT }}
 
-
-      - name: Configure Git for 'builder' user
+      - name: Configure Git for 'builder' user (for AUR commits)
         run: |
           set -e
           echo "::group::Configure Git for 'builder' user"
           sudo -u builder HOME=/home/builder git config --global user.name "${{ env.GIT_COMMIT_USER_NAME }}"
           sudo -u builder HOME=/home/builder git config --global user.email "${{ env.GIT_COMMIT_USER_EMAIL }}"
-          sudo -u builder HOME=/home/builder git config --global init.defaultBranch "master" # Or main, as appropriate for your usage
+          sudo -u builder HOME=/home/builder git config --global init.defaultBranch "master"
           echo "::endgroup::"
 
       - name: Create and permission Artifacts directory
@@ -130,49 +121,55 @@ jobs:
         run: |
           set -e
           echo "::group::Prepare Artifacts Directory"
-          # GITHUB_WORKSPACE is /github/workspace inside the container
           ARTIFACTS_DIR_IN_CONTAINER="${GITHUB_WORKSPACE}/artifacts"
-          
-          echo "Creating artifacts directory: ${ARTIFACTS_DIR_IN_CONTAINER}"
           mkdir -p "${ARTIFACTS_DIR_IN_CONTAINER}"
-          
-          echo "Setting ownership of ${ARTIFACTS_DIR_IN_CONTAINER} to builder user..."
           chown builder:builder "${ARTIFACTS_DIR_IN_CONTAINER}"
-          
           echo "Artifacts directory prepared."
-          ls -ld "${ARTIFACTS_DIR_IN_CONTAINER}" # Verify permissions
-          echo "::endgroup::"          
+          echo "::endgroup::"
 
       - name: Prepare and Execute Main Python Script
         shell: bash
         run: |
           set -e
           echo "::group::Execute Main Python Script"
-          SCRIPT_DIR="${GITHUB_WORKSPACE}/scripts" # Assuming your consolidated script is here
-          MAIN_SCRIPT_NAME="arch_package_manager.py" # Name of your consolidated script
-          
+          SCRIPT_DIR="${GITHUB_WORKSPACE}/scripts"
+          MAIN_SCRIPT_NAME="arch_package_manager.py"
           if [ ! -f "${SCRIPT_DIR}/${MAIN_SCRIPT_NAME}" ]; then
             echo "::error title=Script Missing::Consolidated script ${SCRIPT_DIR}/${MAIN_SCRIPT_NAME} not found!"
             exit 1
           fi
-
-          # Copy the script to a location accessible by builder, ensure it's executable
           cp "${SCRIPT_DIR}/${MAIN_SCRIPT_NAME}" "/home/builder/${MAIN_SCRIPT_NAME}"
           chown builder:builder "/home/builder/${MAIN_SCRIPT_NAME}"
           chmod +x "/home/builder/${MAIN_SCRIPT_NAME}"
-
           echo "Running the main package management script..."
-          # Execute as builder, ensuring HOME is set for tools like gh, git, nvchecker
           sudo -E -u builder \
             HOME="/home/builder" \
             PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/home/builder/.local/bin" \
             python3 "/home/builder/${MAIN_SCRIPT_NAME}"
           echo "::endgroup::"
 
+      - name: Commit and push workspace changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: Automated package updates by CI" # Default message
+          # Attempt to use dynamic commit message if file exists and is not empty
+          commit_options: >-
+            ${{ steps.execute_python_script.outputs.commit_message_file_exists == 'true' && 
+            steps.execute_python_script.outputs.commit_message_file_non_empty == 'true' ? 
+            format('--file={0}', env.COMMIT_MESSAGE_FILE) : '' }}
+          commit_user_name: "${{ env.GIT_COMMIT_USER_NAME }}"
+          commit_user_email: "${{ env.GIT_COMMIT_USER_EMAIL }}"
+          # Only commit if the commit message file was generated (implies changes)
+          # This logic is now implicitly handled: if COMMIT_MESSAGE_FILE is empty or not found,
+          # or if --file points to an empty message, git commit might fail or do nothing.
+          # The action itself will detect if there are any staged changes.
+          # Add_options: '--no-verify' # If you have pre-commit hooks you want to bypass for CI commits
+        id: auto_commit_action
+
       - name: Upload build logs and artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts-${{ env.GITHUB_RUN_ID_FOR_ARTIFACTS }}
-          path: ${{ github.workspace }}/artifacts/ # Path where script saves artifacts
+          path: ${{ github.workspace }}/artifacts/
           retention-days: 7

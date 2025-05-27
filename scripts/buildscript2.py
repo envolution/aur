@@ -3,7 +3,6 @@
 import argparse
 import json
 import logging
-import requests
 import os
 import subprocess
 import sys
@@ -13,8 +12,7 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import base64
 import shutil
-import tempfile
-from typing import List, Tuple, Dict, Optional, Any
+from typing import List, Dict, Optional, Any
 
 # Setup logger early, but allow ArchPackageBuilder to customize further
 # Logs will be configured to go to stderr by ArchPackageBuilder instance
@@ -36,9 +34,17 @@ class SubprocessRunner:
 
     def run_command(
         self, cmd: List[str], check: bool = True, input_data: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None
+        env: Optional[Dict[str, str]] = None, shell: bool = False
     ) -> CommandResult:
-        self.logger.debug(f"Running command: {shlex.join(cmd)}")
+        if shell and len(cmd) == 1:
+            # For shell commands, use the single string as the command
+            cmd_for_logging = cmd[0]
+            cmd_for_subprocess = cmd[0]
+        else:
+            cmd_for_logging = shlex.join(cmd)
+            cmd_for_subprocess = cmd
+            
+        self.logger.debug(f"Running command: {cmd_for_logging}")
         # Merge with current environment if new env is provided
         current_env = os.environ.copy()
         if env:
@@ -46,7 +52,8 @@ class SubprocessRunner:
         
         try:
             process = subprocess.run(
-                cmd, check=check, text=True, capture_output=True, input=input_data, env=current_env
+                cmd_for_subprocess, check=check, text=True, capture_output=True, 
+                input=input_data, env=current_env, shell=shell
             )
             return CommandResult(
                 command=cmd,
@@ -55,7 +62,10 @@ class SubprocessRunner:
                 stderr=process.stderr,
             )
         except subprocess.CalledProcessError as e:
-            error_msg = f"Command '{shlex.join(e.cmd)}' failed with return code {e.returncode}\n"
+            if shell and len(cmd) == 1:
+                error_msg = f"Shell command '{cmd[0]}' failed with return code {e.returncode}\n"
+            else:
+                error_msg = f"Command '{shlex.join(e.cmd)}' failed with return code {e.returncode}\n"
             if e.stdout:
                 error_msg += f"Stdout: {e.stdout.strip()}\n"
             if e.stderr:
@@ -243,105 +253,7 @@ class ArchPackageBuilder:
         return "://" in url_candidate or url_candidate.startswith("git+")
 
 
-    def process_dependencies(self) -> bool:
-        # Runs as `builder` due to buildscript2.py's invocation. HOME should be /home/builder.
-        # Paru will use sudo internally for pacman.
-        package_name = self.config.package_name
-        json_file_path = Path(self.config.depends_json)
 
-        if not json_file_path.is_file():
-            self.logger.error(f"Depends JSON file not found: {json_file_path}")
-            self.result.error_message = f"File not found: {json_file_path}"
-            return False
-        
-        try:
-            with open(json_file_path, "r") as file:
-                data = json.load(file)
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Error decoding JSON from {json_file_path}: {e}")
-            self.result.error_message = f"Error decoding JSON: {e}"
-            return False
-
-        self.logger.debug(f"Loaded JSON data for dependencies for package '{package_name}'")
-
-        if package_name not in data:
-            self.logger.info(f"Package '{package_name}' not found in JSON. Assuming no specific dependencies to install from JSON.")
-            return True
-
-        package_data = data[package_name]
-        # Combine all types of dependencies, remove duplicates and version constraints for paru resolution
-        deps_to_resolve = list(set(
-            package_data.get("depends", []) +
-            package_data.get("makedepends", []) +
-            package_data.get("checkdepends", [])
-        ))
-        
-        if not deps_to_resolve:
-            self.logger.info(f"No dependencies listed for '{package_name}' in JSON.")
-            return True
-
-        self.logger.info(f"Raw dependencies for {package_name} from JSON: {deps_to_resolve}")
-        
-        resolved_packages_to_install = []
-        for dep_full_string in deps_to_resolve:
-            dep_name_only = re.split(r'[<>=!]', dep_full_string)[0].strip()
-            if not dep_name_only: continue # Skip empty strings resulting from split
-
-            # Check if package provides itself (repo or AUR)
-            # Using paru -Ss should find it in repos or AUR if name matches
-            check_cmd = ["paru", "-Ss", f"^{re.escape(dep_name_only)}$"] 
-            result = self.subprocess_runner.run_command(check_cmd, check=False)
-
-            if result.returncode == 0 and result.stdout.strip(): 
-                self.logger.debug(f"Dependency '{dep_name_only}' found directly by paru.")
-                resolved_packages_to_install.append(dep_name_only)
-            else: # Check if it's a virtual package provided by something else
-                self.logger.debug(f"Dependency '{dep_name_only}' not directly found. Checking providers via AUR RPC for '{dep_name_only}'.")
-                try:
-                    # AUR RPC 'search' by 'provides'
-                    # Timeout increased, can be slow
-                    aur_response = requests.get(
-                        f"https://aur.archlinux.org/rpc/v5/search/{dep_name_only}?by=provides",
-                        timeout=15 
-                    )
-                    aur_response.raise_for_status()
-                    aur_data = aur_response.json()
-                    if aur_data.get("results"):
-                        provider_name = aur_data["results"][0].get("Name") # Take first provider
-                        if provider_name:
-                            self.logger.info(f"Found AUR provider '{provider_name}' for virtual package '{dep_name_only}'.")
-                            resolved_packages_to_install.append(provider_name)
-                        else:
-                             self.logger.warning(f"AUR RPC search for provider of '{dep_name_only}' gave result but no 'Name' field.")
-                    else:
-                        self.logger.warning(f"No AUR provider found for dependency: {dep_name_only} (original: {dep_full_string}). It might be a repo package not yet synced, a typo, or a non-AUR provided virtual package.")
-                except requests.RequestException as e:
-                    self.logger.warning(f"Error querying AUR for provider of '{dep_name_only}': {e}")
-                except json.JSONDecodeError as e:
-                    self.logger.warning(f"Error decoding AUR RPC response for '{dep_name_only}': {e}")
-        
-        resolved_packages_to_install = sorted(list(set(resolved_packages_to_install))) # Unique and sorted
-        if not resolved_packages_to_install:
-            self.logger.info("No dependencies to install after resolution.")
-            return True
-            
-        self.logger.info(f"Final list of dependencies to attempt installing for '{package_name}': {resolved_packages_to_install}")
-        install_cmd = [
-            "paru", "-S", "--norebuild", "--noconfirm", "--needed",
-        ] + resolved_packages_to_install
-        
-        # Paru is run as builder user. It will use sudo for pacman internally.
-        # HOME should be /home/builder.
-        install_result = self.subprocess_runner.run_command(install_cmd, check=False)
-        if install_result.returncode == 0:
-            self.logger.info(f"Dependencies for package '{package_name}' installed successfully.")
-            return True
-        else:
-            self.logger.error(f"Dependency installation failed for {package_name}. Paru exit code: {install_result.returncode}")
-            self.logger.error(f"Paru stdout:\n{install_result.stdout}")
-            self.logger.error(f"Paru stderr:\n{install_result.stderr}")
-            self.result.error_message = f"Dependency installation failed for {package_name} (paru exit code {install_result.returncode}). Check logs."
-            return False
 
 # In buildscript2.py / ArchPackageBuilder class
 
@@ -387,7 +299,7 @@ class ArchPackageBuilder:
             # Make it more specific to nvchecker's logging format if possible
             # nvchecker info log format is typically `[I DATE TIME module:LINE] pkgname: message`
             
-            update_pattern = re.compile(rf":\s*updated to\s+([^\s,]+)", re.IGNORECASE)
+            update_pattern = re.compile(r":\s*updated to\s+([^\s,]+)", re.IGNORECASE)
             # Check if self.config.package_name is mentioned for safety, though nvchecker usually processes one .toml
             # that should correspond to the package.
 
@@ -482,7 +394,8 @@ class ArchPackageBuilder:
         self.result.changes_detected = True 
 
     def _collect_build_artifacts(self):
-        """Collect all build artifacts (logs, PKGBUILD files, package metadata) regardless of build success/failure"""
+        """Collect essential build artifacts (logs, PKGBUILD, .SRCINFO) regardless of build success/failure.
+        Does NOT collect large package files (.pkg.tar.zst) to keep artifacts manageable."""
         if not self.artifacts_path:
             self.logger.debug("No artifacts directory configured, skipping artifact collection.")
             return
@@ -538,8 +451,8 @@ class ArchPackageBuilder:
         else:
             self.logger.debug(f"Package subdirectory '{pkg_subdir_relative}' does not exist in {self.build_dir}.")
 
-        # Collect log files (pattern: PACKAGENAME-*.log and general *.log)
-        # makepkg might produce logs like <pkgname>-<arch>.log
+        # Collect all log files (*.log pattern catches paru.log, makepkg logs, etc.)
+        # makepkg might produce logs like <pkgname>-<arch>.log, paru creates paru.log
         log_patterns = [f"{self.config.package_name}*.log", "*.log"]
         copied_logs = set()
 
@@ -558,21 +471,9 @@ class ArchPackageBuilder:
                     self.logger.debug(f"Log file '{log_file.name}' already copied, skipping.")
 
 
-        # Collect built package files (.pkg.tar.zst)
-        package_file_patterns = [f"{self.config.package_name}*.pkg.tar.zst", "*.pkg.tar.zst"]
-        copied_packages = set()
-        for pattern in package_file_patterns:
-            for pkg_file_path in Path(".").glob(pattern): # Relative to self.build_dir
-                if pkg_file_path.is_file() and pkg_file_path.name not in copied_packages:
-                    dest_pkg_file = self.artifacts_path / pkg_file_path.name
-                    try:
-                        shutil.copy2(pkg_file_path, dest_pkg_file)
-                        self.logger.info(f"Copied built package '{pkg_file_path.name}' to artifacts.")
-                        copied_packages.add(pkg_file_path.name)
-                    except Exception as e:
-                        self.logger.warning(f"Failed to copy built package '{pkg_file_path.name}' to artifacts: {e}")
-                elif pkg_file_path.name in copied_packages:
-                     self.logger.debug(f"Package file '{pkg_file_path.name}' already copied, skipping.")
+        # Do not collect built package files (.pkg.tar.zst) - they are too large for artifacts
+        # Only collect essential build metadata and logs
+        self.logger.debug("Skipping package file collection - package files are too large for artifacts")
 
 
         # Restore original CWD
@@ -608,9 +509,11 @@ class ArchPackageBuilder:
             (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
             self.result.changes_detected = True
 
-            self.logger.info(f"Starting package build (makepkg -Lcs --noconfirm --needed --noprogressbar --log) in {self.build_dir}...")
-            # Added -c (clean up work Dirs), -s (install deps), --needed, --noprogressbar, --log
-            self.subprocess_runner.run_command(["makepkg", "-Lcs", "--noconfirm", "--needed", "--noprogressbar", "--log"])
+            self.logger.info(f"Starting package build (paru -Ui --noconfirm --mflags) in {self.build_dir}...")
+            # Using paru to build and install - handles all dependencies automatically
+            # The command includes output redirection to log file while also displaying to stderr
+            build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" > >(tee "paru.log" >&2)'
+            self.subprocess_runner.run_command([build_cmd], shell=True)
 
 
             built_package_files = sorted(self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")) # More specific glob
@@ -625,11 +528,8 @@ class ArchPackageBuilder:
                 self.result.built_packages = [p.name for p in built_package_files]
                 self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
 
-                # Install the built package(s) locally (as builder, using sudo for pacman)
-                self.logger.info(f"Installing built package(s) locally: {', '.join(self.result.built_packages)}")
-                self.subprocess_runner.run_command(
-                    ["sudo", "pacman", "--noconfirm", "-U"] + [str(p) for p in built_package_files]
-                )
+                # Package installation is now handled automatically by paru -Ui
+                self.logger.info(f"Package(s) automatically installed by paru: {', '.join(self.result.built_packages)}")
                 build_process_successful = True # Mark as successful if packages built and installed
 
             # REMOVE _collect_build_artifacts() call from here
@@ -908,10 +808,7 @@ class ArchPackageBuilder:
             # 3. Collect package files from workspace to build_dir
             self.collect_package_files()
 
-            # 4. Process dependencies (install them using paru)
-            if not self.process_dependencies():
-                self.result.success = False # Error message set by process_dependencies
-                raise Exception(self.result.error_message or "Dependency processing failed")
+            # 4. Dependencies are now handled automatically by paru during build - no separate processing needed
 
             # 5. Check for version updates (nvchecker, updates PKGBUILD if new version)
             self.check_version_update() # Sets self.result.version, self.result.changes_detected

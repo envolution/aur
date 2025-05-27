@@ -1174,6 +1174,7 @@ class ArchPackageManager:
         # Store paths in op_result for later use (e.g., cleanup)
         op_result.package_specific_build_dir_abs = self.config.package_build_base_dir / f"build-{pkgbase}-{unique_suffix}"
         op_result.aur_clone_dir_abs = op_result.package_specific_build_dir_abs / pkgbase
+        self.logger.info(f"PATH_CHECK: op_result.aur_clone_dir_abs set to: {op_result.aur_clone_dir_abs} in _setup_package_build_environment for {pkgbase}")
         
         pkg_artifact_output_dir = self.config.artifacts_dir_base / pkgbase
         op_result.log_artifact_subdir = pkg_artifact_output_dir.relative_to(self.config.artifacts_dir_base)
@@ -1339,6 +1340,7 @@ class ArchPackageManager:
             op_result.local_install_ok = True # Skipped
             return True
 
+        self.logger.info(f"PATH_CHECK: op_result.aur_clone_dir_abs is: {op_result.aur_clone_dir_abs} at start of _commit_and_push_to_aur_repo for {pkgbase}")
         pkgbase = pkg_status.pkgbase
         self.logger.info(f"Executing makepkg build steps for {pkgbase} (mode: {build_mode}). CWD: {op_result.aur_clone_dir_abs}")
         try:
@@ -1358,7 +1360,7 @@ class ArchPackageManager:
             
             self.logger.info(f"Directory structure of {op_result.aur_clone_dir_abs} after makepkg for {pkgbase}:")
             tree_log_makepkg = self.builder_runner.run(
-                ["tree", "-L", "3"], # Show 3 levels deep, adjust as needed
+                ["tree", "-L", "3", "-a"], # Show 3 levels deep, adjust as needed
                 cwd=op_result.aur_clone_dir_abs,
                 check=False, # Don't fail if tree command has issues, though unlikely
                 capture_output=True
@@ -1492,7 +1494,13 @@ class ArchPackageManager:
         )
         if tree_log_git_add.stdout: self.logger.info(f"\n{tree_log_git_add.stdout.strip()}")
         if tree_log_git_add.stderr: self.logger.warning(f"Tree command stderr (before git add): {tree_log_git_add.stderr.strip()}")        
-        
+
+        # Verify it's a git repo before status check
+        if not (op_result.aur_clone_dir_abs / ".git").is_dir(): # This check is good
+            op_result.error_message = f"AUR clone directory {op_result.aur_clone_dir_abs} is not a git repository. .git dir missing before git add. Clone may have failed or dir was altered."
+            self.logger.error(op_result.error_message)
+            return False # This will lead to the exception you're seeing            
+
         # Check if any of the staged files actually changed or are new
         # Run 'git add' first, then 'git status --porcelain'
         try:

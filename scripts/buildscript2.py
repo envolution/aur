@@ -176,10 +176,23 @@ class ArchPackageBuilder:
     def _parse_package_update_info(self) -> PackageUpdateInfo:
         try:
             data = json.loads(self.config.package_update_info_json)
+            
+            # Transform hyphenated keys to underscored keys
+            transformed_data = {}
+            key_map = {
+                "aur-pkgver": "aur_pkgver",
+                "aur-pkgrel": "aur_pkgrel",
+                "nvchecker-pkgver": "nvchecker_pkgver"
+                # Add other mappings here if more hyphenated keys exist
+            }
+            for key, value in data.items():
+                transformed_data[key_map.get(key, key)] = value # Use original key if not in map
+
             # Ensure pkgbase is set if missing, using config.package_name as a fallback.
-            if 'pkgbase' not in data or not data['pkgbase']:
-                data['pkgbase'] = self.config.package_name
-            return PackageUpdateInfo(**data)
+            if 'pkgbase' not in transformed_data or not transformed_data['pkgbase']:
+                transformed_data['pkgbase'] = self.config.package_name
+            return PackageUpdateInfo(**transformed_data) # Use transformed_data
+                    
         except (json.JSONDecodeError, TypeError) as e:
             self.logger.error(f"Failed to parse --package-update-info-json: {e}. JSON string: '{self.config.package_update_info_json[:200]}...'")
             # Return a default/empty PackageUpdateInfo if parsing fails, to allow __init__ to complete.

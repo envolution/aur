@@ -895,7 +895,7 @@ def main():
     parser.add_argument("--github-token", required=True, help="GitHub authentication token")
     parser.add_argument("--github-workspace", required=True, help="Path to GitHub workspace directory")
     parser.add_argument("--package-name", required=True, help="Name of the package to build")
-    parser.add_argument("--depends-json", required=True, help="Path to JSON file containing package dependencies and sources metadata")
+    parser.add_argument("--package-update-info-json", required=True, help="JSON string containing comprehensive update info for the package.")
     parser.add_argument("--pkgbuild-path", required=True, help="Relative path within the workspace to the directory containing PKGBUILD and related files (e.g., category/packagename)")
     parser.add_argument("--commit-message", required=True, help="Base Git commit message for AUR updates")
     parser.add_argument(

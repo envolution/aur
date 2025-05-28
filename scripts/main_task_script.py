@@ -430,10 +430,8 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     if bs_err is None:
         bs_err = ""
 
-    summary_err_msg = bs_err.replace('|', '\|').replace('\r', ' ').replace('\n', '<br>')
-    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err.strip() else "❌ Failure") # Check bs_err.strip() for truly empty
-    summary_err_msg = bs_err.replace('|', '\\|').replace('\r', ' ').replace('\n', '<br>')
-    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err.strip() else "❌ Failure")
+    summary_err_msg = bs_err.replace('|', '\\|').replace('\r', ' ').replace('\n', '<br>') # Escaped backslash
+    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err.strip() else "❌ Failure") # Check bs_err.strip() for truly empty                                                                                 
 
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
     log_link = "N/A (Check main GHA log artifacts for details)" # Updated message

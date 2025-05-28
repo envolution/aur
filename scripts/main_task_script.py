@@ -62,7 +62,7 @@ def run_command(
     try:
         result = subprocess.run(
             cmd, check=check, text=True, capture_output=capture_output,
-            cwd=cwd, env=process_env, input=input_data
+            cwd=cwd, env=process_env, input=input_data, timeout=timeout
         )
         return result
     except subprocess.CalledProcessError as e:
@@ -218,7 +218,7 @@ def run_aur_updater_cli(path_root_for_cli: str, pkgbuild_script_path_for_cli: Pa
         "--maintainer", AUR_MAINTAINER_NAME,
         "--path-root", path_root_for_cli,
         "--output-file", str(UPDATER_CLI_OUTPUT_JSON_PATH),
-+       "--pkgbuild-script", str(pkgbuild_script_path_for_cli), # Pass the correct script path
+        "--pkgbuild-script", str(pkgbuild_script_path_for_cli), # Pass the correct script path
     ]
     if KEYFILE_PATH.exists(): cmd.extend(["--key-toml", str(KEYFILE_PATH)])
     if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true": cmd.append("--debug")

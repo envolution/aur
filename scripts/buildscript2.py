@@ -109,6 +109,7 @@ class PackageUpdateInfo:
     makedepends: List[str] = field(default_factory=list)
     checkdepends: List[str] = field(default_factory=list)
     is_update: bool = False
+    is_update_candidate: bool = False
     update_source: Optional[str] = None 
     new_version_for_update: Optional[str] = None 
     local_is_ahead: bool = False

@@ -139,7 +139,7 @@ jobs:
           chmod +x task/main_task_script.py
           #get version checker dependency
           echo "::notice::Pulling python-looseversion package from aur"
-          sudo -u builder paru -S python-looseversion --noconfirm
+          sudo -u builder paru -S python-looseversion --noconfirm --nocheck
           python3 ./task/main_task_script.py
 
       - name: Upload build logs and artifacts

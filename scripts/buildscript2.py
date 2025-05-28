@@ -181,9 +181,9 @@ class ArchPackageBuilder:
             data = json.loads(self.config.package_update_info_json)
             
             # Ensure pkgbase is set if missing, using config.package_name as a fallback.
-            if 'pkgbase' not in transformed_data or not transformed_data['pkgbase']:
-                transformed_data['pkgbase'] = self.config.package_name
-            return PackageUpdateInfo(**transformed_data) # Use transformed_data
+            if 'pkgbase' not in data or not data.get('pkgbase'): # Use data, and data.get for safety
+                data['pkgbase'] = self.config.package_name
+            return PackageUpdateInfo(**data) # Use data
                     
         except (json.JSONDecodeError, TypeError) as e:
             self.logger.error(f"Failed to parse --package-update-info-json: {e}. JSON string: '{self.config.package_update_info_json[:200]}...'")

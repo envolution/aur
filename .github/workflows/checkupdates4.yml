@@ -20,10 +20,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Initialize pacman keyring and update system
+      - name: Initialize pacman, Update System, and Configure Makepkg
         run: |
           set -e
-          echo "::group::Initialize pacman and Update System"
+          echo "::group::Initialize pacman, Update System, and Configure Makepkg"
           echo "Initializing pacman keyring..."
           mkdir -p /etc/pacman.d/gnupg
           pacman-key --init
@@ -45,6 +45,21 @@ jobs:
             python-gobject python-requests libnotify nvchecker \
             binutils multilib-devel python-aiohttp clang python-jq \
             sudo
+
+          echo "Configuring makepkg for parallel compilation..."
+          # Check if MAKEFLAGS is already set and uncommented
+          if grep -q -E '^#?\s*MAKEFLAGS=' /etc/makepkg.conf; then
+            # If found (commented or uncommented), replace the line
+            sed -i "s|^#*\s*MAKEFLAGS=.*|MAKEFLAGS=\"-j$(nproc)\"|g" /etc/makepkg.conf
+            echo "Updated existing MAKEFLAGS in /etc/makepkg.conf."
+          else
+            # If not found, append it
+            echo "MAKEFLAGS=\"-j$(nproc)\"" >> /etc/makepkg.conf
+            echo "Appended MAKEFLAGS to /etc/makepkg.conf."
+          fi
+          echo "Current MAKEFLAGS setting in /etc/makepkg.conf:"
+          grep --color=auto MAKEFLAGS /etc/makepkg.conf || echo "MAKEFLAGS not found after attempting to set."
+
           echo "::endgroup::"
 
       - name: Setup non-root user for AUR operations
@@ -76,6 +91,7 @@ jobs:
           cd /tmp
           sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
           cd paru-bin
+          # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
           sudo -u builder makepkg -si --noconfirm
 
           echo "Configuring paru..."
@@ -120,7 +136,7 @@ jobs:
           echo "Git configuration complete."
           echo "::endgroup::"
 
-      - name: Run AUR Package Build and Update Task # Debugging new build section
+      - name: Run AUR Package Build and Update Task
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,7 +145,7 @@ jobs:
           PKGBUILD_ROOT: ${{ github.workspace }}/maintain/build
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_RUNID: ${{ github.runid }}
+          GITHUB_RUNID: ${{ github.run_id }}
           ACTIONS_STEP_DEBUG: true
         run: |
           echo "::notice::Attempting to execute external script main_task_script.py"
@@ -137,9 +153,12 @@ jobs:
           mkdir -p task
           cp ${GITHUB_WORKSPACE}/scripts/main_task_script.py task/
           chmod +x task/main_task_script.py
-          #get version checker dependency
-          echo "::notice::Pulling python-looseversion package from aur"
-          sudo -u builder paru -S python-looseversion --noconfirm --nocheck
+          
+          echo "::notice::Installing python-looseversion package from AUR for aur_package_updater_cli.py"
+          # Use paru's --nocheck if build fails due to check() stage for this utility package.
+          # Ensure MAKEFLAGS from /etc/makepkg.conf are used by paru here.
+          sudo -u builder paru -S --noconfirm --nocheck python-looseversion
+          
           python3 ./task/main_task_script.py
 
       - name: Upload build logs and artifacts

@@ -1,312 +1,170 @@
-name: Arch Linux Task
+name: Grouped NVCHECKER Updates
 on:
   schedule:
-    - cron: '0 */12 * * *'  # Runs every 12 hours
-  workflow_dispatch:  # Allows manual triggering
+    - cron: "0 */12 * * *" # Runs every 12 hours
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   arch-task:
     runs-on: ubuntu-latest
-  #  runs-on: self-hosted
     container:
       image: archlinux:latest
-      options: --privileged
+      options: --privileged # Required for system-level changes like useradd, pacman
     env:
-        AUR_MAINTAINER_NAME: envolution
-        GIT_USERNAME: envolution
-        GIT_EMAIL: involution@gmail.com
+      AUR_MAINTAINER_NAME: envolution
+      GIT_USERNAME: envolution
+      GIT_EMAIL: involution@gmail.com
+      ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Initialize pacman keyring
+      - name: Initialize pacman, Update System, and Configure Makepkg
         run: |
-          # Initialize keyring with proper permissions
+          set -e
+          echo "::group::Initialize pacman, Update System, and Configure Makepkg"
+          echo "Initializing pacman keyring..."
           mkdir -p /etc/pacman.d/gnupg
           pacman-key --init
           pacman-key --populate archlinux
-          echo -e "\n[multilib]" >> /etc/pacman.conf
-          echo "Include = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
-          cat /etc/pacman.conf
 
-          # Update system and install dependencies
+          echo "Enabling multilib repository..."
+          echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+
+          echo "Updating system and installing core dependencies..."
           pacman -Sy --noconfirm --needed archlinux-keyring
           pacman -Syu --noconfirm
-          pacman -S --noconfirm --needed git base-devel pacman-contrib \
-            openssh github-cli jq expac ruby-rdoc ruby-pkg-config gnupg \
-            pyalpm python-awesomeversion python-packaging python-lxml \
-            python-jq python-gobject python-requests libnotify nvchecker \
-            binutils multilib-devel python-aiohttp clang python-jq
 
-      - name: Setup non-root user for AUR
+          echo "Installing necessary packages..."
+          pacman -S --noconfirm --needed \
+            git base-devel pacman-contrib openssh github-cli jq expac \
+            ruby-rdoc ruby-pkg-config gnupg \
+            python python-pip \
+            pyalpm python-awesomeversion python-packaging python-lxml \
+            python-gobject python-requests libnotify nvchecker \
+            binutils multilib-devel python-aiohttp clang python-jq \
+            sudo
+
+          echo "Configuring makepkg for parallel compilation..."
+          # Check if MAKEFLAGS is already set and uncommented
+          if grep -q -E '^#?\s*MAKEFLAGS=' /etc/makepkg.conf; then
+            # If found (commented or uncommented), replace the line
+            sed -i "s|^#*\s*MAKEFLAGS=.*|MAKEFLAGS=\"-j$(nproc)\"|g" /etc/makepkg.conf
+            echo "Updated existing MAKEFLAGS in /etc/makepkg.conf."
+          else
+            # If not found, append it
+            echo "MAKEFLAGS=\"-j$(nproc)\"" >> /etc/makepkg.conf
+            echo "Appended MAKEFLAGS to /etc/makepkg.conf."
+          fi
+          echo "Current MAKEFLAGS setting in /etc/makepkg.conf:"
+          grep --color=auto MAKEFLAGS /etc/makepkg.conf || echo "MAKEFLAGS not found after attempting to set."
+
+          echo "::endgroup::"
+
+      - name: Setup non-root user for AUR operations
         shell: bash
         run: |
-          # Create build user with sudo access
-          useradd -m builder
+          set -e
+          echo "::group::Setup non-root user 'builder'"
+          echo "Creating build user 'builder'..."
+          useradd -m -s /bin/bash builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
-          chmod 440 /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
 
-          # Create build directories with proper permissions
-          install -d -m 755 /home/builder/.cache/paru
-          install -d -m 755 /home/builder/.local/share/paru
-          install -d -m 755 /home/builder/.gnupg
-          chown -R builder:builder /home/builder
+          echo "Setting up directories for builder..."
+          install -d -o builder -g builder -m 700 /home/builder/.gnupg
+          install -d -o builder -g builder -m 755 /home/builder/.cache
+          install -d -o builder -g builder -m 755 /home/builder/.local
+          install -d -o builder -g builder -m 755 /home/builder/.local/share
+          install -d -o builder -g builder -m 755 /home/builder/.cache/paru
+          install -d -o builder -g builder -m 755 /home/builder/.local/share/paru
 
-      - name: Install paru
+          echo "Builder user setup complete."
+          echo "::endgroup::"
+
+      - name: Install paru (AUR helper)
         run: |
+          set -e
+          echo "::group::Install paru (AUR helper)"
+          echo "Installing paru for 'builder' user..."
           cd /tmp
           sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
           cd paru-bin
+          # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
           sudo -u builder makepkg -si --noconfirm
 
-          # Configure paru
-          echo '[options]
-          BatchInstall
-          BottomUp
-          RemoveMake
-          SudoLoop
-          UseAsk' | sudo tee /etc/paru.conf
+          echo "Configuring paru..."
+          echo -e "[options]\nBatchInstall\nBottomUp\nRemoveMake\nSudoLoop\nUseAsk" | sudo tee /etc/paru.conf > /dev/null
 
-          sudo -u builder paru -S --noconfirm --needed python-deadlib
+          echo "Paru installation and configuration complete."
+          echo "::endgroup::"
 
-
-      - name: Setup SSH key
+      - name: Setup SSH key for AUR
         run: |
-          mkdir -p /home/builder/.ssh
-          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > /home/builder/.ssh/aur
-          ssh-keyscan aur.archlinux.org >> /home/builder/.ssh/known_hosts
-          echo "Host aur.archlinux.org" >> /home/builder/.ssh/config 
-          echo "IdentityFile /home/builder/.ssh/aur" >> /home/builder/.ssh/config 
-          echo "User aur" >> /home/builder/.ssh/config 
-          chown -R builder:builder /home/builder/.ssh
-          chmod 700 /home/builder/.ssh
-          chmod 600 /home/builder/.ssh/aur
-          chmod 644 /home/builder/.ssh/known_hosts
-          chmod 600 /home/builder/.ssh/config
-          echo "[debug] SSH Permissions Files"
-          ls -latr /home/builder/.ssh
+          set -e
+          echo "::group::Setup SSH key for AUR"
+          echo "Setting up SSH key for AUR access..."
+          SSH_DIR="/home/builder/.ssh"
+          mkdir -p "${SSH_DIR}"
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > "${SSH_DIR}/aur"
 
-      - name: Configure Git
+          ssh-keyscan aur.archlinux.org >> "${SSH_DIR}/known_hosts"
+
+          echo "Host aur.archlinux.org" >> "${SSH_DIR}/config"
+          echo "  IdentityFile ${SSH_DIR}/aur" >> "${SSH_DIR}/config"
+          echo "  User aur" >> "${SSH_DIR}/config"
+          echo "  StrictHostKeyChecking yes" >> "${SSH_DIR}/config"
+
+          chown -R builder:builder "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+          chmod 600 "${SSH_DIR}/aur"
+          chmod 600 "${SSH_DIR}/config"
+          chmod 644 "${SSH_DIR}/known_hosts"
+
+          echo "SSH key setup complete. Permissions:"
+          ls -ldn "${SSH_DIR}" "${SSH_DIR}/aur" "${SSH_DIR}/config" "${SSH_DIR}/known_hosts" # Use -n to show numeric UID/GID
+          echo "::endgroup::"
+
+      - name: Configure Git for builder user
         run: |
+          set -e
+          echo "::group::Configure Git for builder user"
+          echo "Configuring Git for 'builder' user..."
           sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
-          sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"          
+          sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
+          echo "Git configuration complete."
+          echo "::endgroup::"
 
-      - name: Load NVChecker Script 
-        run: |
-          site_packages=$(python3 -c "import site; print('\n'.join(site.getsitepackages()))")
-          [ -f ${GITHUB_WORKSPACE}/scripts/github-graphql.py ] && \
-            cp ${GITHUB_WORKSPACE}/scripts/github-graphql.py ${site_packages}/nvchecker_source/
-
-      - name: Run task
+      - name: Run AUR Package Build and Update Task
         shell: bash
-        run: |
-          #!/bin/bash
-          set -euo pipefail
-
-          # Constants
-          BUILDER_HOME="/home/builder"
-          NVCHECKER_DIR="${BUILDER_HOME}/nvchecker"
-          DEPENDS_JSON_PATH="${NVCHECKER_DIR}/depends.json"
-
-          # Helper Functions
-          log_debug() {
-              echo "[debug] $1"
-          }
-
-          log_error() {
-              echo "[error] $1"
-          }
-
-          setup_environment() {
-              sudo -u builder mkdir -p "${NVCHECKER_DIR}"
-              cd "${NVCHECKER_DIR}"
-              # Copy required Python scripts if they exist
-              for script in "compare_aur_local_versions.py" "buildscript.py"; do
-                  if [ -f "${GITHUB_WORKSPACE}/scripts/${script}" ]; then
-                      cp "${GITHUB_WORKSPACE}/scripts/${script}" "${NVCHECKER_DIR}"
-                  fi
-              done
-          }
-
-          generate_nvchecker_config() {
-              local config_file="new.toml"
-              local keyfile="keyfile.toml"
-              
-              # Create base config
-              echo "[__config__]" > "${config_file}"
-              echo "oldver='aur.json'" >> "${config_file}"
-              echo "newver='local.json'" >> "${config_file}"
-
-              # Create keyfile and add GH_TOKEN
-              echo "[keys]" > $keyfile
-              echo "github = '${{ secrets.GHuK }}'" >> $keyfile
-
-              # Append all .nvchecker.toml files
-              find "${GITHUB_WORKSPACE}/maintain/build" -name ".nvchecker.toml" -exec sh -c 'cat {} && echo' \; >> "${config_file}"
-              
-              log_debug "Generated ${config_file}:"
-              cat "${config_file}"
-          }
-
-          run_version_checks() {
-              local original_home=$HOME
-              HOME="${BUILDER_HOME}"
-              
-              # Run nvchecker and generate comparison
-              nvchecker -c new.toml -k /home/builder/nvchecker/keyfile.toml --logger json | tee newver.json
-              nvcmp -c new.toml
-              
-              HOME="${original_home}"
-          }
-
-          get_package_updates() {
-              local UPGRADES=()
-              local NVCUPDATES=()
-              
-              # Get upgrades from changes.json
-              mapfile -t UPGRADES < <(jq -r 'to_entries | map(select(.value.status == "upgrade") | .key) | .[]' changes.json)
-              log_debug "List of packages with UPGRADES scheduled from REPO -> AUR:"
-              printf '%s\n' "${UPGRADES[@]:-}"
-              
-              # Get updates from nvchecker
-              readarray -t NVCUPDATES < <(nvcmp -c new.toml -q)
-              log_debug "List of packages in with UPGRADES scheduled from NVCHECKER:"
-              printf '%s\n' "${NVCUPDATES[@]:-}"
-              
-              # Combine and deduplicate updates
-              # Use printf to handle empty arrays properly
-              UPDATES=($(printf '%s\n' "${UPGRADES[@]:-}" "${NVCUPDATES[@]:-}" | sort -u))
-              declare -g UPDATES
-          }
-
-          extract_components() {
-              local path="$1"
-              IFS='/' read -r -a components <<< "${path}"
-              echo "${components[@]}"
-          }
-
-          extract_dependencies() {
-              local dir="$1"
-              (
-                  source "${GITHUB_WORKSPACE}/${dir}/PKGBUILD"
-                  declare -p depends makedepends checkdepends source 2>/dev/null || true
-              )
-          }
-
-          process_package_dependencies() {
-              local package="$1"
-              local update_dir="$2"
-              local deps_output
-              
-              # Extract dependencies
-              deps_output=$(extract_dependencies "${update_dir}")
-              
-              # Reset and evaluate dependency variables
-              unset depends makedepends checkdepends
-              eval "$deps_output"
-              
-              # Convert arrays to JSON, handling empty arrays
-              local depends_json
-              depends_json=$(jq -n \
-                  --arg pkg "$package" \
-                  --arg deps "$(printf '%s\n' "${depends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
-                  --arg mkdeps "$(printf '%s\n' "${makedepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
-                  --arg chkdeps "$(printf '%s\n' "${checkdepends[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
-                  --arg sources "$(printf '%s\n' "${source[@]:-}" | jq -R -s -c 'split("\n")[:-1]')" \
-                  '{($pkg): {depends: ($deps|fromjson), makedepends: ($mkdeps|fromjson), checkdepends: ($chkdeps|fromjson), sources: ($sources|fromjson)}}')
-              
-              echo "$depends_json"
-          }
-
-          build_package() {
-              local package="$1"
-              local build="$2"
-              local pkgbuild="$3"
-              local depjson=$DEPENDS_JSON_PATH
-              
-              log_debug "Building package: ${package}"
-              echo "[debug] currently in $(pwd)"
-              ls
-              echo "[debug] ========================================================================"
-              sudo -u builder python buildscript.py \
-                  --github-repo "${{ github.repository }}" \
-                  --github-token "$GH_TOKEN" \
-                  --github-workspace "$GITHUB_WORKSPACE" \
-                  --package-name "$package" \
-                  --depends-json "$depjson" \
-                  --pkgbuild-path "${pkgbuild}" \
-                  --commit-message "Auto update: ${package}" \
-                  --build-mode "$build" \
-                  --debug
-          }
-
-          main() {
-              setup_environment
-              
-              # Run initial version comparison
-              python "${NVCHECKER_DIR}/compare_aur_local_versions.py" \
-                  --maintainer "${AUR_MAINTAINER_NAME}" \
-                  --repo-root "${GITHUB_WORKSPACE}"
-              
-              generate_nvchecker_config
-              run_version_checks
-              get_package_updates
-              echo "1"
-              # Process dependencies for all updates
-              local final_depends_json="{}"
-              echo "2"
-              for update in "${UPDATES[@]}"; do
-                  local subdirs
-                  subdirs=($(find "${GITHUB_WORKSPACE}" -maxdepth 3 -type d -name "${update}" -exec realpath --relative-to="${GITHUB_WORKSPACE}" {} +))
-                  if [ ${#subdirs[@]} -ne 1 ]; then
-                      log_debug "Skipping '${update}': found ${#subdirs[@]} matching directories"
-                      continue
-                  fi
-                  
-                  local update_dir="${subdirs[0]}"
-                  local components
-                  components=($(extract_components "${update_dir}"))
-                  local maintain="${components[0]:-}"
-                  local build="${components[1]:-}"
-                  local package="${components[2]:-}"
-                  
-                  if [ -z "$package" ] || [ -z "$build" ] || [ -z "$maintain" ]; then
-                      log_error "Invalid directory structure for ${update_dir}"
-                      continue
-                  fi
-                  
-                  # Process dependencies and merge with existing JSON
-                  local pkg_deps_json
-                  pkg_deps_json=$(process_package_dependencies "$update" "$update_dir")
-                  final_depends_json=$(echo "$final_depends_json" "$pkg_deps_json" | jq -s 'add')
-              done
-              echo "3"
-              # Save dependencies
-              echo "${final_depends_json}" | jq . > "${DEPENDS_JSON_PATH}"
-              
-              # Build packages
-              for update in "${UPDATES[@]}"; do
-                  local subdirs
-                  local components
-                  subdirs=($(find "${GITHUB_WORKSPACE}" -maxdepth 3 -type d -name "${update}" -exec realpath --relative-to="${GITHUB_WORKSPACE}" {} +))
-                  local update_dir="${subdirs[0]}"
-                  components=($(extract_components "${update_dir}"))
-                  local maintain="${components[0]:-}"
-                  local build="${components[1]:-}"
-                  local package="${components[2]:-}"                  
-                  log_debug "maintain: $maintain update: $update build: $build"
-                  if [ "$maintain" = "maintain" ]; then
-                    if ! build_package "$update" "$build" "$maintain/$build/$update"; then
-                        log_error "Build failed for ${update}"
-                        continue
-                    fi
-                  fi
-              done
-              
-              log_debug "All updates processed successfully."
-          }
-
-          # Execute main function
-          main "$@"        
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_COMMIT_USER_NAME: envolution
+          GIT_COMMIT_USER_EMAIL: involution@gmail.com
+          PKGBUILD_ROOT: ${{ github.workspace }}/maintain/build
+          SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUNID: ${{ github.run_id }}
+          ACTIONS_STEP_DEBUG: true
+        run: |
+          echo "::notice::Attempting to execute external script main_task_script.py"
+          # Ensure the script is executable inside the container if permissions were lost
+          mkdir -p task
+          cp ${GITHUB_WORKSPACE}/scripts/main_task_script.py task/
+          chmod +x task/main_task_script.py
+          
+          echo "::notice::Installing python-looseversion package from AUR for aur_package_updater_cli.py"
+          # Use paru's --nocheck if build fails due to check() stage for this utility package.
+          # Ensure MAKEFLAGS from /etc/makepkg.conf are used by paru here.
+          sudo -u builder paru -S --noconfirm --nocheck python-looseversion
+          
+          python3 ./task/main_task_script.py
+
+      - name: Upload build logs and artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ${{ github.workspace }}/artifacts/
+          retention-days: 7

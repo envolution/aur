@@ -173,7 +173,7 @@ def setup_environment() -> bool:
     try: run_command(["sudo", "chown", f"{BUILDER_USER}:{BUILDER_USER}", str(ARTIFACTS_DIR)], check=False)
     except: log_warning("SETUP_CHOWN_WARN", f"chown {ARTIFACTS_DIR} to {BUILDER_USER} failed.")
 
-    scripts_to_copy = ["buildscript2.py", "pkgbuild_to_json.py", "aur_package_updater_cli.py"]
+    scripts_to_copy = ["buildscript.py", "pkgbuild_to_json.py", "aur_package_updater_cli.py"]
     scripts_source_base = GITHUB_WORKSPACE / "scripts"
     for script_name in scripts_to_copy:
         source_path = scripts_source_base / script_name
@@ -312,7 +312,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         end_group()
         return False
 
-    log_notice("BUILD_SCRIPT_PY_EXEC", f"Starting buildscript2.py for {pkg_name} (Type: {build_type}, Path: {pkgbuild_path_rel_str})")
+    log_notice("BUILD_SCRIPT_PY_EXEC", f"Starting buildscript.py for {pkg_name} (Type: {build_type}, Path: {pkgbuild_path_rel_str})")
     git_cfgs = [
         ["sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "git", "config", "--global", "user.name", GIT_COMMIT_USER_NAME],
         ["sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "git", "config", "--global", "user.email", GIT_COMMIT_USER_EMAIL],
@@ -323,7 +323,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         except Exception as e: # Catch specific exceptions if possible
             log_warning("GIT_CONFIG_FAIL", f"Failed to set {cfg_cmd[-2]}. Build script might fail: {e}")
 
-    bs_exe = NVCHECKER_RUN_DIR / "buildscript2.py"
+    bs_exe = NVCHECKER_RUN_DIR / "buildscript.py"
     bs_cmd = [
         "sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "python3", str(bs_exe),
         "--github-repo", GITHUB_REPOSITORY, "--github-token", GH_TOKEN,
@@ -335,7 +335,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     ]
     if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true":
         bs_cmd.append("--debug")
-    log_debug(f"Command to run buildscript2.py: {shlex.join(bs_cmd)}") # Add this line
+    log_debug(f"Command to run buildscript.py: {shlex.join(bs_cmd)}") # Add this line
 
     bs_json_str, bs_ok, bs_ver, bs_chg_str, bs_err = "", False, "N/A", "➖ No", ""
     captured_stderr_from_buildscript = "" # To store the full stderr output
@@ -346,19 +346,19 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         bs_json_str = bs_proc_res.stdout.strip() if bs_proc_res.stdout else ""
         captured_stderr_from_buildscript = bs_proc_res.stderr.strip() if bs_proc_res.stderr else ""
 
-        # --- Log the captured stderr from buildscript2.py ---
+        # --- Log the captured stderr from buildscript.py ---
         if captured_stderr_from_buildscript:
-            print(f"::group::Raw Stderr from buildscript2.py for {pkg_name}", file=sys.stderr)
+            print(f"::group::Raw Stderr from buildscript.py for {pkg_name}", file=sys.stderr)
             print(captured_stderr_from_buildscript, file=sys.stderr)
             print("::endgroup::", file=sys.stderr)
 
         if not bs_json_str:
             if bs_proc_res.returncode == 0:
-                bs_err = f"buildscript2.py exited 0 but produced no JSON output for {pkg_name}."
+                bs_err = f"buildscript.py exited 0 but produced no JSON output for {pkg_name}."
                 log_error("BUILD_SCRIPT_PY_NO_JSON", bs_err)
                 # bs_ok remains False
             else:
-                bs_err = f"buildscript2.py exited {bs_proc_res.returncode} and produced no JSON output for {pkg_name}."
+                bs_err = f"buildscript.py exited {bs_proc_res.returncode} and produced no JSON output for {pkg_name}."
                 if captured_stderr_from_buildscript: # Add stderr if available and relevant
                     bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
                 log_error("BUILD_SCRIPT_PY_FAIL_NO_JSON", bs_err)
@@ -374,7 +374,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
 
             # If JSON reports success but process exited non-zero, or vice-versa, log warnings and potentially override
             if bs_proc_res.returncode != 0 and bs_ok:
-                warning_msg = f"buildscript2.py for {pkg_name} exited {bs_proc_res.returncode} but its JSON reported success. Trusting exit code."
+                warning_msg = f"buildscript.py for {pkg_name} exited {bs_proc_res.returncode} but its JSON reported success. Trusting exit code."
                 log_warning("BUILD_SCRIPT_EXIT_MISMATCH", warning_msg)
                 bs_ok = False # Prioritize exit code for failure
                 bs_err = bs_data.get("error_message", "") or f"Exited {bs_proc_res.returncode}."
@@ -383,44 +383,44 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
 
 
             elif bs_proc_res.returncode == 0 and not bs_ok:
-                bs_err = bs_data.get("error_message", f"buildscript2.py for {pkg_name} exited 0 but its JSON reported failure without specific error message.")
+                bs_err = bs_data.get("error_message", f"buildscript.py for {pkg_name} exited 0 but its JSON reported failure without specific error message.")
                 log_warning("BUILD_SCRIPT_SUCCESS_MISMATCH", bs_err)
                 # bs_ok is already False, bs_err is updated.
 
             elif bs_proc_res.returncode != 0 and not bs_ok : # Both indicate failure
-                bs_err = bs_data.get("error_message", f"buildscript2.py for {pkg_name} exited {bs_proc_res.returncode}.")
+                bs_err = bs_data.get("error_message", f"buildscript.py for {pkg_name} exited {bs_proc_res.returncode}.")
                 if not bs_data.get("error_message") and captured_stderr_from_buildscript: # Add stderr if available and relevant
                     bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
-                log_debug(f"buildscript2.py for {pkg_name} failed. Exit: {bs_proc_res.returncode}, JSON Success: {bs_ok}, JSON Error: {bs_data.get('error_message', 'None')}")
+                log_debug(f"buildscript.py for {pkg_name} failed. Exit: {bs_proc_res.returncode}, JSON Success: {bs_ok}, JSON Error: {bs_data.get('error_message', 'None')}")
 
             else: # bs_proc_res.returncode == 0 and bs_ok (ideal success)
                 bs_err = bs_data.get("error_message", "") # Should be empty on success
 
         if bs_proc_res.returncode != 0 and not bs_err : # If process failed and we still don't have an error message
-            bs_err = f"buildscript2.py cmd failed (exit {bs_proc_res.returncode}) for {pkg_name}, no specific JSON error."
+            bs_err = f"buildscript.py cmd failed (exit {bs_proc_res.returncode}) for {pkg_name}, no specific JSON error."
             if captured_stderr_from_buildscript:
                 bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
             bs_ok = False # Ensure bs_ok is False
 
     except json.JSONDecodeError as e:
-        bs_err = f"Failed to parse JSON from buildscript2.py for {pkg_name}: {e}. Raw STDOUT: '{bs_json_str[:200]}...'"
+        bs_err = f"Failed to parse JSON from buildscript.py for {pkg_name}: {e}. Raw STDOUT: '{bs_json_str[:200]}...'"
         log_error("BUILD_SCRIPT_PY_FAIL_JSON", bs_err)
         bs_ok = False
     except subprocess.CalledProcessError as e: # Should not happen if check=False, but as a safeguard
-        bs_err = f"Subprocess error for buildscript2.py ({pkg_name}): {e}. Stderr: {e.stderr.strip() if e.stderr else 'N/A'}"
+        bs_err = f"Subprocess error for buildscript.py ({pkg_name}): {e}. Stderr: {e.stderr.strip() if e.stderr else 'N/A'}"
         log_error("BUILD_SCRIPT_PY_SUBPROCESS_ERROR", bs_err)
         bs_ok = False
         if e.stderr and not captured_stderr_from_buildscript: # If stderr wasn't captured before exception
-            start_group(f"Error Logs from buildscript2.py for {pkg_name} (on CalledProcessError)")
+            start_group(f"Error Logs from buildscript.py for {pkg_name} (on CalledProcessError)")
             for line in e.stderr.strip().splitlines(): log_debug(f"[{pkg_name}|bs2-err] {line}")
             end_group()
     except Exception as e:
-        bs_err = f"Unexpected error running/processing buildscript2.py for {pkg_name}: {type(e).__name__} - {e}"
+        bs_err = f"Unexpected error running/processing buildscript.py for {pkg_name}: {type(e).__name__} - {e}"
         log_error("BUILD_SCRIPT_PY_FAIL_UNEX", bs_err)
         bs_ok = False
         # If an unexpected exception occurs before bs_proc_res is assigned or after stderr is processed
         if captured_stderr_from_buildscript: # Log it if already captured
-            start_group(f"Logs from buildscript2.py for {pkg_name} (on Unexpected Exception after capture)")
+            start_group(f"Logs from buildscript.py for {pkg_name} (on Unexpected Exception after capture)")
             for line in captured_stderr_from_buildscript.splitlines(): log_debug(f"[{pkg_name}|bs2-unex] {line}")
             end_group()
 
@@ -435,7 +435,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
 
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
     log_link = "N/A (Check main GHA log artifacts for details)" # Updated message
-    # If you store buildscript2.py specific logs to a file in pkg_artifact_dir, you can link to it here.
+    # If you store buildscript.py specific logs to a file in pkg_artifact_dir, you can link to it here.
     # For now, since we are printing to main GHA log, this message is more accurate.
 
     # Example: if you did save the captured_stderr_from_buildscript to a file:

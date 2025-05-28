@@ -132,15 +132,17 @@ jobs:
           GITHUB_RUNID: ${{ github.runid }}
           ACTIONS_STEP_DEBUG: true
         run: |
-          echo "::notice::Attempting to execute external script main_task_script.py"
+          echo "::group::Paru install missing script dependency"
+          echo "::notice::Pulling python-looseversion package from aur"
+          sudo -u builder paru -S python-looseversion --noconfirm
+          echo "::endgroup::"
+          echo "::group::Attempting to execute external script main_task_script.py"
           # Ensure the script is executable inside the container if permissions were lost
           mkdir -p task
           cp ${GITHUB_WORKSPACE}/scripts/main_task_script.py task/
           chmod +x task/main_task_script.py
-          #get version checker dependency
-          echo "::notice::Pulling python-looseversion package from aur"
-          sudo -u builder paru -S python-looseversion --noconfirm
           python3 ./task/main_task_script.py
+          echo "::endgroup::"
 
       - name: Upload build logs and artifacts
         if: always()

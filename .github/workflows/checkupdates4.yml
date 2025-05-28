@@ -134,7 +134,7 @@ jobs:
         run: |
           echo "::group::Paru install missing script dependency"
           echo "::notice::Pulling python-looseversion package from aur"
-          sudo -u builder paru -S python-looseversion --noconfirm
+          sudo -u builder paru -S python-looseversion --nocheck --noconfirm
           echo "::endgroup::"
           echo "::group::Attempting to execute external script main_task_script.py"
           # Ensure the script is executable inside the container if permissions were lost

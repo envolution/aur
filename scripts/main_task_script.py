@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 
 # --- Constants and Configuration ---
-BUILDER_USER = "builder" 
+BUILDER_USER = "builder"
 BUILDER_HOME = Path(os.getenv("BUILDER_HOME", f"/home/{BUILDER_USER}"))
 NVCHECKER_RUN_DIR = Path(os.getenv("NVCHECKER_RUN_DIR", str(BUILDER_HOME / "nvchecker-run")))
 PACKAGE_BUILD_BASE_DIR = Path(os.getenv("PACKAGE_BUILD_BASE_DIR", str(BUILDER_HOME / "pkg_builds")))
@@ -54,7 +54,8 @@ def end_group(): print(f"::endgroup::")
 def run_command(
     cmd: List[str], check: bool = True, cwd: Optional[Path] = None,
     env: Optional[Dict[str, str]] = None, capture_output: bool = True,
-    print_command: bool = True, input_data: Optional[str] = None
+    print_command: bool = True, input_data: Optional[str] = None,
+    timeout: Optional[int] = None
 ) -> subprocess.CompletedProcess:
     if print_command: log_debug(f"Running command: {shlex.join(cmd)}")
     process_env = os.environ.copy();
@@ -70,7 +71,7 @@ def run_command(
         if e.stdout: log_debug(f"CMD_FAIL_STDOUT:\n{e.stdout.strip()}")
         if e.stderr: log_debug(f"CMD_FAIL_STDERR:\n{e.stderr.strip()}")
         if check: raise
-        return e 
+        return e
     except FileNotFoundError as e:
         log_error("CMD_NOT_FOUND", f"Cmd not found: {cmd[0]}. Ensure in PATH/installed.")
         if check: raise
@@ -94,7 +95,7 @@ def debug_path_permissions(path_to_debug_str: str, user_context: str, as_user: O
         path_isfile_cmd = ["sudo", "-u", as_user] + path_isfile_cmd
         path_readable_cmd = ["sudo", "-u", as_user] + path_readable_cmd
         path_executable_cmd = ["sudo", "-u", as_user] + path_executable_cmd
-    
+
     exists_result = run_command(path_exists_cmd, check=False, print_command=True)
     if exists_result.returncode != 0:
         log_warning(f"[{user_context}{f' as {as_user}' if as_user else ''}] Path does NOT exist or is inaccessible: {path_to_debug}")
@@ -104,7 +105,7 @@ def debug_path_permissions(path_to_debug_str: str, user_context: str, as_user: O
 
     isdir_result = run_command(path_isdir_cmd, check=False, print_command=True)
     log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] Is directory: {isdir_result.returncode == 0}")
-    
+
     isfile_result = run_command(path_isfile_cmd, check=False, print_command=True)
     log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] Is file: {isfile_result.returncode == 0}")
 
@@ -119,7 +120,7 @@ def debug_path_permissions(path_to_debug_str: str, user_context: str, as_user: O
     ls_cmd_list = ["ls", "-lha", str(path_to_debug)]
     if as_user:
         ls_cmd_list = ["sudo", "-u", as_user] + ls_cmd_list
-    
+
     log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] Attempting '{' '.join(ls_cmd_list)}' (first few lines):")
     try:
         ls_result = run_command(ls_cmd_list, check=False, capture_output=True, print_command=True)
@@ -139,7 +140,7 @@ def debug_path_permissions(path_to_debug_str: str, user_context: str, as_user: O
     find_cmd_list = ["find", str(path_to_debug), "-name", "PKGBUILD", "-type", "f", "-print"]
     if as_user:
         find_cmd_list = ["sudo", "-u", as_user] + find_cmd_list
-    
+
     find_result = run_command(find_cmd_list, check=False, capture_output=True, print_command=True)
     if find_result.returncode == 0:
         found_files_by_find = find_result.stdout.strip().splitlines()
@@ -150,7 +151,7 @@ def debug_path_permissions(path_to_debug_str: str, user_context: str, as_user: O
                     log_debug(f"  {f_line}")
                 elif f_line_idx == 10:
                     log_debug(f"  ... and {len(found_files_by_find) - 10} more.")
-                    break 
+                    break
         else:
             log_debug(f"[{user_context}{f' as {as_user}' if as_user else ''}] 'find' command ran successfully but found no PKGBUILD files.")
     else:
@@ -174,10 +175,10 @@ def setup_environment() -> bool:
     except: log_warning("SETUP_CHOWN_WARN", f"chown {ARTIFACTS_DIR} to {BUILDER_USER} failed.")
 
     scripts_to_copy = ["buildscript2.py", "pkgbuild_to_json.py", "aur_package_updater_cli.py"]
-    scripts_source_base = GITHUB_WORKSPACE / "scripts" 
+    scripts_source_base = GITHUB_WORKSPACE / "scripts"
     for script_name in scripts_to_copy:
         source_path = scripts_source_base / script_name
-        if not source_path.is_file(): source_path = GITHUB_WORKSPACE / script_name 
+        if not source_path.is_file(): source_path = GITHUB_WORKSPACE / script_name
         dest_path = NVCHECKER_RUN_DIR / script_name
         if not source_path.is_file():
             log_error("SETUP_FAIL", f"{script_name} not found."); end_group(); return False
@@ -193,7 +194,7 @@ def setup_environment() -> bool:
 def create_nvchecker_keyfile() -> bool:
     start_group("Create NVChecker Keyfile for Updater CLI")
     if not SECRET_GHUK_VALUE:
-        log_warning("KEYFILE_SKIP", "SECRET_GHUK_VALUE not set. Skipping keyfile."); end_group(); return True 
+        log_warning("KEYFILE_SKIP", "SECRET_GHUK_VALUE not set. Skipping keyfile."); end_group(); return True
     keyfile_content = f"[keys]\ngithub = '{SECRET_GHUK_VALUE}'\n"
     temp_keyfile_path = NVCHECKER_RUN_DIR / "temp_keyfile.toml"
     try:
@@ -216,23 +217,23 @@ def run_aur_updater_cli(path_root_for_cli: str) -> Optional[List[Dict[str, Any]]
         "sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}",
         "python3", str(script_path),
         "--maintainer", AUR_MAINTAINER_NAME,
-        "--path-root", path_root_for_cli, 
-        "--output-file", str(UPDATER_CLI_OUTPUT_JSON_PATH), 
+        "--path-root", path_root_for_cli,
+        "--output-file", str(UPDATER_CLI_OUTPUT_JSON_PATH),
     ]
     if KEYFILE_PATH.exists(): cmd.extend(["--key-toml", str(KEYFILE_PATH)])
     if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true": cmd.append("--debug")
 
     try:
-        proc_result = run_command(cmd, cwd=NVCHECKER_RUN_DIR, check=False) 
+        proc_result = run_command(cmd, cwd=NVCHECKER_RUN_DIR, check=False)
         if proc_result.stdout: log_debug(f"AUR Updater CLI STDOUT:\n{proc_result.stdout.strip()}")
         if proc_result.stderr: log_debug(f"AUR Updater CLI STDERR:\n{proc_result.stderr.strip()}")
         if proc_result.returncode != 0: log_error("AUR_UPDATER_NON_ZERO", f"aur_package_updater_cli.py exited {proc_result.returncode}.")
 
         if not UPDATER_CLI_OUTPUT_JSON_PATH.is_file():
             log_error("AUR_UPDATER_NO_FILE", f"{UPDATER_CLI_OUTPUT_JSON_PATH} NOT created."); end_group(); return None
-        
+
         file_size = UPDATER_CLI_OUTPUT_JSON_PATH.stat().st_size
-        if file_size < 5: 
+        if file_size < 5:
             log_error("AUR_UPDATER_EMPTY_OUTPUT", f"{UPDATER_CLI_OUTPUT_JSON_PATH} too small (size: {file_size} bytes).")
             try:
                 with open(UPDATER_CLI_OUTPUT_JSON_PATH, "r") as f_small: small_content = f_small.read()
@@ -244,17 +245,17 @@ def run_aur_updater_cli(path_root_for_cli: str) -> Optional[List[Dict[str, Any]]
         if proc_result.returncode != 0 and update_data:
             log_warning("AUR_UPDATER_NON_ZERO_WITH_JSON", f"CLI exited {proc_result.returncode} but valid JSON parsed.")
         log_notice("AUR_UPDATER_OK", f"CLI ran. Output: {UPDATER_CLI_OUTPUT_JSON_PATH} (Size: {file_size} bytes).")
-        
+
         artifact_path = ARTIFACTS_DIR / "updater_cli_output.json"
         try:
             run_command(["sudo", "-u", BUILDER_USER, "cp", str(UPDATER_CLI_OUTPUT_JSON_PATH), str(artifact_path)])
             log_notice("ARTIFACT_OK", f"Copied updater CLI output to artifacts: {artifact_path}")
         except Exception as e: log_warning("ARTIFACT_FAIL", f"Failed to copy output to artifacts: {e}")
-        
+
         if isinstance(update_data, list) and update_data: log_debug(f"First Updater CLI element: {json.dumps(update_data[0], indent=2)}")
         else: log_debug(f"Updater CLI output empty/not list: {update_data}")
         end_group(); return update_data
-        
+
     except json.JSONDecodeError as e:
         log_error("AUR_UPDATER_JSON_DECODE_FAIL", f"Failed to parse JSON: {e}. File size: {UPDATER_CLI_OUTPUT_JSON_PATH.stat().st_size if UPDATER_CLI_OUTPUT_JSON_PATH.exists() else 'N/A'}")
         if UPDATER_CLI_OUTPUT_JSON_PATH.exists():
@@ -263,7 +264,7 @@ def run_aur_updater_cli(path_root_for_cli: str) -> Optional[List[Dict[str, Any]]
                 log_debug(f"Content of {UPDATER_CLI_OUTPUT_JSON_PATH} (failed parse):\n{err_content[:1000]}")
             except Exception as read_err: log_debug(f"Could not read errored file: {read_err}")
         end_group(); return None
-    except Exception as e: 
+    except Exception as e:
         log_error("AUR_UPDATER_UNEXPECTED_ERROR", f"Unexpected error in CLI processing: {type(e).__name__} - {e}"); end_group(); return None
 
 def get_packages_to_update(update_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -291,7 +292,7 @@ def generate_package_details_for_buildscript(pkgs_info: List[Dict[str, Any]]) ->
         try: # Write empty JSON if no packages
             # Create as runner, then mv as builder to chown
             temp_empty_json = NVCHECKER_RUN_DIR / "temp_empty.json"
-            with open(temp_empty_json, "w") as f: json.dump({}, f) 
+            with open(temp_empty_json, "w") as f: json.dump({}, f)
             run_command(["sudo", "-u", BUILDER_USER, "mv", str(temp_empty_json), str(PACKAGE_DETAILS_JSON_PATH)])
         except Exception as e: log_error("JSON_GEN_EMPTY_FAIL", f"Failed to write empty {PACKAGE_DETAILS_JSON_PATH}: {e}"); end_group(); return False
         end_group(); return True
@@ -302,10 +303,10 @@ def generate_package_details_for_buildscript(pkgs_info: List[Dict[str, Any]]) ->
             "depends": pkg_entry.get("depends", []),
             "makedepends": pkg_entry.get("makedepends", []),
             "checkdepends": pkg_entry.get("checkdepends", []),
-            "sources": pkg_entry.get("sources", []), 
+            "sources": pkg_entry.get("sources", []),
         }
         log_debug(f"Details for {pkgbase} for buildscript: deps={len(all_details[pkgbase]['depends'])}, makedeps={len(all_details[pkgbase]['makedepends'])}, checkdeps={len(all_details[pkgbase]['checkdepends'])}, sources={len(all_details[pkgbase]['sources'])}")
-    
+
     temp_json_path = NVCHECKER_RUN_DIR / "temp_pkg_details_for_bs.json"
     try:
         with open(temp_json_path, "w") as f: json.dump(all_details, f, indent=2)
@@ -324,16 +325,20 @@ def determine_build_mode(pkgbuild_dir_rel: Path) -> str:
     log_warning("BUILD_MODE_UNKNOWN", f"Cannot determine build_mode from {pkgbuild_dir_rel} (parent: {parent_name}). Default 'nobuild'.")
     return "nobuild"
 
+# In main_task_script.py
+
 def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_str: str) -> bool:
     start_group(f"Build Script Execution: {pkg_name}")
     pkg_artifact_dir = ARTIFACTS_DIR / pkg_name
-    try: run_command(["sudo", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "mkdir", "-p", str(pkg_artifact_dir)])
-    except:
-        log_error("BUILD_SCRIPT_MKDIR_FAIL", f"Failed to create artifact subdir {pkg_artifact_dir} for {pkg_name}.")
+    try:
+        run_command(["sudo", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "mkdir", "-p", str(pkg_artifact_dir)])
+    except Exception as e: # Catch specific exceptions if possible, or broad for now
+        log_error("BUILD_SCRIPT_MKDIR_FAIL", f"Failed to create artifact subdir {pkg_artifact_dir} for {pkg_name}: {e}.")
         if GITHUB_STEP_SUMMARY_FILE:
             with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f:
                 f.write(f"| **{pkg_name}** | N/A | ❌ Error: Artifact dir creation | - | - | N/A |\n")
-        end_group(); return False
+        end_group()
+        return False
 
     log_notice("BUILD_SCRIPT_PY_EXEC", f"Starting buildscript2.py for {pkg_name} (Type: {build_type}, Path: {pkgbuild_path_rel_str})")
     git_cfgs = [
@@ -341,8 +346,10 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         ["sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "git", "config", "--global", "user.email", GIT_COMMIT_USER_EMAIL],
     ]
     for cfg_cmd in git_cfgs:
-        try: run_command(cfg_cmd, print_command=False)
-        except: log_warning("GIT_CONFIG_FAIL", f"Failed to set {cfg_cmd[-2]}. Build script might fail.")
+        try:
+            run_command(cfg_cmd, print_command=False) # print_command=False to reduce noise for these
+        except Exception as e: # Catch specific exceptions if possible
+            log_warning("GIT_CONFIG_FAIL", f"Failed to set {cfg_cmd[-2]}. Build script might fail: {e}")
 
     bs_exe = NVCHECKER_RUN_DIR / "buildscript2.py"
     bs_cmd = [
@@ -353,50 +360,133 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
         "--commit-message", f"CI: Auto update {pkg_name}", "--build-mode", build_type,
         "--artifacts-dir", str(pkg_artifact_dir), "--base-build-dir", str(PACKAGE_BUILD_BASE_DIR),
     ]
-    if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true": bs_cmd.append("--debug")
+    if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true":
+        bs_cmd.append("--debug")
 
     bs_json_str, bs_ok, bs_ver, bs_chg_str, bs_err = "", False, "N/A", "➖ No", ""
-    try:
-        bs_proc_res = run_command(bs_cmd, cwd=NVCHECKER_RUN_DIR)
-        bs_json_str = bs_proc_res.stdout.strip()
-        if not bs_json_str:
-            if bs_proc_res.returncode == 0: raise ValueError("buildscript2.py exited 0 but no JSON output.")
-            else: raise ValueError(f"buildscript2.py exited {bs_proc_res.returncode} and no JSON output.")
-        bs_data = json.loads(bs_json_str)
-        bs_ok, bs_ver = bs_data.get("success", False), bs_data.get("version", "N/A")
-        if bs_data.get("changes_detected", False): bs_chg_str = "✔️ Yes"
-        bs_err = bs_data.get("error_message", "")
-        if bs_proc_res.returncode != 0 and bs_ok:
-            log_warning("BUILD_SCRIPT_EXIT_MISMATCH", f"buildscript2.py exited {bs_proc_res.returncode} but JSON reported success.")
-        elif bs_proc_res.returncode == 0 and not bs_ok and not bs_err:
-            bs_err = "buildscript2.py exited 0 but JSON reported !success w/o error_message."
-            log_warning("BUILD_SCRIPT_SUCCESS_MISMATCH", bs_err)
-        if bs_proc_res.returncode != 0 and not bs_err:
-            bs_err = f"buildscript2.py cmd failed (exit {bs_proc_res.returncode}) no specific JSON error."
-            bs_ok = False
-    except (json.JSONDecodeError, ValueError) as e:
-        bs_err = f"Failed parse/validate JSON from buildscript2.py: {e}. Raw: '{bs_json_str[:200]}...'"; bs_ok = False
-        log_error("BUILD_SCRIPT_PY_FAIL_JSON", bs_err)
-    except Exception as e:
-        bs_err = f"Unexpected error running/parsing buildscript2.py: {e}"; bs_ok = False
-        log_error("BUILD_SCRIPT_PY_FAIL_UNEX", bs_err)
+    captured_stderr_from_buildscript = "" # To store the full stderr output
 
-    # CORRECTED LINE:
-    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{bs_err.replace('|', '\\|').replace(chr(10), '<br>')}</small>" if bs_err else "❌ Failure")
-    
+    try:
+        # run_command by default captures both stdout and stderr
+        bs_proc_res = run_command(bs_cmd, cwd=NVCHECKER_RUN_DIR, check=False) # check=False to handle errors manually
+        bs_json_str = bs_proc_res.stdout.strip() if bs_proc_res.stdout else ""
+        captured_stderr_from_buildscript = bs_proc_res.stderr.strip() if bs_proc_res.stderr else ""
+
+        # --- Log the captured stderr from buildscript2.py ---
+        if captured_stderr_from_buildscript:
+            start_group(f"Logs from buildscript2.py for {pkg_name}")
+            for line in captured_stderr_from_buildscript.splitlines():
+                # Use log_debug for detailed operational logs.
+                # If some lines from buildscript2.py are critical errors,
+                # buildscript2.py itself should ideally use GHA error commands,
+                # or main_task_script.py could try to parse them.
+                # For now, just pass them through as debug messages.
+                log_debug(f"[{pkg_name}|bs2] {line}") # Prefix to identify source
+            end_group()
+        # --- End logging captured stderr ---
+
+        if not bs_json_str:
+            if bs_proc_res.returncode == 0:
+                bs_err = f"buildscript2.py exited 0 but produced no JSON output for {pkg_name}."
+                log_error("BUILD_SCRIPT_PY_NO_JSON", bs_err)
+                # bs_ok remains False
+            else:
+                bs_err = f"buildscript2.py exited {bs_proc_res.returncode} and produced no JSON output for {pkg_name}."
+                if captured_stderr_from_buildscript: # Add stderr if available and relevant
+                    bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
+                log_error("BUILD_SCRIPT_PY_FAIL_NO_JSON", bs_err)
+                # bs_ok remains False
+            # No need to raise here, bs_ok is False and bs_err is set
+
+        if bs_json_str: # Only parse if there's JSON content
+            bs_data = json.loads(bs_json_str)
+            bs_ok = bs_data.get("success", False)
+            bs_ver = bs_data.get("version", "N/A")
+            if bs_data.get("changes_detected", False):
+                bs_chg_str = "✔️ Yes"
+
+            # If JSON reports success but process exited non-zero, or vice-versa, log warnings and potentially override
+            if bs_proc_res.returncode != 0 and bs_ok:
+                warning_msg = f"buildscript2.py for {pkg_name} exited {bs_proc_res.returncode} but its JSON reported success. Trusting exit code."
+                log_warning("BUILD_SCRIPT_EXIT_MISMATCH", warning_msg)
+                bs_ok = False # Prioritize exit code for failure
+                bs_err = bs_data.get("error_message", "") or f"Exited {bs_proc_res.returncode}."
+                if not bs_data.get("error_message") and captured_stderr_from_buildscript: # Add stderr if available and relevant
+                    bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
+
+
+            elif bs_proc_res.returncode == 0 and not bs_ok:
+                bs_err = bs_data.get("error_message", f"buildscript2.py for {pkg_name} exited 0 but its JSON reported failure without specific error message.")
+                log_warning("BUILD_SCRIPT_SUCCESS_MISMATCH", bs_err)
+                # bs_ok is already False, bs_err is updated.
+
+            elif bs_proc_res.returncode != 0 and not bs_ok : # Both indicate failure
+                bs_err = bs_data.get("error_message", f"buildscript2.py for {pkg_name} exited {bs_proc_res.returncode}.")
+                if not bs_data.get("error_message") and captured_stderr_from_buildscript: # Add stderr if available and relevant
+                    bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
+                log_debug(f"buildscript2.py for {pkg_name} failed. Exit: {bs_proc_res.returncode}, JSON Success: {bs_ok}, JSON Error: {bs_data.get('error_message', 'None')}")
+
+            else: # bs_proc_res.returncode == 0 and bs_ok (ideal success)
+                bs_err = bs_data.get("error_message", "") # Should be empty on success
+
+        if bs_proc_res.returncode != 0 and not bs_err : # If process failed and we still don't have an error message
+            bs_err = f"buildscript2.py cmd failed (exit {bs_proc_res.returncode}) for {pkg_name}, no specific JSON error."
+            if captured_stderr_from_buildscript:
+                bs_err += f" Stderr hint: {captured_stderr_from_buildscript.splitlines()[-1] if captured_stderr_from_buildscript.splitlines() else 'Empty stderr'}"
+            bs_ok = False # Ensure bs_ok is False
+
+    except json.JSONDecodeError as e:
+        bs_err = f"Failed to parse JSON from buildscript2.py for {pkg_name}: {e}. Raw STDOUT: '{bs_json_str[:200]}...'"
+        log_error("BUILD_SCRIPT_PY_FAIL_JSON", bs_err)
+        bs_ok = False
+    except subprocess.CalledProcessError as e: # Should not happen if check=False, but as a safeguard
+        bs_err = f"Subprocess error for buildscript2.py ({pkg_name}): {e}. Stderr: {e.stderr.strip() if e.stderr else 'N/A'}"
+        log_error("BUILD_SCRIPT_PY_SUBPROCESS_ERROR", bs_err)
+        bs_ok = False
+        if e.stderr and not captured_stderr_from_buildscript: # If stderr wasn't captured before exception
+            start_group(f"Error Logs from buildscript2.py for {pkg_name} (on CalledProcessError)")
+            for line in e.stderr.strip().splitlines(): log_debug(f"[{pkg_name}|bs2-err] {line}")
+            end_group()
+    except Exception as e:
+        bs_err = f"Unexpected error running/processing buildscript2.py for {pkg_name}: {type(e).__name__} - {e}"
+        log_error("BUILD_SCRIPT_PY_FAIL_UNEX", bs_err)
+        bs_ok = False
+        # If an unexpected exception occurs before bs_proc_res is assigned or after stderr is processed
+        if captured_stderr_from_buildscript: # Log it if already captured
+            start_group(f"Logs from buildscript2.py for {pkg_name} (on Unexpected Exception after capture)")
+            for line in captured_stderr_from_buildscript.splitlines(): log_debug(f"[{pkg_name}|bs2-unex] {line}")
+            end_group()
+
+    # --- Populate GitHub Actions Step Summary ---
+    # Ensure bs_err is a single line or suitably formatted for the table.
+    # The replace methods are crucial for markdown table cell integrity.
+    summary_err_msg = bs_err.replace('|', '\|').replace('\r', ' ').replace('\n', '<br>')
+    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err else "❌ Failure")
+
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
-    log_link = "N/A"
-    if pkg_artifact_dir.exists(): # Check if directory exists before globbing
-        # Combine globs efficiently
-        logs_found = list(pkg_artifact_dir.glob(f"{pkg_name}*.log"))
-        logs_found.extend(p for p in pkg_artifact_dir.glob("*.log") if p not in logs_found) # Add unique general logs
-        if logs_found:
-            log_link = f"See 'build-artifacts-{GITHUB_RUN_ID}' (<tt>{pkg_name}/</tt> subdir)"
+    log_link = "N/A (Check main GHA log artifacts for details)" # Updated message
+    # If you store buildscript2.py specific logs to a file in pkg_artifact_dir, you can link to it here.
+    # For now, since we are printing to main GHA log, this message is more accurate.
+
+    # Example: if you did save the captured_stderr_from_buildscript to a file:
+    # buildscript_log_file = pkg_artifact_dir / f"{pkg_name}_buildscript.log"
+    # try:
+    #    with open(buildscript_log_file, "w", encoding="utf-8") as f_log:
+    #        f_log.write(captured_stderr_from_buildscript)
+    #    log_link = f"See 'build-artifacts-{GITHUB_RUN_ID}' (<tt>{pkg_name}/{buildscript_log_file.name}</tt>)"
+    # except Exception as e_log_write:
+    #    log_warning("LOG_WRITE_FAIL", f"Could not write {buildscript_log_file}: {e_log_write}")
+
 
     if GITHUB_STEP_SUMMARY_FILE:
-        with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f:
-            f.write(f"| **{pkg_name}** | {bs_ver} | {status_md} | {bs_chg_str} | {aur_link} | {log_link} |\n")
-    end_group(); return bs_ok
+        try:
+            with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f:
+                f.write(f"| **{pkg_name}** | {bs_ver} | {status_md} | {bs_chg_str} | {aur_link} | {log_link} |\n")
+        except Exception as e_summary:
+            log_error("SUMMARY_WRITE_FAIL", f"Failed to write to GITHUB_STEP_SUMMARY: {e_summary}")
+
+    end_group() # End of "Build Script Execution: {pkg_name}"
+    return bs_ok
 
 def main():
     log_notice("SCRIPT_START", "Arch Package Update Task started (Python v2).")
@@ -425,10 +515,10 @@ def main():
     log_notice("PATH_ROOT_CONFIG", f"Using --path-root='{path_root_for_cli_actual}' for Updater CLI (derived from PKGBUILD_ROOT: '{PKGBUILD_ROOT_PATH_STR}')")
 
     log_notice("PRE_CLI_DEBUG", f"Debugging PKGBUILD_ROOT ('{path_root_for_cli_actual}') access before Updater CLI.")
-    debug_path_permissions(path_root_for_cli_actual, "runner") 
-    debug_path_permissions(path_root_for_cli_actual, BUILDER_USER, as_user=BUILDER_USER) 
+    debug_path_permissions(path_root_for_cli_actual, "runner")
+    debug_path_permissions(path_root_for_cli_actual, BUILDER_USER, as_user=BUILDER_USER)
 
-    # known_pkg_name_for_debug = "lobe-chat" 
+    # known_pkg_name_for_debug = "lobe-chat"
     # if Path(path_root_for_cli_actual, known_pkg_name_for_debug).exists(): # Only debug if base known_pkg_name_for_debug dir exists
     #     known_pkg_dir_for_debug = Path(path_root_for_cli_actual) / known_pkg_name_for_debug
     #     log_notice("PRE_CLI_DEBUG_SUBDIR", f"Debugging specific subdir: {known_pkg_dir_for_debug}")
@@ -446,7 +536,7 @@ def main():
         log_warning("MAIN_WARN", "create_nvchecker_keyfile had issues. Updater CLI might have limited functionality.")
 
     updater_data = run_aur_updater_cli(path_root_for_cli_actual)
-    if updater_data is None: 
+    if updater_data is None:
         log_error("MAIN_FAIL", "run_aur_updater_cli FAILED to produce data.")
         if GITHUB_STEP_SUMMARY_FILE:
              with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| **SETUP** | N/A | ❌ Failure: AUR Updater CLI | - | - | Check Logs |\n")
@@ -464,7 +554,7 @@ def main():
         if GITHUB_STEP_SUMMARY_FILE:
              with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| **SETUP** | N/A | ❌ Failure: Input for buildscript2.py | - | - | Check Logs |\n")
         sys.exit(1)
-    
+
     start_group("Build Packages Loop")
     overall_build_ok = True
     for pkg_info in pkgs_to_build:

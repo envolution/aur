@@ -460,8 +460,11 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     # --- Populate GitHub Actions Step Summary ---
     # Ensure bs_err is a single line or suitably formatted for the table.
     # The replace methods are crucial for markdown table cell integrity.
+    if bs_err is None:
+        bs_err = ""
+
     summary_err_msg = bs_err.replace('|', '\|').replace('\r', ' ').replace('\n', '<br>')
-    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err else "❌ Failure")
+    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err.strip() else "❌ Failure") # Check bs_err.strip() for truly empty
 
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
     log_link = "N/A (Check main GHA log artifacts for details)" # Updated message
@@ -476,7 +479,6 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     #    log_link = f"See 'build-artifacts-{GITHUB_RUN_ID}' (<tt>{pkg_name}/{buildscript_log_file.name}</tt>)"
     # except Exception as e_log_write:
     #    log_warning("LOG_WRITE_FAIL", f"Could not write {buildscript_log_file}: {e_log_write}")
-
 
     if GITHUB_STEP_SUMMARY_FILE:
         try:

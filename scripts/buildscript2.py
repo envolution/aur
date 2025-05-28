@@ -98,27 +98,26 @@ class BuildConfig:
 @dataclass
 class PackageUpdateInfo:
     pkgbase: str
-    pkgname: str 
-    pkgver: Optional[str] = None 
-    pkgrel: Optional[str] = None 
+    pkgname: str
+    pkgver: Optional[str] = None
+    pkgrel: Optional[str] = None
     aur_pkgver: Optional[str] = None
     aur_pkgrel: Optional[str] = None
-    nvchecker_pkgver: Optional[str] = None 
-    sources: List[str] = field(default_factory=list) 
+    nvchecker_pkgver: Optional[str] = None
+    sources: List[str] = field(default_factory=list)
     depends: List[str] = field(default_factory=list)
     makedepends: List[str] = field(default_factory=list)
     checkdepends: List[str] = field(default_factory=list)
     is_update: bool = False
     is_update_candidate: bool = False
-    update_source: Optional[str] = None 
-    new_version_for_update: Optional[str] = None 
+    update_source: Optional[str] = None
+    new_version_for_update: Optional[str] = None
     local_is_ahead: bool = False
     errors: List[str] = field(default_factory=list)
     pkgfile: Optional[str] = None
-    nvchecker_event: Optional[str] = None # Added
-    nvchecker_raw_log: Optional[Dict[str, Any]] = None # Added
-
-
+    nvchecker_event: Optional[str] = None
+    nvchecker_raw_log: Optional[Dict[str, Any]] = None
+    comparison_details: Optional[Dict[str, str]] = field(default_factory=dict)    
 
 @dataclass
 class BuildResult:

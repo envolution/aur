@@ -180,18 +180,6 @@ class ArchPackageBuilder:
         try:
             data = json.loads(self.config.package_update_info_json)
             
-            # Transform hyphenated keys to underscored keys
-            transformed_data = {}
-            key_map = {
-                "aur-pkgver": "aur_pkgver",
-                "aur-pkgrel": "aur_pkgrel",
-                "nvchecker-pkgver": "nvchecker_pkgver",
-                "nvchecker-event": "nvchecker_event",      # Added mapping
-                "nvchecker-raw-log": "nvchecker_raw_log"  # Added mapping
-            }
-            for key, value in data.items():
-                transformed_data[key_map.get(key, key)] = value # Use original key if not in map
-
             # Ensure pkgbase is set if missing, using config.package_name as a fallback.
             if 'pkgbase' not in transformed_data or not transformed_data['pkgbase']:
                 transformed_data['pkgbase'] = self.config.package_name

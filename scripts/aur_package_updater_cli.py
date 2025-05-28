@@ -91,7 +91,7 @@ def fetch_aur_data(maintainer):
             base_v, rel_v = parts[0], (parts[1] if len(parts) > 1 and parts[1].isdigit() else "0")
             if base_name not in aur_data_by_pkgbase:
                 count += 1
-                aur_data_by_pkgbase[base_name] = {"aur_actual_pkgname": name, "aur_pkgbase_reported": base_name, "aur-pkgver": base_v, "aur-pkgrel": rel_v}
+                aur_data_by_pkgbase[base_name] = {"aur_actual_pkgname": name, "aur_pkgbase_reported": base_name, "aur_pkgver": base_v, "aur_pkgrel": rel_v}
                 aur_logger.debug(f"  Stored AUR for PkgBase='{base_name}' (from PkgName='{name}'): Base='{base_v}', Rel='{rel_v}'")
         aur_logger.info(f"Fetched info for {count} unique PkgBase(s) from AUR for '{maintainer}'.")
     except subprocess.TimeoutExpired: aur_logger.error(f"AUR query timed out for '{maintainer}'.")
@@ -229,8 +229,8 @@ def run_nvchecker(path_root, oldver_data_for_nvchecker, key_toml_path_arg):
                 if entry.get("logger_name") != "nvchecker.core": nv_logger.debug(f"Skipping NVCR log: {line[:100]}..."); continue
                 name = entry.get("name") # This is the pkgbase
                 if not name: nv_logger.warning(f"NVCR JSON line missing 'name': {line}"); continue
-                results_by_pkgbase[name] = {"nvchecker_name_reported": name, "nvchecker-pkgver": entry.get("version"), 
-                                              "nvchecker-event": entry.get("event"), "nvchecker-raw-log": entry}
+                results_by_pkgbase[name] = {"nvchecker_name_reported": name, "nvchecker_pkgver": entry.get("version"), 
+                                              "nvchecker_event": entry.get("event"), "nvchecker_raw_log": entry}
                 ev, v, ov, lvl, msg = entry.get("event"), entry.get('version','N/A'), entry.get('old_version','N/A'), entry.get('level'), entry.get('msg','')
                 if ev == "updated": nv_logger.info(f"NVCR: {name} UPDATED {ov} -> {v}")
                 elif ev == "up-to-date": nv_logger.info(f"NVCR: {name} UP-TO-DATE at {v}")
@@ -255,11 +255,11 @@ def process_and_compare_data(all_data_by_pkgbase):
         pkg_entry = {
             "pkgbase": pkgbase_key, "pkgname": display_name,
             "pkgver": data.get("pkgver"), "pkgrel": data.get("pkgrel"),
-            "aur-pkgver": data.get("aur-pkgver"), "aur-pkgrel": data.get("aur-pkgrel"),
-            "nvchecker-pkgver": data.get("nvchecker-pkgver"),
+            "aur_pkgver": data.get("aur_pkgver"), "aur_pkgrel": data.get("aur_pkgrel"),
+            "nvchecker_pkgver": data.get("nvchecker_pkgver"),
             "depends": data.get("depends", []), "makedepends": data.get("makedepends", []),
             "checkdepends": data.get("checkdepends", []), "pkgfile": data.get("pkgfile"),
-            "nvchecker-event": data.get("nvchecker-event"), "nvchecker-raw-log": data.get("nvchecker-raw-log"),
+            "nvchecker_event": data.get("nvchecker_event"), "nvchecker_raw_log": data.get("nvchecker_raw_log"),
             "errors": [], "local_is_ahead": False,
             "is_update_candidate": True, "is_update": False,
             "update_source": None, "new_version_for_update": None, 
@@ -267,7 +267,7 @@ def process_and_compare_data(all_data_by_pkgbase):
         }
 
         nv_base, aur_base, aur_r, local_base, local_r = (pkg_entry.get(k) for k in 
-            ['nvchecker-pkgver', 'aur-pkgver', 'aur-pkgrel', 'pkgver', 'pkgrel'])
+            ['nvchecker_pkgver', 'aur_pkgver', 'aur_pkgrel', 'pkgver', 'pkgrel'])
 
         # Error conditions
         if aur_base and nv_base:
@@ -337,7 +337,7 @@ def generate_summary(processed_output_list, stream=sys.stderr):
 
             if 'nvchecker' in src:
                 old_local_full = _get_full_version_string(pkg_data.get('pkgver'), pkg_data.get('pkgrel'))
-                old_aur_full = _get_full_version_string(pkg_data.get('aur-pkgver'), pkg_data.get('aur-pkgrel'))
+                old_aur_full = _get_full_version_string(pkg_data.get('aur_pkgver'), pkg_data.get('aur_pkgrel'))
                 if old_local_full : old_ver_display = old_local_full
                 elif old_aur_full: old_ver_display = old_aur_full
             elif 'aur' in src:
@@ -357,7 +357,7 @@ def generate_summary(processed_output_list, stream=sys.stderr):
             errors_list.extend([f"{id_name}{display_name_info}: {err}" for err in pkg_data['errors']])
         
         if not pkg_data['is_update'] and not pkg_data['errors'] and not pkg_data.get('local_is_ahead'):
-            nv_raw_log = pkg_data.get('nvchecker-raw-log')
+            nv_raw_log = pkg_data.get('nvchecker_raw_log')
             if nv_raw_log:
                 nv_event, nv_level = nv_raw_log.get('event'), nv_raw_log.get('level')
                 if nv_event == 'no-result' or nv_level == 'error' or nv_raw_log.get('exc_info'):
@@ -405,7 +405,7 @@ class AurPackageUpdater:
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
         
         nvchecker_oldver_input = {
-            pb: {'version': d['aur-pkgver']} for pb, d in self.all_package_data_by_pkgbase.items() if d.get('aur-pkgver')
+            pb: {'version': d['aur_pkgver']} for pb, d in self.all_package_data_by_pkgbase.items() if d.get('aur_pkgver')
         }
         nvchecker_data = run_nvchecker(self.args.path_root, nvchecker_oldver_input, self.args.key_toml)
         for pkgbase, data in nvchecker_data.items():

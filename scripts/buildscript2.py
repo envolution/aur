@@ -114,6 +114,9 @@ class PackageUpdateInfo:
     local_is_ahead: bool = False
     errors: List[str] = field(default_factory=list)
     pkgfile: Optional[str] = None
+    nvchecker_event: Optional[str] = None # Added
+    nvchecker_raw_log: Optional[Dict[str, Any]] = None # Added
+
 
 
 @dataclass
@@ -182,8 +185,9 @@ class ArchPackageBuilder:
             key_map = {
                 "aur-pkgver": "aur_pkgver",
                 "aur-pkgrel": "aur_pkgrel",
-                "nvchecker-pkgver": "nvchecker_pkgver"
-                # Add other mappings here if more hyphenated keys exist
+                "nvchecker-pkgver": "nvchecker_pkgver",
+                "nvchecker-event": "nvchecker_event",      # Added mapping
+                "nvchecker-raw-log": "nvchecker_raw_log"  # Added mapping
             }
             for key, value in data.items():
                 transformed_data[key_map.get(key, key)] = value # Use original key if not in map

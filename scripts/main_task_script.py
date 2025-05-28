@@ -21,7 +21,6 @@ GITHUB_WORKSPACE = Path(os.getenv("GITHUB_WORKSPACE", "/github/workspace"))
 ARTIFACTS_DIR = Path(os.getenv("ARTIFACTS_DIR", str(GITHUB_WORKSPACE / "artifacts")))
 
 UPDATER_CLI_OUTPUT_JSON_PATH = NVCHECKER_RUN_DIR / "updater_cli_output.json"
-PACKAGE_DETAILS_JSON_PATH = NVCHECKER_RUN_DIR / "package_details.json"
 KEYFILE_PATH = NVCHECKER_RUN_DIR / "keyfile.toml"
 
 GIT_COMMIT_USER_NAME = os.getenv("GIT_USER_NAME", "GitHub Actions CI")
@@ -207,7 +206,7 @@ def create_nvchecker_keyfile() -> bool:
         end_group(); return False
     end_group(); return True
 
-def run_aur_updater_cli(path_root_for_cli: str) -> Optional[List[Dict[str, Any]]]:
+def run_aur_updater_cli(path_root_for_cli: str, pkgbuild_script_path_for_cli: Path) -> Optional[List[Dict[str, Any]]]:
     start_group("Run AUR Package Updater CLI")
     script_path = NVCHECKER_RUN_DIR / "aur_package_updater_cli.py"
     if not AUR_MAINTAINER_NAME:
@@ -219,6 +218,7 @@ def run_aur_updater_cli(path_root_for_cli: str) -> Optional[List[Dict[str, Any]]
         "--maintainer", AUR_MAINTAINER_NAME,
         "--path-root", path_root_for_cli,
         "--output-file", str(UPDATER_CLI_OUTPUT_JSON_PATH),
++       "--pkgbuild-script", str(pkgbuild_script_path_for_cli), # Pass the correct script path
     ]
     if KEYFILE_PATH.exists(): cmd.extend(["--key-toml", str(KEYFILE_PATH)])
     if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true": cmd.append("--debug")
@@ -267,57 +267,29 @@ def run_aur_updater_cli(path_root_for_cli: str) -> Optional[List[Dict[str, Any]]
     except Exception as e:
         log_error("AUR_UPDATER_UNEXPECTED_ERROR", f"Unexpected error in CLI processing: {type(e).__name__} - {e}"); end_group(); return None
 
-def get_packages_to_update(update_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    start_group("Identify Packages for Update")
-    pkgs_needing_update = []
+def get_packages_to_process(update_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    start_group("Identify Packages for Processing")
+    pkgs_to_process = []
     for pkg_info in update_data:
         pkgbase = pkg_info.get("pkgbase")
         if not pkgbase or not pkg_info.get("pkgfile"):
             log_warning("PKG_SKIP_INVALID", f"Skipping entry, missing pkgbase/pkgfile: {str(pkg_info)[:100]}"); continue
         if pkg_info.get("errors"):
             log_warning("PKG_HAS_ERRORS", f"Pkg {pkgbase} has updater errors: {pkg_info['errors']}. Not for auto-update."); continue
-        if pkg_info.get("is_update"):
+
+        process_this_pkg = False
+        if pkg_info.get("is_update"): # Update from AUR or NVChecker
             log_notice("UPDATE_CANDIDATE", f"Pkg {pkgbase} needs update. New ver: {pkg_info.get('new_version_for_update')} from {pkg_info.get('update_source')}")
-            pkgs_needing_update.append(pkg_info)
-        else: log_debug(f"Pkg {pkgbase} no update by 'is_update' flag.")
-    if not pkgs_needing_update: log_notice("NO_UPDATES", "No packages require updates.")
-    else: log_notice("UPDATES_FOUND", f"Found {len(pkgs_needing_update)} package(s) for update.")
-    end_group(); return pkgs_needing_update
+            process_this_pkg = True
+        elif pkg_info.get("local_is_ahead"): # Local changes need to be pushed
+            log_notice("LOCAL_AHEAD_CANDIDATE", f"Pkg {pkgbase} local version is ahead. Will process for potential AUR push.")
+            process_this_pkg = True
 
-def generate_package_details_for_buildscript(pkgs_info: List[Dict[str, Any]]) -> bool:
-    start_group("Generate package_details.json for Build Script")
-    all_details: Dict[str, Dict[str, List[str]]] = {}
-    if not pkgs_info:
-        log_notice("JSON_GEN_SKIP", "No packages for buildscript's JSON input.")
-        try: # Write empty JSON if no packages
-            # Create as runner, then mv as builder to chown
-            temp_empty_json = NVCHECKER_RUN_DIR / "temp_empty.json"
-            with open(temp_empty_json, "w") as f: json.dump({}, f)
-            run_command(["sudo", "-u", BUILDER_USER, "mv", str(temp_empty_json), str(PACKAGE_DETAILS_JSON_PATH)])
-        except Exception as e: log_error("JSON_GEN_EMPTY_FAIL", f"Failed to write empty {PACKAGE_DETAILS_JSON_PATH}: {e}"); end_group(); return False
-        end_group(); return True
-
-    for pkg_entry in pkgs_info:
-        pkgbase = pkg_entry["pkgbase"]
-        all_details[pkgbase] = {
-            "depends": pkg_entry.get("depends", []),
-            "makedepends": pkg_entry.get("makedepends", []),
-            "checkdepends": pkg_entry.get("checkdepends", []),
-            "sources": pkg_entry.get("sources", []),
-        }
-        log_debug(f"Details for {pkgbase} for buildscript: deps={len(all_details[pkgbase]['depends'])}, makedeps={len(all_details[pkgbase]['makedepends'])}, checkdeps={len(all_details[pkgbase]['checkdepends'])}, sources={len(all_details[pkgbase]['sources'])}")
-
-    temp_json_path = NVCHECKER_RUN_DIR / "temp_pkg_details_for_bs.json"
-    try:
-        with open(temp_json_path, "w") as f: json.dump(all_details, f, indent=2)
-        run_command(["sudo", "-u", BUILDER_USER, "mv", str(temp_json_path), str(PACKAGE_DETAILS_JSON_PATH)])
-        log_notice("JSON_GEN_OK", f"{PACKAGE_DETAILS_JSON_PATH} created, owned by {BUILDER_USER}.")
-        log_debug(f"Full content of {PACKAGE_DETAILS_JSON_PATH}:\n{json.dumps(all_details, indent=2)}")
-    except Exception as e:
-        log_error("JSON_GEN_WRITE_FAIL", f"Failed to write/move {PACKAGE_DETAILS_JSON_PATH}: {e}")
-        if temp_json_path.exists(): temp_json_path.unlink(missing_ok=True)
-        end_group(); return False
-    end_group(); return True
+        if process_this_pkg: pkgs_to_process.append(pkg_info)
+        else: log_debug(f"Pkg {pkgbase} no direct action needed based on 'is_update' or 'local_is_ahead' flags.")
+    if not pkgs_to_process: log_notice("NO_PKGS_TO_PROCESS", "No packages require processing.")
+    else: log_notice("PKGS_TO_PROCESS_FOUND", f"Found {len(pkgs_to_process)} package(s) for processing.")
+    end_group(); return pkgs_to_process
 
 def determine_build_mode(pkgbuild_dir_rel: Path) -> str:
     parent_name = pkgbuild_dir_rel.parent.name
@@ -327,7 +299,7 @@ def determine_build_mode(pkgbuild_dir_rel: Path) -> str:
 
 # In main_task_script.py
 
-def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_str: str) -> bool:
+def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_str: str, package_update_info_json_str: str) -> bool:
     start_group(f"Build Script Execution: {pkg_name}")
     pkg_artifact_dir = ARTIFACTS_DIR / pkg_name
     try:
@@ -355,8 +327,9 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     bs_cmd = [
         "sudo", "-E", "-u", BUILDER_USER, f"HOME={BUILDER_HOME}", "python3", str(bs_exe),
         "--github-repo", GITHUB_REPOSITORY, "--github-token", GH_TOKEN,
-        "--github-workspace", str(GITHUB_WORKSPACE), "--package-name", pkg_name,
-        "--depends-json", str(PACKAGE_DETAILS_JSON_PATH), "--pkgbuild-path", pkgbuild_path_rel_str,
+        "--github-workspace", str(GITHUB_WORKSPACE), "--package-name", pkg_name, # pkg_name is pkgbase here
+        "--package-update-info-json", package_update_info_json_str, # New argument
+        "--pkgbuild-path", pkgbuild_path_rel_str,
         "--commit-message", f"CI: Auto update {pkg_name}", "--build-mode", build_type,
         "--artifacts-dir", str(pkg_artifact_dir), "--base-build-dir", str(PACKAGE_BUILD_BASE_DIR),
     ]
@@ -533,29 +506,24 @@ def main():
     if not create_nvchecker_keyfile():
         log_warning("MAIN_WARN", "create_nvchecker_keyfile had issues. Updater CLI might have limited functionality.")
 
-    updater_data = run_aur_updater_cli(path_root_for_cli_actual)
+    pkgbuild_script_for_cli = NVCHECKER_RUN_DIR / "pkgbuild_to_json.py" # Define the path for the CLI
+    updater_data = run_aur_updater_cli(path_root_for_cli_actual, pkgbuild_script_for_cli)       
     if updater_data is None:
         log_error("MAIN_FAIL", "run_aur_updater_cli FAILED to produce data.")
         if GITHUB_STEP_SUMMARY_FILE:
              with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| **SETUP** | N/A | ❌ Failure: AUR Updater CLI | - | - | Check Logs |\n")
         sys.exit(1)
 
-    pkgs_to_build = get_packages_to_update(updater_data)
-    if not pkgs_to_build:
-        log_notice("MAIN_NO_UPDATES", "No packages to update. Exiting successfully.")
+    pkgs_to_process_list = get_packages_to_process(updater_data)
+    if not pkgs_to_process_list:
+        log_notice("MAIN_NO_PROCESSING_NEEDED", "No packages to process. Exiting successfully.")
         if GITHUB_STEP_SUMMARY_FILE:
             with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| *No updates found* | - | - | - | - | - |\n")
         sys.exit(0)
 
-    if not generate_package_details_for_buildscript(pkgs_to_build):
-        log_error("MAIN_FAIL", "generate_package_details_for_buildscript FAILED.")
-        if GITHUB_STEP_SUMMARY_FILE:
-             with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| **SETUP** | N/A | ❌ Failure: Input for buildscript2.py | - | - | Check Logs |\n")
-        sys.exit(1)
-
     start_group("Build Packages Loop")
     overall_build_ok = True
-    for pkg_info in pkgs_to_build:
+    for pkg_info in pkgs_to_process_list:
         pkgbase = pkg_info["pkgbase"]
         pkgbuild_file_abs_str = pkg_info["pkgfile"]
         pkgbuild_dir_abs = Path(pkgbuild_file_abs_str).parent
@@ -567,7 +535,9 @@ def main():
                  with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write(f"| **{pkgbase}** | N/A | ❌ Error: Invalid PKGBUILD path | - | - | N/A |\n")
             overall_build_ok = False; continue
         build_mode = determine_build_mode(pkgbuild_dir_rel)
-        if not execute_build_script_py(pkgbase, build_mode, str(pkgbuild_dir_rel)):
+
+        package_update_info_json_str_for_bs = json.dumps(pkg_info) # Serialize the pkg_info for this package
+        if not execute_build_script_py(pkgbase, build_mode, str(pkgbuild_dir_rel), package_update_info_json_str_for_bs):
             log_error("BUILD_LOOP_PKG_FAIL", f"Build script FAILED for {pkgbase}.")
             overall_build_ok = False
     end_group()

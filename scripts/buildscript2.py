@@ -86,14 +86,35 @@ class BuildConfig:
     github_repo: str
     github_token: str
     github_workspace: str
-    package_name: str
-    depends_json: str
+    package_name: str # This is pkgbase
+    # depends_json: str # Replaced by package_update_info_json
+    package_update_info_json: str # JSON string of PackageUpdateInfo
     pkgbuild_path: str
     commit_message: str
     base_build_dir: Path # New: Base directory for creating package-specific build dirs
     build_mode: str = "nobuild" 
     artifacts_dir: Optional[str] = None
     debug: bool = False
+
+@dataclass
+class PackageUpdateInfo:
+    pkgbase: str
+    pkgname: str # Actual pkgname, might differ from pkgbase for split packages
+    pkgver: Optional[str] = None # Local version from source repo, as seen by aur_updater_cli
+    pkgrel: Optional[str] = None # Local rel from source repo
+    aur_pkgver: Optional[str] = None
+    aur_pkgrel: Optional[str] = None
+    nvchecker_pkgver: Optional[str] = None # This is just the base version from nvchecker
+    sources: List[str] = field(default_factory=list) # From PKGBUILD source array
+    depends: List[str] = field(default_factory=list)
+    makedepends: List[str] = field(default_factory=list)
+    checkdepends: List[str] = field(default_factory=list)
+    is_update: bool = False
+    update_source: Optional[str] = None # e.g., 'nvchecker', 'aur', 'aur (new pkg)'
+    new_version_for_update: Optional[str] = None # Full new version string if from AUR, base if from nvchecker
+    local_is_ahead: bool = False
+    errors: List[str] = field(default_factory=list)
+    pkgfile: Optional[str] = None # Absolute path to PKGBUILD in source repo
 
 
 @dataclass

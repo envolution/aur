@@ -157,8 +157,9 @@ def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path):
             local_data_by_pkgbase[key_pkgbase] = {
                 "local_actual_pkgname": actual_name, "local_pkgbase_derived": key_pkgbase,
                 "pkgver": item.get("pkgver"), "pkgrel": item.get("pkgrel"),
-                "depends": item.get("depends",[]), "makedepends": item.get("makedepends",[]),
-                "checkdepends": item.get("checkdepends",[]), "pkgfile": pkgfile}
+                "depends": item.get("depends", []), "makedepends": item.get("makedepends", []),
+                "checkdepends": item.get("checkdepends", []), "sources": item.get("sources", []), # Added
+                "pkgfile": pkgfile}
             count += 1
             local_logger.debug(f"  Parsed Local PkgBase='{key_pkgbase}' (Name='{actual_name}'): Base='{item.get('pkgver')}', Rel='{item.get('pkgrel')}'")
         local_logger.info(f"Parsed local data for {count} unique PkgBase entries.")

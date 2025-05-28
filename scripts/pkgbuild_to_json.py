@@ -18,6 +18,7 @@ def parse_pkgbuild_output(output_str: str) -> dict:
         "DEPENDS": "depends",
         "MAKEDEPENDS": "makedepends",
         "CHECKDEPENDS": "checkdepends",
+        "SOURCE": "sources", # Added
     }
 
     active_key_internal = None
@@ -42,7 +43,7 @@ def parse_pkgbuild_output(output_str: str) -> dict:
                 is_marker = True
                 break
             elif line == f"{internal_marker}_END":
-                if active_key_internal == internal_marker:
+                if active_key_internal == internal_marker: # Correctly check against the active marker
                     if active_key_json in ["pkgname", "pkgbase", "pkgver", "pkgrel"]:
                         data[active_key_json] = current_values[0] if current_values else ""
                     else:
@@ -52,7 +53,8 @@ def parse_pkgbuild_output(output_str: str) -> dict:
                     current_values = []
                     is_marker = True
                     break
-                else:
+                # If not the active marker, it might be a nested or badly ordered marker.
+                elif active_key_internal is not None : # only warn if an active key was expecting its own end
                     print(f"Warning: Mismatched END marker. Expected '{active_key_internal}_END', got '{line}'.", file=sys.stderr)
 
         if not is_marker and active_key_internal:
@@ -104,6 +106,10 @@ def process_single_pkgbuild(pkgbuild_filepath: Path) -> dict:
     echo "CHECKDEPENDS_START"
     if [ "${{#checkdepends[@]}}" -gt 0 ]; then printf '%s\\n' "${{checkdepends[@]}}"; fi
     echo "CHECKDEPENDS_END"
+
+    echo "SOURCE_START"
+    if [ "${{#source[@]}}" -gt 0 ]; then printf '%s\\n' "${{source[@]}}"; fi
+    echo "SOURCE_END"
     """
 
     try:

@@ -362,6 +362,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     ]
     if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true":
         bs_cmd.append("--debug")
+    log_debug(f"Command to run buildscript2.py: {shlex.join(bs_cmd)}") # Add this line
 
     bs_json_str, bs_ok, bs_ver, bs_chg_str, bs_err = "", False, "N/A", "➖ No", ""
     captured_stderr_from_buildscript = "" # To store the full stderr output
@@ -374,16 +375,9 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
 
         # --- Log the captured stderr from buildscript2.py ---
         if captured_stderr_from_buildscript:
-            start_group(f"Logs from buildscript2.py for {pkg_name}")
-            for line in captured_stderr_from_buildscript.splitlines():
-                # Use log_debug for detailed operational logs.
-                # If some lines from buildscript2.py are critical errors,
-                # buildscript2.py itself should ideally use GHA error commands,
-                # or main_task_script.py could try to parse them.
-                # For now, just pass them through as debug messages.
-                log_debug(f"[{pkg_name}|bs2] {line}") # Prefix to identify source
-            end_group()
-        # --- End logging captured stderr ---
+            print(f"::group::Raw Stderr from buildscript2.py for {pkg_name}", file=sys.stderr)
+            print(captured_stderr_from_buildscript, file=sys.stderr)
+            print("::endgroup::", file=sys.stderr)
 
         if not bs_json_str:
             if bs_proc_res.returncode == 0:
@@ -465,6 +459,8 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
 
     summary_err_msg = bs_err.replace('|', '\|').replace('\r', ' ').replace('\n', '<br>')
     status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err.strip() else "❌ Failure") # Check bs_err.strip() for truly empty
+    summary_err_msg = bs_err.replace('|', '\\|').replace('\r', ' ').replace('\n', '<br>')
+    status_md = "✅ Success" if bs_ok else (f"❌ Failure: <small>{summary_err_msg}</small>" if bs_err.strip() else "❌ Failure")
 
     aur_link = f"[AUR](https://aur.archlinux.org/packages/{pkg_name})"
     log_link = "N/A (Check main GHA log artifacts for details)" # Updated message

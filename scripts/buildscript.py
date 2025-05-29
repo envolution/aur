@@ -381,6 +381,7 @@ class ArchPackageBuilder:
         os.chdir(original_cwd_for_artifact_collection)
         self.logger.debug(f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection.")
 
+
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
             self.logger.info(f"Build mode is '{self.config.build_mode}', skipping actual package build steps (makepkg, release).")
@@ -517,6 +518,7 @@ class ArchPackageBuilder:
             # This handles the format: "    python-aifc (wanted by: ...)"
             in_error_section = False
             for line in log_content.split('\n'):
+                original_line = line
                 line = line.strip()
                 
                 if "error: could not find all required packages:" in line:
@@ -524,30 +526,25 @@ class ArchPackageBuilder:
                     continue
                 
                 if in_error_section:
-                    # Look for lines that start with package names (indented lines after the error)
+                    # Look for indented lines with package names followed by "(wanted by:"
                     # Match pattern like "    python-aifc (wanted by: ...)"
-                    match = re.match(r'\s+([a-zA-Z0-9._+-]+)\s+\(wanted by:', line)
-                    if match:
-                        package_name = match.group(1)
-                        missing_packages.append(package_name)
-                    elif line == '' or not line.startswith(' '):
+                    if original_line.startswith('    ') and '(wanted by:' in line:
+                        # Extract package name before "(wanted by:"
+                        match = re.match(r'\s*([a-zA-Z0-9._+-]+)\s+\(wanted by:', line)
+                        if match:
+                            package_name = match.group(1)
+                            missing_packages.append(package_name)
+                            self.logger.debug(f"Found missing package: {package_name}")
+                    elif line == '' or (not original_line.startswith(' ') and line != ''):
                         # Empty line or non-indented line indicates end of error section
                         in_error_section = False
             
-            # Alternative pattern for other error formats
-            if not missing_packages:
-                # Look for other common error patterns
-                error_patterns = [
-                    r'error:.*?package.*?([a-zA-Z0-9._+-]+).*?not found',
-                    r'could not find.*?([a-zA-Z0-9._+-]+)',
-                ]
-                
-                for pattern in error_patterns:
-                    matches = re.findall(pattern, log_content, re.IGNORECASE)
-                    missing_packages.extend(matches)
-            
             # Remove duplicates while preserving order
             missing_packages = list(dict.fromkeys(missing_packages))
+            
+            if not missing_packages:
+                self.logger.warning("No missing packages found in paru.log despite build failure")
+                self.logger.debug(f"Log content:\n{log_content}")
             
         except Exception as e:
             self.logger.error(f"Error parsing paru.log: {e}")
@@ -578,7 +575,6 @@ class ArchPackageBuilder:
         except Exception as e:
             self.logger.error(f"Exception while installing missing packages: {e}")
             return False
-
 
     def _create_release(self, package_files: List[Path]):
         if not self.result.version: 

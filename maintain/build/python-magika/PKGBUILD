@@ -35,7 +35,7 @@ check() {
   git checkout "python-v$pkgver"
 
   cd ${srcdir}/${_name}-${pkgver}
-  ln -sf ../magika-tests/tests_data tests_data
+  ln -sf "$srcdir/magika-tests/tests_data" tests_data
   PYTHONPATH="$PWD/src" python -m pytest
 }
 

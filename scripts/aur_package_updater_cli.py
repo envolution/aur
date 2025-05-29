@@ -23,16 +23,11 @@ def compare_package_versions(base_ver1_str: str, rel1_str: str,
     if base_ver1_str is None: return "upgrade"
     if base_ver2_str is None: return "downgrade"
 
-    if base_ver1_str != norm_base1_str:
-        comp_logger.debug(f"Normalized base_ver1 '{base_ver1_str}' to '{norm_base1_str}'")
-    if base_ver2_str != norm_base2_str:
-        comp_logger.debug(f"Normalized base_ver2 '{base_ver2_str}' to '{norm_base2_str}'")
-
     try:
-        lv1 = AwesomeVersion(norm_base1_str)
-        lv2 = AwesomeVersion(norm_base2_str)
+        lv1 = AwesomeVersion(base_ver1_str)
+        lv2 = AwesomeVersion(base_ver2_str)
     except Exception as e: # Catch any unexpected error during AwesomeVersion assignment
-        comp_logger.error(f"Error instantiating AwesomeVersion for '{norm_base1_str}' or '{norm_base2_str}': {e}")
+        comp_logger.error(f"Error instantiating AwesomeVersion for '{base_ver1_str}' or '{base_ver2_str}': {e}")
         return "unknown"
 
     # Compare AwesomeVersion objects

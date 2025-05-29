@@ -12,7 +12,7 @@ url="https://github.com/google/magika"
 license=('Apache-2.0')
 depends=('python' 'python-click' 'python-onnxruntime' 'python-numpy' 'python-dotenv')
 makedepends=('python-build' 'python-installer' 'python-hatchling' 'python-wheel' 'python-poetry')
-checkdepends=('python-dacite' 'python-pytest' 'python-tqdm')
+checkdepends=('git' 'python-dacite' 'python-pytest' 'python-tqdm')
 source=("$pkgname-$pkgver.tar.gz::https://files.pythonhosted.org/packages/source/${_name::1}/${_name}/${_name}-${pkgver}.tar.gz")
 sha256sums=('37eb6ae8020f6e68f231bc06052c0a0cbe8e6fa27492db345e8dc867dbceb067')
 

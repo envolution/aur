@@ -1,6 +1,4 @@
 [python-cx-freeze]
-#source="pypi"
-#pypi="cx-freeze"
-#use_max_tag=true
-source='cmd'
-cmd='echo 7.3.0.pre'
+source="pypi"
+pypi="cx-freeze"
+use_max_tag=true

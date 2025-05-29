@@ -26,7 +26,7 @@ check() {
 
   #pypi's tarball doesn't include some of the test data required to run the full test suite
   #clone it only if the user requests the check process
-  rm -rf $srcdir/magika-tests
+  rm -rf $srcdir/magika-tests ${srcdir}/${_name}-${pkgver}/tests_data
   git clone --filter=blob:none --no-checkout https://github.com/google/magika.git $srcdir/magika-tests
 
   cd $srcdir/magika-tests
@@ -35,7 +35,9 @@ check() {
   git checkout "python-v$pkgver"
 
   cd ${srcdir}/${_name}-${pkgver}
-  ln -sf "$srcdir/magika-tests/tests_data" tests_data
+  #symlinks don't work due to assertion tests on the directory
+  #ln -sf "$srcdir/magika-tests/tests_data" tests_data
+  cp -rf "$srcdir/magika-tests/tests_data" tests_data
   PYTHONPATH="$PWD/src" python -m pytest
 }
 

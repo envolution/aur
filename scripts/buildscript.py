@@ -406,7 +406,8 @@ class ArchPackageBuilder:
             self.result.changes_detected = True
 
             self.logger.info(f"Starting package build (paru -Ui --noconfirm --mflags) in {self.build_dir}...")
-            build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" > >(tee "paru.log" >&2)'
+            build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" 2>&1 | tee "paru.log"'
+
             self.subprocess_runner.run_command([build_cmd], shell=True)
 
             built_package_files = sorted(self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")) 

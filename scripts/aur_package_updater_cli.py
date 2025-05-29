@@ -8,14 +8,13 @@ import sys
 import tempfile
 import glob
 import logging
-# from packaging import version as packaging_version # No longer primary
-from looseversion import LooseVersion # Import LooseVersion
+from awesomeversion import AwesomeVersion
 
 # --- Logging Setup ---
 logging.basicConfig(format='%(levelname)s: %(name)s: %(message)s', level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("aur_updater_cli")
 
-# --- Version Comparison Function (Using LooseVersion) ---
+# --- Version Comparison Function (Using AwesomeVersion) ---
 def compare_package_versions(base_ver1_str: str, rel1_str: str,
                              base_ver2_str: str, rel2_str: str) -> str:
     comp_logger = logging.getLogger("aur_updater_cli.compare")
@@ -24,30 +23,23 @@ def compare_package_versions(base_ver1_str: str, rel1_str: str,
     if base_ver1_str is None: return "upgrade"
     if base_ver2_str is None: return "downgrade"
 
-    # Normalize common non-standard characters before LooseVersion, e.g., '_' to '.'
-    # LooseVersion might handle some of this, but explicit normalization can help.
-    norm_base1_str = base_ver1_str.replace('_', '.')
-    norm_base2_str = base_ver2_str.replace('_', '.')
-    
     if base_ver1_str != norm_base1_str:
         comp_logger.debug(f"Normalized base_ver1 '{base_ver1_str}' to '{norm_base1_str}'")
     if base_ver2_str != norm_base2_str:
         comp_logger.debug(f"Normalized base_ver2 '{base_ver2_str}' to '{norm_base2_str}'")
 
     try:
-        # LooseVersion is generally very tolerant and doesn't raise InvalidVersion like packaging.version
-        # It attempts to make sense of almost any string.
-        lv1 = LooseVersion(norm_base1_str)
-        lv2 = LooseVersion(norm_base2_str)
-    except Exception as e: # Catch any unexpected error during LooseVersion instantiation
-        comp_logger.error(f"Error instantiating LooseVersion for '{norm_base1_str}' or '{norm_base2_str}': {e}")
+        lv1 = AwesomeVersion(norm_base1_str)
+        lv2 = AwesomeVersion(norm_base2_str)
+    except Exception as e: # Catch any unexpected error during AwesomeVersion assignment
+        comp_logger.error(f"Error instantiating AwesomeVersion for '{norm_base1_str}' or '{norm_base2_str}': {e}")
         return "unknown"
 
-    # Compare LooseVersion objects
+    # Compare AwesomeVersion objects
     if lv1 < lv2: return "upgrade"
     if lv1 > lv2: return "downgrade"
 
-    # Base versions are equivalent according to LooseVersion, compare release numbers
+    # Base versions are equivalent according to AwesomeVersion, compare release numbers
     try:
         num_rel1 = int(rel1_str) if rel1_str and rel1_str.strip() and rel1_str.isdigit() else 0
         num_rel2 = int(rel2_str) if rel2_str and rel2_str.strip() and rel2_str.isdigit() else 0

@@ -381,7 +381,6 @@ class ArchPackageBuilder:
         os.chdir(original_cwd_for_artifact_collection)
         self.logger.debug(f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection.")
 
-
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
             self.logger.info(f"Build mode is '{self.config.build_mode}', skipping actual package build steps (makepkg, release).")
@@ -554,27 +553,87 @@ class ArchPackageBuilder:
 
 
     def _install_missing_packages(self, packages: list) -> bool:
-        """Install missing packages using paru."""
+        """Install missing packages using paru, finding provider packages if needed."""
         if not packages:
             return True
         
-        try:
-            for package in packages:
-                self.logger.info(f"Installing missing package: {package}")
-                install_cmd = ["paru", "-S", "--noconfirm", package]
-                self.subprocess_runner.run_command(install_cmd)
-                self.logger.info(f"Successfully installed: {package}")
-            
+        for package in packages:
+            if not self._install_single_package(package):
+                self.logger.error(f"Failed to install package or any of its providers: {package}")
+                return False
+        
+        return True
+
+
+    def _install_single_package(self, package: str) -> bool:
+        """Install a single package, trying providers if the exact name fails."""
+        # First try installing the package directly
+        self.logger.info(f"Installing missing package: {package}")
+        if self._try_install_package(package):
             return True
-            
+        
+        # If direct install fails, try to find provider packages
+        self.logger.info(f"Direct install of '{package}' failed, searching for provider packages...")
+        providers = self._find_package_providers(package)
+        
+        if not providers:
+            self.logger.warning(f"No provider packages found for: {package}")
+            return False
+        
+        self.logger.info(f"Found provider packages for '{package}': {', '.join(providers)}")
+        
+        # Try each provider in order until one succeeds
+        for provider in providers:
+            self.logger.info(f"Trying to install provider package: {provider}")
+            if self._try_install_package(provider):
+                self.logger.info(f"Successfully installed provider '{provider}' for missing package '{package}'")
+                return True
+            else:
+                self.logger.warning(f"Failed to install provider package: {provider}")
+        
+        self.logger.error(f"All provider packages failed for: {package}")
+        return False
+
+
+    def _try_install_package(self, package: str) -> bool:
+        """Try to install a specific package, returning True on success."""
+        try:
+            install_cmd = ["paru", "-S", "--noconfirm", package]
+            self.subprocess_runner.run_command(install_cmd)
+            self.logger.info(f"Successfully installed: {package}")
+            return True
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to install missing packages: {e}")
-            self.logger.error(f"Command: {shlex.join(e.cmd)}")
-            self.logger.error(f"Stderr: {e.stderr}")
+            self.logger.debug(f"Failed to install '{package}': {e}")
             return False
         except Exception as e:
-            self.logger.error(f"Exception while installing missing packages: {e}")
+            self.logger.debug(f"Exception while installing '{package}': {e}")
             return False
+
+
+    def _find_package_providers(self, package: str) -> list:
+        """Find packages that provide the given package name using AUR API."""
+        try:
+            import requests
+            
+            # Search AUR for packages that provide this package
+            url = f'https://aur.archlinux.org/rpc/v5/search/{package}?by=provides'
+            self.logger.debug(f"Querying AUR API: {url}")
+            
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            package_names = [pkg["Name"] for pkg in data.get("results", [])]
+            
+            self.logger.debug(f"AUR API returned providers for '{package}': {package_names}")
+            return package_names
+            
+        except ImportError:
+            self.logger.warning("requests module not available, cannot query AUR API for providers")
+            return []
+        except Exception as e:
+            self.logger.warning(f"Failed to query AUR API for package providers: {e}")
+            return []        
 
     def _create_release(self, package_files: List[Path]):
         if not self.result.version: 

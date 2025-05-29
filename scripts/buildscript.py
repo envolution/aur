@@ -598,7 +598,7 @@ class ArchPackageBuilder:
     def _try_install_package(self, package: str) -> bool:
         """Try to install a specific package, returning True on success."""
         try:
-            install_cmd = ["paru", "-S", "--noconfirm", package]
+            install_cmd = ["paru", "-S", "--noconfirm", "--nocheck", package]
             self.subprocess_runner.run_command(install_cmd)
             self.logger.info(f"Successfully installed: {package}")
             return True

@@ -437,46 +437,61 @@ class ArchPackageBuilder:
     def _attempt_build_with_retry(self, max_retries: int = 3) -> bool:
         """Attempt to build the package, retrying with missing package installation if needed."""
         for attempt in range(max_retries):
+            build_failed = False
+            
             try:
                 self.logger.info(f"Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --mflags) in {self.build_dir}...")
                 build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" 2>&1 | tee "paru.log"'
                 
-                self.subprocess_runner.run_command([build_cmd], shell=True)
+                result = self.subprocess_runner.run_command([build_cmd], shell=True)
                 
-                # If we get here, the build succeeded
-                built_package_files = self._get_built_package_files()
-                if built_package_files:
-                    self.result.built_packages = [p.name for p in built_package_files]
-                    self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
-                    self.logger.info(f"Package(s) automatically installed by paru: {', '.join(self.result.built_packages)}")
-                    return True
-                else:
-                    self.logger.error("No packages were built (no .pkg.tar.zst files found).")
-                    self.result.error_message = "No .pkg.tar.zst files found after makepkg."
-                    return False
-                    
+                # Check if paru failed even if the shell command succeeded
+                if result.returncode != 0:
+                    build_failed = True
+                    self.logger.warning(f"paru command failed with return code: {result.returncode}")
+                
             except subprocess.CalledProcessError as e:
+                build_failed = True
                 self.logger.warning(f"Build attempt {attempt + 1} failed (Return code: {e.returncode})")
-                
-                # Check if this was the last attempt before giving up
-                if attempt == max_retries - 1:
-                    self.logger.error("All build attempts failed")
-                    raise e
-                
-                # Try to identify and install missing packages
-                missing_packages = self._parse_missing_packages_from_log()
-                if not missing_packages:
-                    self.logger.error("Build failed but no missing packages detected in paru.log")
-                    raise e
-                
-                self.logger.info(f"Detected missing packages: {', '.join(missing_packages)}")
-                
-                # Try to install missing packages
-                if not self._install_missing_packages(missing_packages):
-                    self.logger.error("Failed to install missing packages, aborting retries")
-                    raise e
-                
-                self.logger.info(f"Missing packages installed successfully, retrying build...")
+            
+            # Check for built packages regardless of command success/failure
+            built_package_files = self._get_built_package_files()
+            
+            if built_package_files and not build_failed:
+                # Build succeeded
+                self.result.built_packages = [p.name for p in built_package_files]
+                self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
+                self.logger.info(f"Package(s) automatically installed by paru: {', '.join(self.result.built_packages)}")
+                return True
+            
+            # Build failed or no packages found
+            if not built_package_files:
+                self.logger.warning("No packages were built (no .pkg.tar.zst files found).")
+            
+            # Check if this was the last attempt
+            if attempt == max_retries - 1:
+                self.logger.error("All build attempts failed")
+                self.result.error_message = "No .pkg.tar.zst files found after makepkg."
+                return False
+            
+            # Try to identify and install missing packages for retry
+            missing_packages = self._parse_missing_packages_from_log()
+            if not missing_packages:
+                self.logger.error("Build failed but no missing packages detected in paru.log")
+                self.result.error_message = "Build failed with no identifiable missing packages."
+                return False
+            
+            self.logger.info(f"Detected missing packages: {', '.join(missing_packages)}")
+            
+            # Try to install missing packages
+            if not self._install_missing_packages(missing_packages):
+                self.logger.error("Failed to install missing packages, aborting retries")
+                self.result.error_message = "Failed to install missing dependencies."
+                return False
+            
+            self.logger.info(f"Missing packages installed successfully, retrying build...")
+        
+        return False
 
 
     def _get_built_package_files(self) -> list:
@@ -562,6 +577,8 @@ class ArchPackageBuilder:
             return False
         except Exception as e:
             self.logger.error(f"Exception while installing missing packages: {e}")
+            return False
+
 
     def _create_release(self, package_files: List[Path]):
         if not self.result.version: 

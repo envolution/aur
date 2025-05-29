@@ -405,30 +405,19 @@ class ArchPackageBuilder:
             (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
             self.result.changes_detected = True
 
-            self.logger.info(f"Starting package build (paru -Ui --noconfirm --mflags) in {self.build_dir}...")
-            build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" 2>&1 | tee "paru.log"'
-
-            self.subprocess_runner.run_command([build_cmd], shell=True)
-
-            built_package_files = sorted(self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")) 
-            if not built_package_files: 
-                built_package_files = sorted(self.build_dir.glob("*.pkg.tar.zst"))
-
-            if not built_package_files:
-                self.logger.error("No packages were built (no .pkg.tar.zst files found).")
-                self.result.error_message = "No .pkg.tar.zst files found after makepkg."
-            else:
-                self.result.built_packages = [p.name for p in built_package_files]
-                self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
-                self.logger.info(f"Package(s) automatically installed by paru: {', '.join(self.result.built_packages)}")
-                build_process_successful = True 
+            # Attempt the build with retry logic for missing packages
+            build_process_successful = self._attempt_build_with_retry()
 
             if not build_process_successful: 
                 return False
 
             if self.config.build_mode == "build":
                 if self.result.version:
-                    self._create_release(built_package_files)
+                    built_package_files = self._get_built_package_files()
+                    if built_package_files:
+                        self._create_release(built_package_files)
+                    else:
+                        self.logger.warning("No built packages found for release creation.")
                 else:
                     self.logger.warning("Build mode is 'build' but no version determined. Skipping GitHub Release creation.")
             return True 
@@ -443,6 +432,136 @@ class ArchPackageBuilder:
             self.logger.error(f"Build process failed with Python exception: {e}", exc_info=self.config.debug)
             self.result.error_message = f"Build failed due to Python error: {str(e)}"
             return False
+
+
+    def _attempt_build_with_retry(self, max_retries: int = 3) -> bool:
+        """Attempt to build the package, retrying with missing package installation if needed."""
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(f"Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --mflags) in {self.build_dir}...")
+                build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" 2>&1 | tee "paru.log"'
+                
+                self.subprocess_runner.run_command([build_cmd], shell=True)
+                
+                # If we get here, the build succeeded
+                built_package_files = self._get_built_package_files()
+                if built_package_files:
+                    self.result.built_packages = [p.name for p in built_package_files]
+                    self.logger.info(f"Successfully built: {', '.join(self.result.built_packages)}")
+                    self.logger.info(f"Package(s) automatically installed by paru: {', '.join(self.result.built_packages)}")
+                    return True
+                else:
+                    self.logger.error("No packages were built (no .pkg.tar.zst files found).")
+                    self.result.error_message = "No .pkg.tar.zst files found after makepkg."
+                    return False
+                    
+            except subprocess.CalledProcessError as e:
+                self.logger.warning(f"Build attempt {attempt + 1} failed (Return code: {e.returncode})")
+                
+                # Check if this was the last attempt before giving up
+                if attempt == max_retries - 1:
+                    self.logger.error("All build attempts failed")
+                    raise e
+                
+                # Try to identify and install missing packages
+                missing_packages = self._parse_missing_packages_from_log()
+                if not missing_packages:
+                    self.logger.error("Build failed but no missing packages detected in paru.log")
+                    raise e
+                
+                self.logger.info(f"Detected missing packages: {', '.join(missing_packages)}")
+                
+                # Try to install missing packages
+                if not self._install_missing_packages(missing_packages):
+                    self.logger.error("Failed to install missing packages, aborting retries")
+                    raise e
+                
+                self.logger.info(f"Missing packages installed successfully, retrying build...")
+
+
+    def _get_built_package_files(self) -> list:
+        """Get list of built package files."""
+        built_package_files = sorted(self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")) 
+        if not built_package_files: 
+            built_package_files = sorted(self.build_dir.glob("*.pkg.tar.zst"))
+        return built_package_files
+
+
+    def _parse_missing_packages_from_log(self) -> list:
+        """Parse the paru.log file to extract missing package names."""
+        paru_log_path = self.build_dir / "paru.log"
+        if not paru_log_path.exists():
+            self.logger.warning("paru.log not found, cannot parse missing packages")
+            return []
+        
+        missing_packages = []
+        try:
+            log_content = paru_log_path.read_text()
+            
+            # Pattern to match "error: could not find all required packages:" followed by package names
+            # This handles the format: "    python-aifc (wanted by: ...)"
+            in_error_section = False
+            for line in log_content.split('\n'):
+                line = line.strip()
+                
+                if "error: could not find all required packages:" in line:
+                    in_error_section = True
+                    continue
+                
+                if in_error_section:
+                    # Look for lines that start with package names (indented lines after the error)
+                    # Match pattern like "    python-aifc (wanted by: ...)"
+                    match = re.match(r'\s+([a-zA-Z0-9._+-]+)\s+\(wanted by:', line)
+                    if match:
+                        package_name = match.group(1)
+                        missing_packages.append(package_name)
+                    elif line == '' or not line.startswith(' '):
+                        # Empty line or non-indented line indicates end of error section
+                        in_error_section = False
+            
+            # Alternative pattern for other error formats
+            if not missing_packages:
+                # Look for other common error patterns
+                error_patterns = [
+                    r'error:.*?package.*?([a-zA-Z0-9._+-]+).*?not found',
+                    r'could not find.*?([a-zA-Z0-9._+-]+)',
+                ]
+                
+                for pattern in error_patterns:
+                    matches = re.findall(pattern, log_content, re.IGNORECASE)
+                    missing_packages.extend(matches)
+            
+            # Remove duplicates while preserving order
+            missing_packages = list(dict.fromkeys(missing_packages))
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing paru.log: {e}")
+            return []
+        
+        return missing_packages
+
+
+    def _install_missing_packages(self, packages: list) -> bool:
+        """Install missing packages using paru."""
+        if not packages:
+            return True
+        
+        try:
+            for package in packages:
+                self.logger.info(f"Installing missing package: {package}")
+                install_cmd = ["paru", "-S", "--noconfirm", package]
+                self.subprocess_runner.run_command(install_cmd)
+                self.logger.info(f"Successfully installed: {package}")
+            
+            return True
+            
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to install missing packages: {e}")
+            self.logger.error(f"Command: {shlex.join(e.cmd)}")
+            self.logger.error(f"Stderr: {e.stderr}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Exception while installing missing packages: {e}")
 
     def _create_release(self, package_files: List[Path]):
         if not self.result.version: 

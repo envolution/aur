@@ -133,6 +133,7 @@ jobs:
           echo "Configuring Git for 'builder' user..."
           sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
           sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
+          sudo -u builder git config --global init.defaultBranch 'master'
           echo "Git configuration complete."
           echo "::endgroup::"
 

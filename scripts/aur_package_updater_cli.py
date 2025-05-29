@@ -274,13 +274,13 @@ def process_and_compare_data(all_data_by_pkgbase):
             comp = compare_package_versions(aur_base, None, nv_base, None)
             pkg_entry['comparison_details']['aur_base_vs_nv_base'] = f"AURBase({aur_base}) vs NVBase({nv_base}) -> {comp}"
             if comp == "downgrade":
-                pkg_entry['errors'].append(f"AUR base ver {aur_base} > NVChecker base ver {nv_base}.")
+                pkg_entry['errors'].append(f"AUR base ver ({aur_base}) > NVChecker base ver ({nv_base}) ")
                 pkg_entry['is_update_candidate'] = False
         if local_base and nv_base:
             comp = compare_package_versions(local_base, None, nv_base, None)
             pkg_entry['comparison_details']['local_base_vs_nv_base'] = f"LocalBase({local_base}) vs NVBase({nv_base}) -> {comp}"
             if comp == "downgrade":
-                pkg_entry['errors'].append(f"Local base ver {local_base} > NVChecker base ver {nv_base}.")
+                pkg_entry['errors'].append(f"Local base ver ({local_base}) > NVChecker base ver ({nv_base}) ")
                 pkg_entry['is_update_candidate'] = False
         
         if not pkg_entry['is_update_candidate']:

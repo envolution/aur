@@ -153,12 +153,6 @@ jobs:
           mkdir -p task
           cp ${GITHUB_WORKSPACE}/scripts/main_task_script.py task/
           chmod +x task/main_task_script.py
-          
-          echo "::notice::Installing python-looseversion package from AUR for aur_package_updater_cli.py"
-          # Use paru's --nocheck if build fails due to check() stage for this utility package.
-          # Ensure MAKEFLAGS from /etc/makepkg.conf are used by paru here.
-          sudo -u builder paru -S --noconfirm --nocheck python-looseversion
-          
           python3 ./task/main_task_script.py
 
       - name: Upload build logs and artifacts

@@ -13,7 +13,7 @@ license=(MIT)
 depends=(python python-pytorch)
 makedepends=(git python-build python-installer python-setuptools python-wheel)
 source=("git+$url#commit=43c064a")
-sha256sums=('SKIP')
+sha256sums=('6dea63d70a3fd74b50d32d8caf774c56682e04c056f3e49fe08f629a72707920')
 
 build() {
   cd "${srcdir}/${_pkgname}"

@@ -1,10 +1,11 @@
 pkgbase = python-cx-freeze
 	pkgdesc = Create standalone executables from Python scripts
 	pkgver = 8.3.0
-	pkgrel = 1
+	pkgrel = 2
 	url = https://marcelotduarte.github.io/cx_Freeze
 	arch = x86_64
 	license = PSF-2.0
+	checkdepends = alien_package_converter
 	checkdepends = python-pytest
 	checkdepends = python-pluggy
 	checkdepends = python-pytest-cov

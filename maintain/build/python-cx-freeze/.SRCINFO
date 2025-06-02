@@ -5,7 +5,6 @@ pkgbase = python-cx-freeze
 	url = https://marcelotduarte.github.io/cx_Freeze
 	arch = x86_64
 	license = PSF-2.0
-	checkdepends = alien_package_converter
 	checkdepends = python-pytest
 	checkdepends = python-pluggy
 	checkdepends = python-pytest-cov

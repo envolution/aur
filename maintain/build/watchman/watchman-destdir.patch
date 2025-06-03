@@ -1,0 +1,45 @@
+From 433938a3a6f03b144151895e23c98906af1d4d7a Mon Sep 17 00:00:00 2001
+From: Michel Alexandre Salim <michel@michel-slm.name>
+Date: Tue, 26 Jan 2021 22:32:56 -0800
+Subject: [PATCH] watchman: use DESTDIR consistently
+
+Delay `DESTDIR` evaluation in invocation of `python setup.py` so it uses
+the value passed when installing, not when configuring.
+
+Also use don't prepend `CMAKE_INSTALL_PREFIX` for `WATCHMAN_STATE_DIR`.
+It will pick up `DESTDIR` automatically
+
+Note: when building on Fedora, `DESTDIR` is set to the build root and
+`PREFIX` set to `/usr`, so adding the `PREFIX` would result in Python files
+being seen in `%{buildroot}/usr/usr`
+
+Signed-off-by: Michel Alexandre Salim <michel@michel-slm.name>
+---
+ CMakeLists.txt | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3dbcd68a..2c197bcd 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -136,7 +136,7 @@ endfunction()
+ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h.new" "#pragma once\n")
+ 
+ if(NOT WIN32)
+-  set(WATCHMAN_STATE_DIR "${CMAKE_INSTALL_PREFIX}/var/run/watchman" CACHE STRING
++  set(WATCHMAN_STATE_DIR "/var/run/watchman" CACHE STRING
+     "Run-time path of the persistent state directory")
+   set(INSTALL_WATCHMAN_STATE_DIR OFF CACHE BOOL
+     "Whether WATCHMAN_STATE_DIR should be created by the cmake install
+@@ -418,7 +418,7 @@ else()
+         ${CMAKE_COMMAND} -E env
+           CMAKE_CURRENT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+           ${PYTHON3} ${SETUP_PY} install
+-          --root $ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}
++          --root \$ENV{DESTDIR}
+         RESULT_VARIABLE STATUS)
+       if (NOT STATUS STREQUAL 0)
+         message(FATAL_ERROR \"pywatchman install failed\")
+-- 
+2.29.2
+

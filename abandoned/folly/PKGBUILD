@@ -24,7 +24,7 @@ depends=(
   libevent
   libsodium
   libunwind
-  'liburing>=2.10'
+  liburing
   libdwarf
   onetbb
   lz4
@@ -91,6 +91,8 @@ target_link_libraries(folly_python_cpp PRIVATE Python3::Python)' folly/CMakeList
 
 build() {
   cd $pkgname
+  # CXX_FLAGS below - minimum reqs: haswel(gen4+) amd circa 2017+  fails to compile without these flags
+  #  -DPYTHON_PACKAGE_INSTALL_DIR possibly not needed
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=None \
     -DCMAKE_PREFIX_PATH=/usr \
@@ -99,8 +101,8 @@ build() {
     -DBUILD_SHARED_LIBS=ON \
     -DPYTHON_EXTENSIONS=ON \
     -DPACKAGE_VERSION="$pkgver" \
-    -DCMAKE_CXX_FLAGS="-mpopcnt -mbmi -mbmi2 -ltbb" \ # minimum reqs: haswel(gen4+) amd circa 2017+  fails to compile without these flags
-    -DPYTHON_PACKAGE_INSTALL_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_paths()['purelib'])") \ #possibly not needed
+    -DCMAKE_CXX_FLAGS="-mpopcnt -mbmi -mbmi2 -ltbb" \
+    -DPYTHON_PACKAGE_INSTALL_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_paths()['purelib'])") \
     -DCMAKE_CXX_STANDARD=20 \
     -Wno-dev
   cmake --build build

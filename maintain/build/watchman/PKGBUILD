@@ -15,11 +15,11 @@ arch=(x86_64)
 license=(MIT)
 depends=(
   boost-libs
-  edencommon
-  fb303
-  fbthrift
+  'edencommon>=2025.06.02.00'
+  'fb303>=2025.06.02.00'
+  'fbthrift>=2025.06.02.00'
   fmt
-  folly
+  'folly>=2025.06.02.00'
   gcc-libs
   glibc
   google-glog
@@ -31,10 +31,10 @@ depends=(
 makedepends=(
   boost
   cmake
-  cpptoml
-  fizz
+  cpptoml-git
+  'fizz>=2025.06.02.00'
   gtest
-  mvfst
+  'mvfst>=2025.06.02.00'
   python-setuptools
   rust
 )
@@ -74,33 +74,14 @@ build() {
     -DWATCHMAN_STATE_DIR=/var/run/watchman \
     -DUSE_SYS_PYTHON=ON \
     -DENABLE_EDEN_SUPPORT=ON \
-    -DWATCHMAN_VERSION_OVERRIDE=$pkgver
+    -DWATCHMAN_VERSION_OVERRIDE=$pkgver \
+    -DCMAKE_CXX_FLAGS="-include variant -include cstdint"
   cmake --build build
 }
 
 check() {
   cd $pkgname-$pkgver
-  local skipped_tests=(
-    # Skip failing tests - not sure why they fail
-    bser_js::watchman.node.bser.test_bser.BserTestCase.runTest
-    test_py::watchman.integration.test_capabilities.TestCapabilitiesCliJson.test_full_capability_set
-    test_py::watchman.integration.test_capabilities.TestCapabilitiesUnixBser2.test_full_capability_set
-    test_py::watchman.integration.test_capabilities.TestCapabilitiesUnixJson.test_full_capability_set
-    test_py::watchman.integration.test_fishy
-    test_py::watchman.integration.test_force_recrawl
-    test_py::watchman.integration.test_scm.TestScmUnixBser2.test_scmHg
-    test_py::watchman.integration.test_scm.TestScmUnixJson.test_scmHg
-    test_py::watchman.integration.test_since.TestSinceUnixJson.test_sinceRelativeRoot
-    test_py::watchman.integration.test_subscribe.TestSubscribeUnixBser2.test_drop_state
-    test_py::watchman.integration.test_trigger.TestTriggerUnixBser2.test_legacyTrigger
-    test_py::watchman.integration.test_trigger.TestTriggerUnixJson.test_legacyTrigger
-
-    # Skip long-running tests
-    test_py::watchman.integration.test_local_saved_state
-    test_py::watchman.integration.test_sock_perms.TestSockPerms
-  )
-  local skipped_tests_pattern="${skipped_tests[0]}$(printf "|%s" "${skipped_tests[@]:1}")"
-  ctest --test-dir build --output-on-failure -E "$skipped_tests_pattern"
+  ctest --test-dir build --output-on-failure --exclude-regex "[Bb]ig|[Ii]ntegration"
 }
 
 package() {

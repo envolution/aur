@@ -24,7 +24,7 @@ depends=(
   libevent
   libsodium
   libunwind
-  liburing
+  'liburing>=2.10'
   libdwarf
   onetbb
   lz4

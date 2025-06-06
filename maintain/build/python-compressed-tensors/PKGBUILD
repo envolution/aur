@@ -15,7 +15,7 @@ source=("${pkgname}-${pkgver}.tar.gz::https://github.com/neuralmagic/compressed-
 sha256sums=('b08702738f30b1b989e2a2c6caf296c48636a4886b79846dd3e7d6613b89a513')
 prepare(){
   cd $_pkgname-$pkgver
-  sed -iE 's|setuptools_scm[=<>]+[0-9.]+|setuptools_scm|' pyproject.toml
+  sed -i -E 's|setuptools_scm[=<>]+[0-9.]+|setuptools_scm|' pyproject.toml
 }
 build() {
   cd $_pkgname-$pkgver

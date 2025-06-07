@@ -17,9 +17,9 @@ makedepends=('uthash' 'git' 'python-docutils' 'libxslt')
 #pulling this tag due to chdir functionality failure and inactivity in branch (2 years)
 _tag='5f780cba57ce7ce557a389e1572e0d30026fcbca'
 source=(
-  git+https://github.com/cedric-vincent/${pkgname}.git#commit=${_tag}
-  tracee_include.patch::https://github.com/proot-me/proot/pull/397.patch
-  py313-imp-importlib.patch::https://github.com/proot-me/proot/pull/398.patch
+  git+https://github.com/proot-me/${pkgname}.git#commit=${_tag}
+  tracee_include.patch::https://github.com/proot-me/${pkgname}/pull/397.patch
+  py313-imp-importlib.patch::https://github.com/proot-me/${pkgname}/pull/398.patch
 )
 sha256sums=('27e88869a8394fd7f5b81b806e2ed612e714d8eaf6888b203c0b70846738201e'
             'a2daf48cf4042c2e949ef827a0f2554dd2a513c25e3567eaa65fb0900bb9b19b'

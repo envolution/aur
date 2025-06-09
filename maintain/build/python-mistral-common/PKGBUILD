@@ -35,6 +35,6 @@ build() {
 package() {
   cd "mistral_common-${pkgver}"
   python -m installer --destdir="$pkgdir" dist/*.whl
-  install -Dm644 LICENCE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+#  install -Dm644 LICENCE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE # missing in 1.6.0
 }
 # vim:set ts=2 sw=2 et:

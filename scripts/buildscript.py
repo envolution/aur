@@ -219,6 +219,17 @@ class ArchPackageBuilder:
             # Or, re-raise to make it a critical failure immediately. For now, let's re-raise.
             raise ValueError(f"Invalid package_update_info_json: {e}") from e
 
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        Removes characters that are invalid in GitHub Actions artifact names.
+        Invalid characters: " : < > | * ? \r \n
+        """
+        # Define the set of invalid characters in a regex character class
+        invalid_chars = r'["\:<>|*?\r\n]'
+        # Replace any found invalid character with an underscore
+        sanitized_name = re.sub(invalid_chars, "_", filename)
+        return sanitized_name
+
     def _import_pgp_keys(self):
         """Imports PGP keys listed in the PKGBUILD's validpgpkeys array."""
         keys_to_import = self.package_update_info.validpgpkeys
@@ -418,8 +429,7 @@ class ArchPackageBuilder:
             self.logger.warning(
                 f"Build directory {self.build_dir} does not exist or is not a directory. Cannot collect artifacts from it."
             )
-            if Path.cwd() != original_cwd_for_artifact_collection:
-                os.chdir(original_cwd_for_artifact_collection)
+            # No need to change back if we never changed in the first place.
             return
 
         self.logger.info(
@@ -429,38 +439,35 @@ class ArchPackageBuilder:
         pkg_subdir_relative = Path("pkg") / self.config.package_name
         pkg_artifacts = [".BUILDINFO", ".MTREE", ".PKGINFO"]
 
-        for file_name in root_artifacts:
-            src_file = Path(file_name)
-            if src_file.exists() and src_file.is_file():
-                dest_file = self.artifacts_path / file_name
-                try:
-                    shutil.copy2(src_file, dest_file)
-                    self.logger.debug(f"Copied artifact '{file_name}' to '{dest_file}'")
-                except Exception as e:
-                    self.logger.warning(f"Failed to copy artifact '{file_name}': {e}")
-            else:
-                self.logger.debug(
-                    f"Root artifact file '{file_name}' not found in build directory or not a file."
+        # Helper function to handle copying and sanitizing
+        def copy_sanitized(src_path: Path, dest_dir: Path):
+            if not src_path.exists() or not src_path.is_file():
+                self.logger.debug(f"Artifact '{src_path}' not found or not a file.")
+                return
+
+            original_name = src_path.name
+            sanitized_name = self._sanitize_filename(original_name)
+            dest_file = dest_dir / sanitized_name
+
+            if original_name != sanitized_name:
+                self.logger.info(
+                    f"Sanitizing artifact filename for upload: '{original_name}' -> '{sanitized_name}'"
                 )
+
+            try:
+                shutil.copy2(src_path, dest_file)
+                self.logger.debug(f"Copied artifact '{original_name}' to '{dest_file}'")
+            except Exception as e:
+                self.logger.warning(f"Failed to copy artifact '{original_name}': {e}")
+
+        # --- Process all artifact types using the helper ---
+
+        for file_name in root_artifacts:
+            copy_sanitized(Path(file_name), self.artifacts_path)
 
         if pkg_subdir_relative.exists() and pkg_subdir_relative.is_dir():
             for file_name in pkg_artifacts:
-                src_file = pkg_subdir_relative / file_name
-                if src_file.exists() and src_file.is_file():
-                    dest_file = self.artifacts_path / file_name
-                    try:
-                        shutil.copy2(src_file, dest_file)
-                        self.logger.debug(
-                            f"Copied pkg artifact '{file_name}' from '{pkg_subdir_relative}' to '{dest_file}'"
-                        )
-                    except Exception as e:
-                        self.logger.warning(
-                            f"Failed to copy pkg artifact '{file_name}': {e}"
-                        )
-                else:
-                    self.logger.debug(
-                        f"Package artifact '{file_name}' not found in '{pkg_subdir_relative}' or not a file."
-                    )
+                copy_sanitized(pkg_subdir_relative / file_name, self.artifacts_path)
         else:
             self.logger.debug(
                 f"Package subdirectory '{pkg_subdir_relative}' does not exist in {self.build_dir}."
@@ -474,21 +481,14 @@ class ArchPackageBuilder:
             )
             for log_file in Path(".").glob(pattern):
                 if log_file.is_file() and log_file.name not in copied_logs:
-                    dest_file = self.artifacts_path / log_file.name
-                    try:
-                        shutil.copy2(log_file, dest_file)
-                        self.logger.debug(
-                            f"Copied log file '{log_file.name}' to '{dest_file}'"
-                        )
-                        copied_logs.add(log_file.name)
-                    except Exception as e:
-                        self.logger.warning(
-                            f"Failed to copy log file '{log_file.name}': {e}"
-                        )
+                    # The helper handles the copy, sanitization, and logging
+                    copy_sanitized(log_file, self.artifacts_path)
+                    copied_logs.add(log_file.name)
                 elif log_file.name in copied_logs:
                     self.logger.debug(
                         f"Log file '{log_file.name}' already copied, skipping."
                     )
+
         self.logger.debug(
             "Skipping package file collection - package files are too large for artifacts"
         )

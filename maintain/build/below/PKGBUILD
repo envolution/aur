@@ -19,7 +19,7 @@ source=(
   "below.install"
 )
 sha256sums=('d45c8edbaae1df61cf2436c923e20392bff72598e8f3f0244f880d1e875cf349'
-  'af3057fcf8bf411522d76cf5def98b6c871687002b44236a9fe34bf8a47d95c2')
+            'af3057fcf8bf411522d76cf5def98b6c871687002b44236a9fe34bf8a47d95c2')
 
 prepare() {
   cd $pkgname-$pkgver

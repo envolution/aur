@@ -7,7 +7,7 @@
 
 pkgname=canorus
 pkgver=0.7.3rc3
-pkgrel=5
+pkgrel=6
 pkgdesc="A free music score editor"
 arch=('x86_64')
 url="http://www.canorus.org/"
@@ -21,7 +21,7 @@ build() {
   cd $pkgname-$pkgver
   # stringop-truncation will be fixes in swig, see https://github.com/swig/swig/issues/893
   export CXXFLAGS+=" -Wno-misleading-indentation -Wno-dangling-else -Wno-stringop-truncation -Wno-deprecated -Wno-deprecated-declarations"
-  cmake . -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$pkgdir"/usr \
+  cmake . -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$pkgdir"/usr \
 	-DDEFAULT_DATA_DIR="/usr/share/canorus"
 }
 

@@ -18,10 +18,10 @@ optdepends=('git' 'mercurial' 'subversion' 'darcs')
 source=("${pkgname}::git+${_repourl}.git#tag=${pkgver}"
   fix-git-test.patch remove-bzr.patch remove-cvs.patch remove-monotone.patch)
 sha1sums=('79c6ba9a7607ceca8811a600d47a8c90edb35cb4'
-  'c7415ac561b427ce2b93e58b0090c01332f6b7a0'
-  '539f2ba4d76f494611dc6d2586b505a742337a70'
-  'e387de5636abfe7953ee5f64363fcbc4ee093fce'
-  '68362c243f5f35313eb825037d81d247dc035299')
+          'c7415ac561b427ce2b93e58b0090c01332f6b7a0'
+          '539f2ba4d76f494611dc6d2586b505a742337a70'
+          'e387de5636abfe7953ee5f64363fcbc4ee093fce'
+          '68362c243f5f35313eb825037d81d247dc035299')
 prepare() {
   cd "${srcdir}/${pkgname}"
   if [ $pkgver == 2.6.2 ]; then

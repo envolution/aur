@@ -13,6 +13,7 @@ from pathlib import Path
 import base64
 import shutil
 from typing import List, Dict, Optional, Any
+import pyalpm
 
 # Setup logger early, but allow ArchPackageBuilder to customize further
 # Logs will be configured to go to stderr by ArchPackageBuilder instance
@@ -411,6 +412,67 @@ class ArchPackageBuilder:
         )
         pkgbuild_path.write_text(content)
         self.result.changes_detected = True
+
+    # In class ArchPackageBuilder:
+
+    def _get_installed_packages(self) -> set:
+        """Returns a set of all currently installed package names using pyalpm."""
+        try:
+            # Open handle to the pacman DB
+            handle = pyalpm.Handle("/", "/var/lib/pacman")
+            local_db = handle.get_localdb()
+            # Return a set of package names for efficient comparison
+            return {pkg.name for pkg in local_db.pkgcache}
+        except Exception as e:
+            self.logger.warning(
+                f"Could not get list of installed packages via pyalpm: {e}. Package cleanup may not work correctly."
+            )
+            return set()
+
+    def _cleanup_installed_packages(self, initial_packages: set):
+        """Removes packages that were installed during the build process."""
+        if not initial_packages:
+            self.logger.warning(
+                "Initial package list was empty, skipping cleanup of installed packages."
+            )
+            return
+
+        self.logger.info("Starting cleanup of packages installed during this build.")
+        current_packages = self._get_installed_packages()
+
+        # Use set difference to find newly installed packages
+        newly_installed = list(current_packages - initial_packages)
+
+        if not newly_installed:
+            self.logger.info(
+                "No new packages were installed during the build. Nothing to clean up."
+            )
+            return
+
+        self.logger.info(
+            f"Found {len(newly_installed)} packages to remove: {', '.join(newly_installed)}"
+        )
+
+        try:
+            # This command requires sudo privileges. It is assumed the script
+            # runs in an environment (like a Docker container) where this is possible without a password.
+            # Using -Rns to remove dependencies that are no longer required.
+            # Using --noconfirm is essential for automation.
+            cleanup_cmd = ["sudo", "pacman", "-Rns", "--noconfirm"] + newly_installed
+            result = self.subprocess_runner.run_command(cleanup_cmd, check=True)
+            self.logger.info(
+                f"Successfully removed newly installed packages. Stdout: {result.stdout.strip()}"
+            )
+        except subprocess.CalledProcessError as e:
+            self.logger.error(
+                f"Failed to remove newly installed packages. Command failed with code {e.returncode}."
+            )
+            self.logger.error(f"Stderr: {e.stderr.strip()}")
+        except Exception as e:
+            # Catch other potential errors from the subprocess runner
+            self.logger.error(
+                f"An unexpected error occurred during package cleanup: {e}"
+            )
 
     def _collect_build_artifacts(self):
         if not self.artifacts_path:
@@ -1167,8 +1229,12 @@ class ArchPackageBuilder:
 
     def run(self) -> Dict[str, Any]:
         original_cwd = Path.cwd()
+        initial_packages = self._get_installed_packages()
         self.logger.info(
-            f"buildscript2.py started. Original CWD: {original_cwd}. HOME env: {os.environ.get('HOME')}"
+            f"Tracking {len(initial_packages)} initially installed packages."
+        )
+        self.logger.info(
+            f"buildscript.py started. Original CWD: {original_cwd}. HOME env: {os.environ.get('HOME')}"
         )
         self.logger.info(
             f"Package: {self.config.package_name}, Build Mode: {self.config.build_mode}"
@@ -1350,6 +1416,7 @@ class ArchPackageBuilder:
             if not self.result.error_message:
                 self.result.error_message = str(e)
         finally:
+            self._cleanup_installed_packages(initial_packages)
             self._collect_build_artifacts()
             if Path.cwd() != original_cwd:
                 os.chdir(original_cwd)

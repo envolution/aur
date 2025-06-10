@@ -1,5 +1,0 @@
-[ccextractor-gui]
-source="github"
-github="CCExtractor/ccextractorfluttergui"
-use_max_tag=true
-prefix="v"

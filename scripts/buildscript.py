@@ -127,6 +127,7 @@ class PackageUpdateInfo:
     update_source: Optional[str] = None
     new_version_for_update: Optional[str] = None
     local_is_ahead: bool = False
+    validpgpkeys: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     pkgfile: Optional[str] = None
     nvchecker_event: Optional[str] = None
@@ -217,6 +218,37 @@ class ArchPackageBuilder:
             # The run() method should then check for essential fields.
             # Or, re-raise to make it a critical failure immediately. For now, let's re-raise.
             raise ValueError(f"Invalid package_update_info_json: {e}") from e
+
+    def _import_pgp_keys(self):
+        """Imports PGP keys listed in the PKGBUILD's validpgpkeys array."""
+        keys_to_import = self.package_update_info.validpgpkeys
+        if not keys_to_import:
+            self.logger.info(
+                "No 'validpgpkeys' found for this package. Skipping PGP key import."
+            )
+            return
+
+        self.logger.info(
+            f"Found {len(keys_to_import)} PGP key(s) to import: {', '.join(keys_to_import)}"
+        )
+        for key in keys_to_import:
+            # Using a keyserver pool for better reliability
+            cmd = [
+                "gpg",
+                "--keyserver",
+                "hkps://keyserver.ubuntu.com",
+                "--recv-keys",
+                key,
+            ]
+            self.logger.debug(f"Importing PGP key: {key}")
+            result = self.subprocess_runner.run_command(cmd, check=False)
+            if result.returncode != 0:
+                self.logger.warning(
+                    f"Failed to import PGP key '{key}'. Return code: {result.returncode}. Stderr: {result.stderr.strip()}"
+                )
+                # This is a warning, not a critical failure. makepkg will fail later if the key is truly needed and absent.
+            else:
+                self.logger.info(f"Successfully received PGP key '{key}'.")
 
     def authenticate_github(self) -> bool:
         try:
@@ -527,6 +559,9 @@ class ArchPackageBuilder:
             )
             (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
             self.result.changes_detected = True
+
+            # Import any PGP keys declared in the PKGBUILD
+            self._import_pgp_keys()
 
             # Attempt the build with retry logic for missing packages
             build_process_successful = self._attempt_build_with_retry(

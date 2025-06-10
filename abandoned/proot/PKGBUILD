@@ -18,7 +18,7 @@ makedepends=('uthash' 'git' 'python-docutils' 'libxslt')
 _tag='5f780cba57ce7ce557a389e1572e0d30026fcbca'
 source=(
   git+https://github.com/proot-me/${pkgname}.git#commit=${_tag}
-  tracee_include.patch::https://github.com/proot-me/${pkgname}/pull/397.patch
+  tracee_include.patch::https://github.com/proot-me/${pkgname}/pull/394.patch
   py313-imp-importlib.patch::https://github.com/proot-me/${pkgname}/pull/398.patch
 )
 sha256sums=('27e88869a8394fd7f5b81b806e2ed612e714d8eaf6888b203c0b70846738201e'

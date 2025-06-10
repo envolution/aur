@@ -1,0 +1,179 @@
+name: Manual Package Build
+on:
+  workflow_dispatch:
+    inputs:
+      packages_json:
+        description: 'JSON array of package names to build. e.g., ["pkg1", "pkg2"]'
+        required: true
+        type: string
+      build_mode:
+        description: 'Build mode for all packages (overrides path-based detection)'
+        type: choice
+        options:
+          - 'nobuild'
+          - 'build'
+          - 'test'
+        default: 'build'
+
+jobs:
+  manual-arch-task:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged # Required for system-level changes like useradd, pacman
+    env:
+      AUR_MAINTAINER_NAME: envolution
+      GIT_USERNAME: envolution
+      GIT_EMAIL: involution@gmail.com
+      ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
+      # Pass workflow inputs to the environment for the script to use
+      MANUAL_PACKAGES_JSON: ${{ inputs.packages_json }}
+      MANUAL_BUILD_MODE: ${{ inputs.build_mode }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize pacman, Update System, and Configure Makepkg
+        run: |
+          set -e
+          echo "::group::Initialize pacman, Update System, and Configure Makepkg"
+          echo "Initializing pacman keyring..."
+          mkdir -p /etc/pacman.d/gnupg
+          pacman-key --init
+          pacman-key --populate archlinux
+
+          echo "Enabling multilib repository..."
+          echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+
+          echo "Updating system and installing core dependencies..."
+          pacman -Sy --noconfirm --needed archlinux-keyring
+          pacman -Syu --noconfirm
+
+          echo "Installing necessary packages..."
+          pacman -S --noconfirm --needed \
+            git base-devel pacman-contrib openssh github-cli jq expac \
+            ruby-rdoc ruby-pkg-config gnupg \
+            python python-pip \
+            pyalpm python-awesomeversion python-packaging python-lxml \
+            python-gobject python-requests libnotify nvchecker \
+            binutils multilib-devel python-aiohttp clang python-jq \
+            sudo
+
+          echo "Configuring makepkg for parallel compilation..."
+          # Check if MAKEFLAGS is already set and uncommented
+          if grep -q -E '^#?\s*MAKEFLAGS=' /etc/makepkg.conf; then
+            # If found (commented or uncommented), replace the line
+            sed -i "s|^#*\s*MAKEFLAGS=.*|MAKEFLAGS=\"-j$(nproc)\"|g" /etc/makepkg.conf
+            echo "Updated existing MAKEFLAGS in /etc/makepkg.conf."
+          else
+            # If not found, append it
+            echo "MAKEFLAGS=\"-j$(nproc)\"" >> /etc/makepkg.conf
+            echo "Appended MAKEFLAGS to /etc/makepkg.conf."
+          fi
+          echo "Current MAKEFLAGS setting in /etc/makepkg.conf:"
+          grep --color=auto MAKEFLAGS /etc/makepkg.conf || echo "MAKEFLAGS not found after attempting to set."
+
+          echo "::endgroup::"
+
+      - name: Setup non-root user for AUR operations
+        shell: bash
+        run: |
+          set -e
+          echo "::group::Setup non-root user 'builder'"
+          echo "Creating build user 'builder'..."
+          useradd -m -s /bin/bash builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+
+          echo "Setting up directories for builder..."
+          install -d -o builder -g builder -m 700 /home/builder/.gnupg
+          install -d -o builder -g builder -m 755 /home/builder/.cache
+          install -d -o builder -g builder -m 755 /home/builder/.local
+          install -d -o builder -g builder -m 755 /home/builder/.local/share
+          install -d -o builder -g builder -m 755 /home/builder/.cache/paru
+          install -d -o builder -g builder -m 755 /home/builder/.local/share/paru
+
+          echo "Builder user setup complete."
+          echo "::endgroup::"
+
+      - name: Install paru (AUR helper)
+        run: |
+          set -e
+          echo "::group::Install paru (AUR helper)"
+          echo "Installing paru for 'builder' user..."
+          cd /tmp
+          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          cd paru-bin
+          # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
+          sudo -u builder makepkg -si --noconfirm
+
+          echo "Configuring paru..."
+          echo -e "[options]\nBatchInstall\nBottomUp\nRemoveMake\nSudoLoop\nUseAsk" | sudo tee /etc/paru.conf > /dev/null
+
+          echo "Paru installation and configuration complete."
+          echo "::endgroup::"
+
+      - name: Setup SSH key for AUR
+        run: |
+          set -e
+          echo "::group::Setup SSH key for AUR"
+          echo "Setting up SSH key for AUR access..."
+          SSH_DIR="/home/builder/.ssh"
+          mkdir -p "${SSH_DIR}"
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > "${SSH_DIR}/aur"
+
+          ssh-keyscan aur.archlinux.org >> "${SSH_DIR}/known_hosts"
+
+          echo "Host aur.archlinux.org" >> "${SSH_DIR}/config"
+          echo "  IdentityFile ${SSH_DIR}/aur" >> "${SSH_DIR}/config"
+          echo "  User aur" >> "${SSH_DIR}/config"
+          echo "  StrictHostKeyChecking yes" >> "${SSH_DIR}/config"
+
+          chown -R builder:builder "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+          chmod 600 "${SSH_DIR}/aur"
+          chmod 600 "${SSH_DIR}/config"
+          chmod 644 "${SSH_DIR}/known_hosts"
+
+          echo "SSH key setup complete. Permissions:"
+          ls -ldn "${SSH_DIR}" "${SSH_DIR}/aur" "${SSH_DIR}/config" "${SSH_DIR}/known_hosts" # Use -n to show numeric UID/GID
+          echo "::endgroup::"
+
+      - name: Configure Git for builder user
+        run: |
+          set -e
+          echo "::group::Configure Git for builder user"
+          echo "Configuring Git for 'builder' user..."
+          sudo -u builder git config --global user.name "${{ env.GIT_USERNAME }}"
+          sudo -u builder git config --global user.email "${{ env.GIT_EMAIL }}"
+          sudo -u builder git config --global init.defaultBranch 'master'
+          echo "Git configuration complete."
+          echo "::endgroup::"
+
+      - name: Run Manual Package Build Task
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_COMMIT_USER_NAME: envolution
+          GIT_COMMIT_USER_EMAIL: involution@gmail.com
+          PKGBUILD_ROOT: ${{ github.workspace }}/maintain/build
+          SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUNID: ${{ github.run_id }}
+          ACTIONS_STEP_DEBUG: true
+        run: |
+          echo "::notice::Executing manual build task from main_task_script.py"
+          # The main_task_script.py will detect the MANUAL_* env vars and run accordingly
+          mkdir -p task
+          cp ${GITHUB_WORKSPACE}/scripts/main_task_script.py task/
+          chmod +x task/main_task_script.py
+          python3 ./task/main_task_script.py
+
+      - name: Upload build logs and artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: ${{ github.workspace }}/artifacts/
+          retention-days: 7

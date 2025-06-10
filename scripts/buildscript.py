@@ -636,52 +636,48 @@ class ArchPackageBuilder:
             return []        
 
     def _create_release(self, package_files: List[Path]):
-        if not self.result.version: 
+        if not self.result.version:
             self.logger.error("Cannot create GitHub release: package version is not determined.")
             self.result.error_message = (self.result.error_message or "") + "; GitHub release skipped: version unknown."
             return
 
-        tag_name = f"{self.config.package_name}-{self.result.version}"
+        tag_name = self.config.package_name
         release_title = f"{self.config.package_name} {self.result.version}"
         
-        self.logger.info(f"Creating/updating GitHub release with tag '{tag_name}' and title '{release_title}'.")
+        self.logger.info(f"Preparing GitHub release with tag '{tag_name}' and title '{release_title}'.")
 
         try:
-            check_release_cmd = ["gh", "release", "view", tag_name, "-R", self.config.github_repo]
-            release_exists_result = self.subprocess_runner.run_command(check_release_cmd, check=False)
-
-            if release_exists_result.returncode != 0: 
-                self.logger.info(f"Creating new release for tag '{tag_name}'.")
-                main_package_for_notes = self.result.built_packages[0] if self.result.built_packages else f"{self.config.package_name}-VERSION.pkg.tar.zst"
-                release_notes = self.RELEASE_BODY.replace("PACKAGENAME.pkg.tar.zst", main_package_for_notes)
-                
-                create_release_cmd = [
-                    "gh", "release", "create", tag_name,
-                    "--title", release_title,
-                    "--notes", release_notes,
-                    "-R", self.config.github_repo,
-                ]
-                self.subprocess_runner.run_command(create_release_cmd)
+            self.logger.info(f"Attempting to delete existing release and tag '{tag_name}' to ensure a clean slate.")
+            delete_cmd = ["gh", "release", "delete", tag_name, "-R", self.config.github_repo, "--yes"]
+            delete_result = self.subprocess_runner.run_command(delete_cmd, check=False)
+            
+            if delete_result.returncode == 0:
+                self.logger.info(f"Successfully deleted existing release for tag '{tag_name}'.")
+            elif delete_result.stderr and "release not found" in delete_result.stderr.lower():
+                self.logger.info(f"No existing release found for tag '{tag_name}'. Proceeding to create a new one.")
             else:
-                self.logger.info(f"Release for tag '{tag_name}' already exists. Will upload/clobber assets.")
+                self.logger.warning(f"Could not delete release '{tag_name}'. It might not exist or another error occurred. Stderr: {delete_result.stderr.strip() if delete_result.stderr else 'N/A'}")
 
-            for pkg_file in package_files:
-                if pkg_file.is_file():
-                    self.logger.info(f"Uploading {pkg_file.name} to release '{tag_name}'.")
-                    upload_cmd = [
-                        "gh", "release", "upload", tag_name, str(pkg_file),
-                        "--clobber", 
-                        "-R", self.config.github_repo,
-                    ]
-                    self.subprocess_runner.run_command(upload_cmd)
-                else:
-                    self.logger.warning(f"Package file {pkg_file} not found for upload to release.")
-            self.logger.info(f"Assets for release '{tag_name}' updated.")
+            main_package_for_notes = self.result.built_packages[0] if self.result.built_packages else f"{self.config.package_name}-VERSION.pkg.tar.zst"
+            release_notes = self.RELEASE_BODY.replace("PACKAGENAME.pkg.tar.zst", main_package_for_notes)
+            
+            package_file_paths_str = [str(p) for p in package_files]
+            
+            create_release_cmd = [
+                "gh", "release", "create", tag_name,
+                "--title", release_title,
+                "--notes", release_notes,
+                "-R", self.config.github_repo,
+            ] + package_file_paths_str
+            
+            self.logger.info(f"Creating new release for tag '{tag_name}' and uploading {len(package_file_paths_str)} asset(s).")
+            self.subprocess_runner.run_command(create_release_cmd)
+            self.logger.info(f"Successfully created release '{tag_name}' and uploaded assets.")
 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to create or upload to GitHub release '{tag_name}': CMD: {e.cmd}, RC: {e.returncode}, Stderr: {e.stderr}")
+            self.logger.error(f"Failed to create GitHub release '{tag_name}': CMD: {e.cmd}, RC: {e.returncode}, Stderr: {e.stderr}")
             self.result.error_message = (self.result.error_message or "") + f"; GitHub release failed for {tag_name}: {e.stderr[:100]}"
-        except Exception as e: 
+        except Exception as e:
             self.logger.error(f"An unexpected error occurred during GitHub release for '{tag_name}': {e}", exc_info=self.config.debug)
             self.result.error_message = (self.result.error_message or "") + f"; Unexpected error during GitHub release for {tag_name}"
 

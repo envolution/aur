@@ -34,6 +34,11 @@ GITHUB_RUN_ID = os.getenv("GITHUB_RUN_ID")
 GITHUB_STEP_SUMMARY_FILE = os.getenv("GITHUB_STEP_SUMMARY")
 PKGBUILD_ROOT_PATH_STR = os.getenv("PKGBUILD_ROOT")
 
+# --- Manual Build Inputs ---
+MANUAL_PACKAGES_JSON = os.getenv("MANUAL_PACKAGES_JSON")
+MANUAL_BUILD_MODE = os.getenv("MANUAL_BUILD_MODE")
+
+
 # --- Logging Helpers (GitHub Actions format) ---
 def _log_gha(level: str, title: str, message: str):
     sanitized_message = str(message).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
@@ -458,7 +463,7 @@ def execute_build_script_py(pkg_name: str, build_type: str, pkgbuild_path_rel_st
     return bs_ok
 
 def main():
-    log_notice("SCRIPT_START", "Arch Package Update Task started (Python v2).")
+    log_notice("SCRIPT_START", "Arch Package Update Task started.")
     if GITHUB_STEP_SUMMARY_FILE:
         with open(GITHUB_STEP_SUMMARY_FILE, "w", encoding="utf-8") as f:
             f.write("## Arch Package Build Summary\n| Package | Version | Status | Changes | AUR Link | Build Logs |\n|---|---|---|---|---|---|\n")
@@ -487,24 +492,10 @@ def main():
     debug_path_permissions(path_root_for_cli_actual, "runner")
     debug_path_permissions(path_root_for_cli_actual, BUILDER_USER, as_user=BUILDER_USER)
 
-    # known_pkg_name_for_debug = "lobe-chat"
-    # if Path(path_root_for_cli_actual, known_pkg_name_for_debug).exists(): # Only debug if base known_pkg_name_for_debug dir exists
-    #     known_pkg_dir_for_debug = Path(path_root_for_cli_actual) / known_pkg_name_for_debug
-    #     log_notice("PRE_CLI_DEBUG_SUBDIR", f"Debugging specific subdir: {known_pkg_dir_for_debug}")
-    #     debug_path_permissions(str(known_pkg_dir_for_debug), "runner")
-    #     debug_path_permissions(str(known_pkg_dir_for_debug), BUILDER_USER, as_user=BUILDER_USER)
-    #     known_pkgbuild_file_for_debug = known_pkg_dir_for_debug / "PKGBUILD"
-    #     if known_pkgbuild_file_for_debug.parent.exists(): # Check parent exists before debugging file
-    #         debug_path_permissions(str(known_pkgbuild_file_for_debug), "runner")
-    #         debug_path_permissions(str(known_pkgbuild_file_for_debug), BUILDER_USER, as_user=BUILDER_USER)
-    # else:
-    #     log_debug(f"Skipping specific subdir debug for '{known_pkg_name_for_debug}' as its base directory does not exist under '{path_root_for_cli_actual}'.")
-
-
     if not create_nvchecker_keyfile():
         log_warning("MAIN_WARN", "create_nvchecker_keyfile had issues. Updater CLI might have limited functionality.")
 
-    pkgbuild_script_for_cli = NVCHECKER_RUN_DIR / "pkgbuild_to_json.py" # Define the path for the CLI
+    pkgbuild_script_for_cli = NVCHECKER_RUN_DIR / "pkgbuild_to_json.py"
     updater_data = run_aur_updater_cli(path_root_for_cli_actual, pkgbuild_script_for_cli)       
     if updater_data is None:
         log_error("MAIN_FAIL", "run_aur_updater_cli FAILED to produce data.")
@@ -512,7 +503,41 @@ def main():
              with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write("| **SETUP** | N/A | ❌ Failure: AUR Updater CLI | - | - | Check Logs |\n")
         sys.exit(1)
 
-    pkgs_to_process_list = get_packages_to_process(updater_data)
+    pkgs_to_process_list = []
+    if MANUAL_PACKAGES_JSON:
+        start_group("Manual Package Selection")
+        log_notice("MANUAL_MODE", f"Manual mode active. Raw input: {MANUAL_PACKAGES_JSON}")
+        try:
+            manual_pkg_names = json.loads(MANUAL_PACKAGES_JSON)
+            if not isinstance(manual_pkg_names, list):
+                raise TypeError("Input is not a JSON list.")
+            log_notice("MANUAL_PKG_LIST", f"Processing manually specified packages: {manual_pkg_names}")
+
+            updater_data_map = {pkg.get("pkgbase"): pkg for pkg in updater_data}
+            
+            for pkg_name in manual_pkg_names:
+                if pkg_name in updater_data_map:
+                    pkg_info = updater_data_map[pkg_name]
+                    if pkg_info.get("pkgfile"):
+                        pkgs_to_process_list.append(pkg_info)
+                        log_debug(f"Added '{pkg_name}' to processing list.")
+                    else:
+                        log_warning("MANUAL_PKG_NO_FILE", f"Package '{pkg_name}' found by updater, but has no pkgfile. Skipping.")
+                else:
+                    log_warning("MANUAL_PKG_NOT_FOUND", f"Manually requested package '{pkg_name}' was not found in the updater CLI output.")
+
+            log_notice("MANUAL_PROCESS_SUMMARY", f"Found {len(pkgs_to_process_list)}/{len(manual_pkg_names)} requested packages with valid data to process.")
+
+        except (json.JSONDecodeError, TypeError) as e:
+            log_error("MANUAL_JSON_INVALID", f"Invalid JSON in MANUAL_PACKAGES_JSON: {e}. Aborting.")
+            if GITHUB_STEP_SUMMARY_FILE:
+                 with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write(f"| **SETUP** | N/A | ❌ Failure: Invalid input JSON | - | - | Check Logs |\n")
+            sys.exit(1)
+        end_group()
+    else:
+        # Normal automatic mode
+        pkgs_to_process_list = get_packages_to_process(updater_data)
+
     if not pkgs_to_process_list:
         log_notice("MAIN_NO_PROCESSING_NEEDED", "No packages to process. Exiting successfully.")
         if GITHUB_STEP_SUMMARY_FILE:
@@ -525,16 +550,24 @@ def main():
         pkgbase = pkg_info["pkgbase"]
         pkgbuild_file_abs_str = pkg_info["pkgfile"]
         pkgbuild_dir_abs = Path(pkgbuild_file_abs_str).parent
-        try: pkgbuild_dir_rel = pkgbuild_dir_abs.relative_to(GITHUB_WORKSPACE)
+        try:
+            pkgbuild_dir_rel = pkgbuild_dir_abs.relative_to(GITHUB_WORKSPACE)
         except ValueError:
             err = f"PKGBUILD path {pkgbuild_dir_abs} for {pkgbase} not relative to GITHUB_WORKSPACE {GITHUB_WORKSPACE}. Skipping."
             log_error("BUILD_LOOP_PATH_ERR", err)
             if GITHUB_STEP_SUMMARY_FILE:
                  with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f: f.write(f"| **{pkgbase}** | N/A | ❌ Error: Invalid PKGBUILD path | - | - | N/A |\n")
-            overall_build_ok = False; continue
-        build_mode = determine_build_mode(pkgbuild_dir_rel)
+            overall_build_ok = False
+            continue
 
-        package_update_info_json_str_for_bs = json.dumps(pkg_info) # Serialize the pkg_info for this package
+        build_mode = ""
+        if MANUAL_BUILD_MODE:
+            build_mode = MANUAL_BUILD_MODE
+            log_debug(f"Using manually specified build mode '{build_mode}' for {pkgbase}.")
+        else:
+            build_mode = determine_build_mode(pkgbuild_dir_rel)
+
+        package_update_info_json_str_for_bs = json.dumps(pkg_info)
         if not execute_build_script_py(pkgbase, build_mode, str(pkgbuild_dir_rel), package_update_info_json_str_for_bs):
             log_error("BUILD_LOOP_PKG_FAIL", f"Build script FAILED for {pkgbase}.")
             overall_build_ok = False
@@ -546,12 +579,15 @@ def main():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
-    try: main()
+    try:
+        main()
     except Exception as e:
         error_title = "UNHANDLED_FATAL_EXCEPTION"
         error_message = f"Critical unhandled exception in main script: {type(e).__name__} - {e}"
-        try: log_error(error_title, error_message)
-        except: print(f"::error title={error_title}::{error_message}", file=sys.stderr)
+        try:
+            log_error(error_title, error_message)
+        except:
+            print(f"::error title={error_title}::{error_message}", file=sys.stderr)
         if GITHUB_STEP_SUMMARY_FILE and Path(GITHUB_STEP_SUMMARY_FILE).exists():
              try:
                 with open(GITHUB_STEP_SUMMARY_FILE, "a", encoding="utf-8") as f:

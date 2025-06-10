@@ -5,6 +5,7 @@
 # Contributor: Narrat <autumn-wind at web dot de>
 # Contributor: David Scholl <djscholl at gmail dot com>
 # shellcheck shell=bash disable=SC2034,SC2154
+# ci|skipcheck|
 
 pkgname=leo
 pkgver=6.8.4

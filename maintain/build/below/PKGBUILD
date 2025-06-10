@@ -1,6 +1,8 @@
 # Maintainer: envolution
 # Contributor: Jose Fernandez <josefernandez.dev@gmail.com>
 # shellcheck shell=bash disable=SC2034,SC2154
+# ci|skipcheck|
+
 pkgname=below
 pkgver=0.9.0
 pkgrel=1
@@ -17,7 +19,7 @@ source=(
   "below.install"
 )
 sha256sums=('d45c8edbaae1df61cf2436c923e20392bff72598e8f3f0244f880d1e875cf349'
-            'af3057fcf8bf411522d76cf5def98b6c871687002b44236a9fe34bf8a47d95c2')
+  'af3057fcf8bf411522d76cf5def98b6c871687002b44236a9fe34bf8a47d95c2')
 
 prepare() {
   cd $pkgname-$pkgver
@@ -31,8 +33,8 @@ build() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
   export LIBBPF_LIB_DIR=/usr/lib
-  export LIBBPF_INCLUDE_DIR=/usr/include/bpf 
-  cargo build  --frozen --no-default-features --features "libbpf-cargo/default libbpf-rs/default" --release
+  export LIBBPF_INCLUDE_DIR=/usr/include/bpf
+  cargo build --frozen --no-default-features --features "libbpf-cargo/default libbpf-rs/default" --release
 }
 
 check() {
@@ -40,7 +42,7 @@ check() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
   export LIBBPF_LIB_DIR=/usr/lib
-  export LIBBPF_INCLUDE_DIR=/usr/include/bpf 
+  export LIBBPF_INCLUDE_DIR=/usr/include/bpf
   cargo test --no-default-features --features "libbpf-cargo/default libbpf-rs/default" --workspace -- --skip sudotest
 }
 

@@ -465,6 +465,27 @@ class ArchPackageBuilder:
             f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection."
         )
 
+    def _parse_ci_flags_from_pkgbuild(self) -> List[str]:
+        """Parses a special # ci|...| comment in a PKGBUILD for runner flags."""
+        pkgbuild_path = self.build_dir / "PKGBUILD"
+        if not pkgbuild_path.is_file():
+            return []
+
+        try:
+            content = pkgbuild_path.read_text()
+            # Regex to find a line like: # ci|skipcheck,anothertag|
+            match = re.search(r"^\s*#\s*ci\|([^|]+)\|", content, re.MULTILINE)
+            if match:
+                # Extract flags, strip whitespace, and split by comma
+                flags_str = match.group(1).strip()
+                flags = [f.strip() for f in flags_str.split(",") if f.strip()]
+                self.logger.info(f"Found CI flags in PKGBUILD: {flags}")
+                return flags
+        except Exception as e:
+            self.logger.warning(f"Could not parse CI flags from PKGBUILD: {e}")
+
+        return []
+
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
             self.logger.info(
@@ -488,6 +509,14 @@ class ArchPackageBuilder:
 
         build_process_successful = False
         try:
+            ci_flags = self._parse_ci_flags_from_pkgbuild()
+            extra_mflags = []
+            if "skipcheck" in ci_flags:
+                self.logger.info(
+                    "CI flag 'skipcheck' found. Adding --nocheck to makepkg flags."
+                )
+                extra_mflags.append("--nocheck")
+
             self.logger.info("Updating checksums in PKGBUILD (updpkgsums)...")
             self.subprocess_runner.run_command(["updpkgsums"])
             self.result.changes_detected = True
@@ -500,7 +529,9 @@ class ArchPackageBuilder:
             self.result.changes_detected = True
 
             # Attempt the build with retry logic for missing packages
-            build_process_successful = self._attempt_build_with_retry()
+            build_process_successful = self._attempt_build_with_retry(
+                extra_mflags=extra_mflags
+            )
 
             if not build_process_successful:
                 return False
@@ -539,16 +570,25 @@ class ArchPackageBuilder:
             self.result.error_message = f"Build failed due to Python error: {str(e)}"
             return False
 
-    def _attempt_build_with_retry(self, max_retries: int = 3) -> bool:
+    def _attempt_build_with_retry(
+        self, max_retries: int = 3, extra_mflags: Optional[List[str]] = None
+    ) -> bool:
         """Attempt to build the package, retrying with missing package installation if needed."""
+        if extra_mflags is None:
+            extra_mflags = []
+
+        # Dynamically construct the --mflags argument string
+        mflags_parts = ["-Lfs", "--noconfirm", "--noprogressbar"] + extra_mflags
+        mflags_arg_str = " ".join(mflags_parts)
+
         for attempt in range(max_retries):
             build_failed = False
 
             try:
                 self.logger.info(
-                    f"Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --mflags) in {self.build_dir}..."
+                    f'Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --mflags "{mflags_arg_str}") in {self.build_dir}...'
                 )
-                build_cmd = 'paru -Ui --noconfirm --mflags "-Lfs --noconfirm --noprogressbar" 2>&1 | tee "paru.log"'
+                build_cmd = f'paru -Ui --noconfirm --mflags "{mflags_arg_str}" 2>&1 | tee "paru.log"'
 
                 result = self.subprocess_runner.run_command([build_cmd], shell=True)
 

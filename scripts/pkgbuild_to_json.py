@@ -20,7 +20,7 @@ def parse_pkgbuild_output(output_str: str) -> dict:
         "MAKEDEPENDS": "makedepends",
         "CHECKDEPENDS": "checkdepends",
         "SOURCE": "sources",
-        "VALIDPGPKEYS": "validpgppkeys",
+        "VALIDPGPKEYS": "validpgpkeys",
     }
 
     active_key_internal = None

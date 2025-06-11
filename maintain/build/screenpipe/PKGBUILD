@@ -3,7 +3,7 @@
 # shellcheck shell=bash disable=SC2034,SC2154
 pkgname=screenpipe
 pkgver=0.2.74
-pkgrel=1
+pkgrel=2
 pkgdesc="24/7 Screen and Audio Capture with AI-powered tools"
 arch=('x86_64')
 url="https://github.com/mediar-ai/screenpipe"
@@ -24,7 +24,7 @@ prepare() {
 
 build() {
   cd "$pkgname-$pkgver"
-  cargo build --release
+  CFLAGS="-Wno-incompatible-pointer-types" cargo build --release
 }
 
 package() {

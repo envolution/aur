@@ -559,26 +559,58 @@ class ArchPackageBuilder:
             f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection."
         )
 
-    def _parse_ci_flags_from_pkgbuild(self) -> List[str]:
-        """Parses a special # ci|...| comment in a PKGBUILD for runner flags."""
+    def _parse_ci_flags_from_pkgbuild(self) -> Dict[str, List[str]]:
+        """
+        Parses a special # ci|...| comment in a PKGBUILD for runner flags.
+        Example: # ci|skipcheck,forcedep=package1 package2,anotherflag|
+        Returns a dictionary: {"flags": ["skipcheck", "anotherflag"], "forced_dependencies": ["package1", "package2"]}
+        """
         pkgbuild_path = self.build_dir / "PKGBUILD"
+        default_return = {"flags": [], "forced_dependencies": []}
+
         if not pkgbuild_path.is_file():
-            return []
+            return default_return
 
         try:
             content = pkgbuild_path.read_text()
-            # Regex to find a line like: # ci|skipcheck,anothertag|
+            # Regex to find a line like: # ci|skipcheck,forcedep=pkgA pkgB|
             match = re.search(r"^\s*#\s*ci\|([^|]+)\|", content, re.MULTILINE)
             if match:
-                # Extract flags, strip whitespace, and split by comma
                 flags_str = match.group(1).strip()
-                flags = [f.strip() for f in flags_str.split(",") if f.strip()]
-                self.logger.info(f"Found CI flags in PKGBUILD: {flags}")
-                return flags
+                # Split by comma to get individual flag items
+                raw_flag_items = [f.strip() for f in flags_str.split(",") if f.strip()]
+
+                parsed_simple_flags = []
+                parsed_forced_deps = []
+
+                for item in raw_flag_items:
+                    if item.startswith("forcedep="):
+                        # Extract the part after "forcedep="
+                        deps_value_str = item.split("=", 1)[1].strip()
+                        # Split by whitespace and filter out any empty strings
+                        deps_list = [dep for dep in deps_value_str.split() if dep]
+                        if deps_list:
+                            parsed_forced_deps.extend(deps_list)
+                    elif item:  # Ensure it's not an empty string after stripping
+                        parsed_simple_flags.append(item)
+
+                if parsed_simple_flags:
+                    self.logger.info(
+                        f"Found CI simple flags in PKGBUILD: {parsed_simple_flags}"
+                    )
+                if parsed_forced_deps:
+                    self.logger.info(
+                        f"Found CI forced dependencies in PKGBUILD: {parsed_forced_deps}"
+                    )
+
+                return {
+                    "flags": parsed_simple_flags,
+                    "forced_dependencies": parsed_forced_deps,
+                }
         except Exception as e:
             self.logger.warning(f"Could not parse CI flags from PKGBUILD: {e}")
 
-        return []
+        return default_return
 
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
@@ -603,13 +635,36 @@ class ArchPackageBuilder:
 
         build_process_successful = False
         try:
-            ci_flags = self._parse_ci_flags_from_pkgbuild()
+            # Parse CI flags from PKGBUILD
+            parsed_ci_options = self._parse_ci_flags_from_pkgbuild()
+            ci_simple_flags = parsed_ci_options.get("flags", [])
+            forced_dependencies = parsed_ci_options.get("forced_dependencies", [])
+
+            # Install forced dependencies if specified
+            if forced_dependencies:
+                self.logger.info(
+                    f"Attempting to install forced dependencies specified in PKGBUILD: {', '.join(forced_dependencies)}"
+                )
+                # Re-use _install_missing_packages as it handles individual package installation
+                # with provider lookups and appropriate paru flags.
+                if not self._install_missing_packages(forced_dependencies):
+                    self.logger.error(
+                        "Failed to install one or more forced dependencies. Aborting build process."
+                    )
+                    self.result.error_message = "Failed to install forced dependencies listed in PKGBUILD CI flags."
+                    return False  # Critical failure, stop the build
+                self.logger.info(
+                    "Successfully installed all specified forced dependencies."
+                )
+
+            # Prepare makepkg flags based on simple CI flags (e.g., skipcheck)
             extra_mflags = []
-            if "skipcheck" in ci_flags:
+            if "skipcheck" in ci_simple_flags:  # Use ci_simple_flags here
                 self.logger.info(
                     "CI flag 'skipcheck' found. Adding --nocheck to makepkg flags."
                 )
                 extra_mflags.append("--nocheck")
+            # Add other simple flag processing here if needed in the future
 
             self.logger.info("Updating checksums in PKGBUILD (updpkgsums)...")
             self.subprocess_runner.run_command(["updpkgsums"])

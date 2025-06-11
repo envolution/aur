@@ -738,9 +738,9 @@ class ArchPackageBuilder:
 
             try:
                 self.logger.info(
-                    f'Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --mflags "{mflags_arg_str}") in {self.build_dir}...'
+                    f'Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --pgpfetch --mflags "{mflags_arg_str}") in {self.build_dir}...'
                 )
-                build_cmd = f'paru -Ui --noconfirm --mflags "{mflags_arg_str}" 2>&1 | tee "paru.log"'
+                build_cmd = f'paru -Ui --noconfirm --pgpfetch --mflags "{mflags_arg_str}" 2>&1 | tee "paru.log"'
 
                 result = self.subprocess_runner.run_command([build_cmd], shell=True)
 
@@ -926,7 +926,14 @@ class ArchPackageBuilder:
     def _try_install_package(self, package: str) -> bool:
         """Try to install a specific package, returning True on success."""
         try:
-            install_cmd = ["paru", "-S", "--noconfirm", "--nocheck", package]
+            install_cmd = [
+                "paru",
+                "-S",
+                "--noconfirm",
+                "--pgpfetch",
+                "--nocheck",
+                package,
+            ]
             self.subprocess_runner.run_command(install_cmd)
             self.logger.info(f"Successfully installed: {package}")
             return True

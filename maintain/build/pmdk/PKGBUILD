@@ -9,12 +9,12 @@ pkgdesc="Persistent Memory Development Kit"
 arch=('x86_64')
 url="https://pmem.io/"
 license=('BSD-3-Clause OSL-1.0')
+makedepends=(pandoc-cli)
 depends=(
   'ndctl>=63'
 )
 optdepends=(
   'libfabric>=1.4.2: required by librpmem'
-  'pandoc'
 )
 provides=(
   'libpmem'

@@ -10,16 +10,20 @@ url="https://github.com/mediar-ai/screenpipe"
 license=('MIT')
 depends=('onnxruntime' 'ffmpeg' 'tesseract' 'curl' 'libxi' 'libxtst' 'xdo' 'xdotool')
 makedepends=('python' 'python-tomlkit' 'rust' 'cargo' 'git' 'cmake')
+
+# current release doesn't build anymore - interim commit was just the latest
+_commit='f85c1e5e4b16e15572b520cf714b19e9fb85ecc8'
 source=(
-  "$pkgname-$pkgver.tar.gz::https://github.com/mediar-ai/screenpipe/archive/refs/tags/v${pkgver}.tar.gz"
+  "git+https://github.com/mediar-ai/screenpipe.git#commit=${_commit}"
 )
 sha256sums=('64b0c66060e1acbb9544218411a99aebeb1133f918cdd6da3e7d6ed838a96f14')
 
+# delicate balance of compile flags as the crate dependency tree is all over the place
 _cflags="-std=gnu11 -fpermissive -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types"
 _cargoconfig=.cargo/config.toml
 
 prepare() {
-  cd "$pkgname-$pkgver"
+  cd "$pkgname"
   cargo fetch --target "x86_64-unknown-linux-gnu"
 
   export RUSTUP_TOOLCHAIN=stable
@@ -46,7 +50,7 @@ EOF
 }
 
 build() {
-  cd "$pkgname-$pkgver"
+  cd "$pkgname"
   export CFLAGS=${_cflags}
   cargo build --release
 }

@@ -87,7 +87,7 @@ def run_command(
     check: bool = True,
     cwd: Optional[Path] = None,
     env: Optional[Dict[str, str]] = None,
-    capture_output: bool = False,
+    capture_output: bool = True,
     print_command: bool = True,
     input_data: Optional[str] = None,
     timeout: Optional[int] = None,
@@ -111,6 +111,10 @@ def run_command(
         return result
     except subprocess.CalledProcessError as e:
         log_error("CMD_FAIL", f"Command '{shlex.join(cmd)}' failed with {e.returncode}")
+        if e.stdout:
+            log_debug(f"CMD_FAIL_STDOUT:\n{e.stdout.strip()}")
+        if e.stderr:
+            log_debug(f"CMD_FAIL_STDERR:\n{e.stderr.strip()}")
         if check:
             raise
         return e

@@ -9,22 +9,46 @@ arch=('x86_64')
 url="https://github.com/mediar-ai/screenpipe"
 license=('MIT')
 depends=('onnxruntime' 'ffmpeg' 'tesseract' 'curl' 'libxi' 'libxtst' 'xdo' 'xdotool')
-makedepends=('rust' 'cargo' 'git' 'cmake')
+makedepends=('python' 'python-tomlkit' 'rust' 'cargo' 'git' 'cmake')
 source=(
   "$pkgname-$pkgver.tar.gz::https://github.com/mediar-ai/screenpipe/archive/refs/tags/v${pkgver}.tar.gz"
 )
 sha256sums=('64b0c66060e1acbb9544218411a99aebeb1133f918cdd6da3e7d6ed838a96f14')
-options=(!lto !debug)
+
+_cflags="-std=gnu11 -fpermissive -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types"
+_cargoconfig=.cargo/config.toml
 
 prepare() {
   cd "$pkgname-$pkgver"
-  export RUSTUP_TOOLCHAIN=nightly #stable no longer supported
   cargo fetch --target "x86_64-unknown-linux-gnu"
+
+  export RUSTUP_TOOLCHAIN=stable
+
+  # there's probably a better way to modify the config.toml
+  # so we can avoid requiring python for building.
+  # this just seems the safest atm. I know upstream is
+  # modifying [env] and for now we have to ensure it's included
+ 
+  python - <<EOF
+import tomlkit
+
+path = "$_cargoconfig"
+with open(path, "r", encoding="utf-8") as f:
+    doc = tomlkit.parse(f.read())
+
+doc.setdefault("env", {})
+doc["env"]["CFLAGS"] = "$_cflags"
+doc["env"]["CMAKE_POLICY_VERSION_MINIMUM"] = "3.5"
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(tomlkit.dumps(doc))
+EOF
 }
 
 build() {
   cd "$pkgname-$pkgver"
-  CFLAGS="-Wno-incompatible-pointer-types" cargo build --release
+  export CFLAGS=${_cflags}
+  cargo build --release
 }
 
 package() {

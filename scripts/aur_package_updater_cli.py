@@ -328,9 +328,11 @@ def run_nvchecker(path_root, oldver_data_for_nvchecker, key_toml_path_arg):
         with open(oldver_json_path, "w") as f:
             json.dump({"version": 2, "data": oldver_data_for_nvchecker}, f)
         if nv_logger.isEnabledFor(logging.DEBUG):
-            nv_logger.debug(
-                f"Oldver JSON for NVChecker: {json.dumps({'version': 2, 'data': oldver_data_for_nvchecker}, indent=2)}"
+            json_str = json.dumps(
+                {"version": 2, "data": oldver_data_for_nvchecker}, indent=2
             )
+            truncated = (json_str[:500] + "...") if len(json_str) > 500 else json_str
+            nv_logger.debug(f"Oldver JSON for NVChecker (truncated): {truncated}")
         with open(newver_json_path, "w") as f:
             json.dump({}, f)
 

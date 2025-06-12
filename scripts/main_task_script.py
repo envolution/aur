@@ -389,7 +389,6 @@ def run_aur_updater_cli(
         str(UPDATER_CLI_OUTPUT_JSON_PATH),
         "--pkgbuild-script",
         str(pkgbuild_script_path_for_cli),  # Pass the correct script path
-        "--debug",
     ]
     if KEYFILE_PATH.exists():
         cmd.extend(["--key-toml", str(KEYFILE_PATH)])

@@ -16,10 +16,11 @@ _commit='f85c1e5e4b16e15572b520cf714b19e9fb85ecc8'
 source=(
   "git+https://github.com/mediar-ai/screenpipe.git#commit=${_commit}"
 )
-sha256sums=('64b0c66060e1acbb9544218411a99aebeb1133f918cdd6da3e7d6ed838a96f14')
+sha256sums=('c7ba8e00564be6d60b2e18b3022989a7bb3eebbd1c97ba3eca294261a3a37b39')
 
 # delicate balance of compile flags as the crate dependency tree is all over the place
 _cflags="-std=gnu11 -fpermissive -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types"
+_cxxflags="-std=gnu++11 -fpermissive -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types"
 _cargoconfig=.cargo/config.toml
 
 prepare() {
@@ -42,6 +43,7 @@ with open(path, "r", encoding="utf-8") as f:
 
 doc.setdefault("env", {})
 doc["env"]["CFLAGS"] = "$_cflags"
+doc["env"]["CXXFLAGS"] = "$_cxxflags"
 doc["env"]["CMAKE_POLICY_VERSION_MINIMUM"] = "3.5"
 
 with open(path, "w", encoding="utf-8") as f:
@@ -52,6 +54,7 @@ EOF
 build() {
   cd "$pkgname"
   export CFLAGS=${_cflags}
+  export CXXFLAGS=${_cxxflags}
   cargo build --release
 }
 

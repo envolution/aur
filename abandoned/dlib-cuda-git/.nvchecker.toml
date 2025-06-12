@@ -1,5 +1,5 @@
 [dlib-cuda-git]
-source="github-graphql"
+source="github"
 github="davisking/dlib"
 use_latest_release=true
 prefix="v"

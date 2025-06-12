@@ -1,5 +1,5 @@
 [nethack-git]
-source='github-graphql'
+source='github'
 github='NetHack/NetHack'
 use_latest_release=true
 use_commit_number=true

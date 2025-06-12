@@ -1,5 +1,5 @@
 ['testssl.sh-git']
-source="github-graphql"
+source="github"
 github="drwetter/testssl.sh"
 use_latest_release=true
 prefix="v"

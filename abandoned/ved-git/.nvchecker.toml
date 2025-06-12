@@ -1,5 +1,5 @@
 [ved-git]
-source="github-graphql"
+source="github"
 github="vlang/ved"
 use_latest_release=true
 use_commit_number=true

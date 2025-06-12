@@ -1,5 +1,5 @@
 [dolphin-git]
-source="github-graphql"
+source="github"
 github="KDE/dolphin"
 use_max_tag=true
 use_commit_number=true

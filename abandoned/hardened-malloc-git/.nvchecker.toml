@@ -1,5 +1,5 @@
 [hardened-malloc-git]
-source="github-graphql"
+source="github"
 github="grapheneos/hardened_malloc"
 use_latest_release=true
 use_commit_number=true

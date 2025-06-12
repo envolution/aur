@@ -1,5 +1,5 @@
 [xz-git]
-source = "github-graphql"
+source = "github"
 github = "tukaani-project/xz"
 prefix = "v"
 use_max_tag=true

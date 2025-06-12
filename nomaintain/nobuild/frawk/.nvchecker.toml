@@ -1,5 +1,5 @@
 [frawk]
-source="github-graphql"
+source="github"
 github="ezrosent/frawk"
 use_max_tag=true
 prefix="v"

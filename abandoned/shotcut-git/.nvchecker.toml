@@ -1,5 +1,5 @@
 [shotcut-git]
-source="github-graphql"
+source="github"
 github="mltframework/shotcut"
 prefix="v"
 #use_latest_release=true

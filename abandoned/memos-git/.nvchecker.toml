@@ -1,5 +1,5 @@
 [memos-git]
-source="github-graphql"
+source="github"
 github="usememos/memos"
 prefix="v"
 from_pattern="-"

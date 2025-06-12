@@ -1,5 +1,5 @@
 [chez-scheme-git]
-source="github-graphql"
+source="github"
 github="cisco/ChezScheme"
 use_latest_release=true
 prefix="v"

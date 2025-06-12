@@ -1,5 +1,5 @@
 [geogram-git]
-source="github-graphql"
+source="github"
 github="BrunoLevy/geogram"
 use_latest_release=true
 use_commit_number=true

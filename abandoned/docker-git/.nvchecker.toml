@@ -1,5 +1,5 @@
 [docker-git]
-source="github-graphql"
+source="github"
 github="moby/moby"
 use_latest_release=true
 prefix="v"

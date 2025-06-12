@@ -1,5 +1,5 @@
 [openscad-nopscadlib-git]
-source="github-graphql"
+source="github"
 github="nophead/NopSCADlib"
 use_max_tag=true
 prefix="v"

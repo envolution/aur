@@ -1,6 +1,6 @@
 [openbabel-git]
 
-source="github-graphql"
+source="github"
 use_latest_release=true
 prefix="openbabel-"
 from_pattern="-"

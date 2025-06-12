@@ -1,5 +1,5 @@
 [remmina-git]
-source="github-graphql"
+source="github"
 github="FreeRDP/Remmina"
 use_max_tag=true
 prefix="v"

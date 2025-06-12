@@ -1,5 +1,5 @@
 [rot8-git]
-source="github-graphql"
+source="github"
 github="efernau/rot8"
 use_latest_release=true
 prefix="v"

@@ -1,5 +1,5 @@
 [elinks-git]
-source="github-graphql"
+source="github"
 github="rkd77/elinks"
 prefix="v"
 use_latest_release=true

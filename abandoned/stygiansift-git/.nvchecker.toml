@@ -1,5 +1,5 @@
 [stygiansift-git]
-source="github-graphql"
+source="github"
 github="Mauitron/StygianSift"
 use_commit_number=true
 use_commit_hash=true

@@ -1,5 +1,5 @@
 [kdeconnect-git]
-source="github-graphql"
+source="github"
 github="KDE/kdeconnect-kde"
 prefix="v"
 use_max_tag=true

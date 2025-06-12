@@ -1,5 +1,5 @@
 [ollama-cuda-git]
-source="github-graphql"
+source="github"
 github="ollama/ollama"
 prefix="v"
 use_max_tag=true

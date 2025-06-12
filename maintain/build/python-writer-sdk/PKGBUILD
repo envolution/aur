@@ -23,7 +23,7 @@ makedepends=(
   python-installer
   python-wheel
   python-hatchling
-  python-hatch-fancy-pypi
+  python-hatch-fancy-pypi-readme
 )
 optdepends=(
   'python-pytorch-cuda: cuda extensions'

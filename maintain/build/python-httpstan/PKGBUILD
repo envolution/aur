@@ -10,7 +10,7 @@ arch=('i686' 'x86_64')
 url='https://httpstan.readthedocs.org'
 license=(LicenseRef-ISCL)
 depends=(python-numpy python-marshmallow python-webargs python-setuptools python-appdirs python-aiohttp)
-makedepends=(python-build python-installer python-wheel python-setuptools python-poetry-core)
+makedepends=(python-poetry python-build python-installer python-wheel python-setuptools python-poetry-core)
 source=("$pkgname-$pkgver.tar.gz::https://github.com/stan-dev/httpstan/archive/refs/tags/${pkgver}.tar.gz")
 sha256sums=('6b15a07557715e79e6fd66993930003b270f8b8b0c9e65f84978afe5e6bb3047')
 

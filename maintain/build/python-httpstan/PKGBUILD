@@ -17,8 +17,7 @@ sha256sums=('6b15a07557715e79e6fd66993930003b270f8b8b0c9e65f84978afe5e6bb3047')
 build() {
   cd $_pkgname-$pkgver
   make
-  python -m poetry build
-  #python -m build --wheel --no-isolation
+  poetry build -v --no-interaction
 }
 
 package() {

@@ -1,0 +1,44 @@
+# Maintainer: envolution
+# Contributor: Julian Maingot <sikmir@gmail.com>
+# Contributor: Nikolay Korotkiy <sikmir@gmail.com>
+# shellcheck shell=bash disable=SC2034,SC2154
+
+pkgname=pyglossary
+pkgver=5.0.10
+pkgrel=1
+pkgdesc="convert dictionary files/glossaries with various formats"
+arch=(any)
+url="https://github.com/ilius/pyglossary"
+license=('GPL-3.0-or-later')
+depends=('python')
+optdepends=(
+  'python-tqdm'
+  'gtk3'
+  'python-pygments'
+  'python-mistune'
+  'python-yaml'
+  'python-gobject: Gtk3-based interface'
+  'python-beautifulsoup4: HTML parsing'
+  'tix: Tkinter-based interface'
+  'python-prompt_toolkit: interactive command-line interface'
+  'python-lxml: Many optional flags and formats'
+  'python-pyicu: Reading or writing Aard 2 (.slob) files'
+  'python-marisa: Writing to Kobo E-Reader Dictionary'
+  'python-lzo: Required for some MDX glossaries'
+  'python-html5lib: Required to write to AppleDict'
+  'libplist: Required for AppleDict support'
+  'gtk4: Required for the new Gtk4-based interface'
+  'python-psutil: Required to show memory usage'
+  'python-polib: Required for gettext support'
+)
+makedepends=('python-setuptools')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/ilius/${pkgname}/archive/refs/tags/${pkgver}.tar.gz")
+sha256sums=('66a446b16c9606e0264c2e82123f2bfc51b068e08e9a6dd2d3f5738844bc3a4e')
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  python setup.py install --root="$pkgdir/" --prefix=/usr --optimize=1
+  cp config.json $pkgdir/usr/share/pyglossary
+}
+
+# vim:set ts=2 sw=2 et:

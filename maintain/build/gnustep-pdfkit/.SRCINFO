@@ -1,4 +1,4 @@
-pkgbase = pdfkit
+pkgbase = gnustep-pdfkit
 	pkgdesc = GNUstep PDF rendering framework based on xpdf
 	pkgver = 1.2.0
 	pkgrel = 1
@@ -13,4 +13,4 @@ pkgbase = pdfkit
 	source = http://savannah.nongnu.org/download/gap/PDFKit-1.2.0.tar.gz
 	md5sums = d6326e4c8685c4e4c0a4b7980f2a712d
 
-pkgname = pdfkit
+pkgname = gnustep-pdfkit

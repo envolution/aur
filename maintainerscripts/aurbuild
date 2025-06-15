@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import List, Optional
+
+import platformdirs
+import rich
+import toml
+import typer
+from rich.console import Console
+from rich.prompt import Confirm, Prompt
+from rich.status import Status
+from rich.table import Table
+
+# --- Configuration ---
+APP_NAME = "aur-builder"
+WORKFLOW_FILE_NAME = "manual_build.yml"
+CONFIG_FILE_NAME = "config.toml"
+
+# --- Typer and Rich Setup ---
+app = typer.Typer(
+    name="gh-trigger",
+    help="A CLI tool to trigger the manual_build.yml GitHub workflow.",
+    add_completion=False,
+)
+console = Console()
+
+
+# --- Configuration Handling ---
+
+def get_config_path() -> Path:
+    """Gets the path to the config file, ensuring the directory exists."""
+    config_dir = Path(platformdirs.user_config_dir(APP_NAME))
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir / CONFIG_FILE_NAME
+
+
+def load_config() -> dict:
+    """Loads the TOML configuration file."""
+    config_path = get_config_path()
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path, "r") as f:
+            return toml.load(f)
+    except toml.TomlDecodeError as e:
+        console.print(f"[bold red]Error:[/bold red] Could not parse config file at [cyan]{config_path}[/cyan].")
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+
+def save_config(config_data: dict):
+    """Saves the configuration data to the TOML file."""
+    config_path = get_config_path()
+    try:
+        with open(config_path, "w") as f:
+            toml.dump(config_data, f)
+        console.print(f"Config saved to [cyan]{config_path}[/cyan].")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Could not save config file.")
+        console.print(f"[red]{e}[/red]")
+
+
+def get_repository(repo_from_cli: Optional[str]) -> str:
+    """
+    Determines the target repository string ('owner/repo').
+    Order of precedence:
+    1. --repo CLI option
+    2. 'repo' key in config file
+    3. Prompt user and save to config
+    """
+    if repo_from_cli:
+        return repo_from_cli
+
+    config = load_config()
+    if "repo" in config and config["repo"]:
+        return config["repo"]
+
+    console.print("[yellow]GitHub repository not configured.[/yellow]")
+    new_repo = Prompt.ask("Enter the GitHub repository (e.g., [green]owner/project[/green])")
+    if not new_repo or "/" not in new_repo:
+        console.print("[bold red]Invalid repository format. Aborting.[/bold red]")
+        raise typer.Exit(code=1)
+
+    config["repo"] = new_repo
+    save_config(config)
+    return new_repo
+
+
+# --- Main Application Command ---
+
+@app.command()
+def main(
+    packages: Optional[List[str]] = typer.Argument(
+        None,
+        metavar="[PACKAGE...]",
+        help="One or more package names (pkgbase) to build.",
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help="Target GitHub repository (owner/repo). Overrides config.",
+    ),
+    build_mode: str = typer.Option(
+        "build",
+        "--build-mode",
+        "-m",
+        help="The build mode for the packages.",
+        case_sensitive=False,
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Skip confirmation prompt before triggering the workflow.",
+    ),
+):
+    """
+    Triggers a manual package build workflow on GitHub.
+
+    If no packages are provided as arguments, you will be prompted interactively.
+    """
+    # --- Pre-flight Check ---
+    if not shutil.which("gh"):
+        console.print("[bold red]Error:[/bold red] `gh` command-line tool not found.")
+        console.print("Please install the GitHub CLI: [link]https://cli.github.com/[/link]")
+        raise typer.Exit(code=1)
+
+    final_repo = get_repository(repo)
+
+    # --- Interactive Mode ---
+    if not packages:
+        console.print(
+            "No packages provided. Entering interactive mode.",
+            style="bold yellow",
+        )
+        packages = []
+        while True:
+            package_name = Prompt.ask("Enter a package name (or leave blank to finish)")
+            if not package_name:
+                break
+            packages.append(package_name.strip())
+
+        if not packages:
+            console.print("No packages entered. Aborting.", style="yellow")
+            raise typer.Exit()
+
+        # Build mode choice for interactive session
+        build_mode = Prompt.ask(
+            "Select a build mode",
+            choices=["nobuild", "build", "test"],
+            default=build_mode,
+        )
+
+    # --- Confirmation ---
+    table = Table(title="[bold blue]GitHub Workflow Trigger Plan[/bold blue]")
+    table.add_column("Parameter", style="cyan")
+    table.add_column("Value", style="magenta")
+
+    table.add_row("Repository", final_repo)
+    table.add_row("Workflow", WORKFLOW_FILE_NAME)
+    table.add_row("Build Mode", build_mode)
+    table.add_row("Packages", "\n".join(f"- {p}" for p in packages))
+
+    console.print(table)
+
+    if not yes:
+        if not Confirm.ask("\n[bold]Proceed with triggering this workflow?[/bold]"):
+            console.print("Operation cancelled.", style="yellow")
+            raise typer.Exit()
+
+    # --- Execution ---
+    try:
+        packages_json_str = json.dumps(packages)
+    except TypeError:
+        console.print("[bold red]Error:[/bold red] Could not serialize package list to JSON.")
+        raise typer.Exit(code=1)
+
+    command = [
+        "gh",
+        "workflow",
+        "run",
+        WORKFLOW_FILE_NAME,
+        "--repo",
+        final_repo,
+        "-f",
+        f"build_mode={build_mode}",
+        "-f",
+        f"packages_json={packages_json_str}",
+    ]
+
+    console.print(f"\n[dim]Executing: {' '.join(command)}[/dim]")
+
+    status: Status = console.status("[bold green]Triggering workflow via `gh` CLI...[/bold green]")
+    with status:
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,  # We check the returncode manually
+            )
+
+            if result.returncode == 0:
+                console.print("\n[bold green]✔ Workflow triggered successfully![/bold green]")
+                console.print(result.stdout.strip())
+            else:
+                console.print(f"\n[bold red]✖ Failed to trigger workflow (Exit Code: {result.returncode}).[/bold red]")
+                console.print("[red]GitHub CLI Error:[/red]")
+                console.print(result.stderr.strip(), style="dim red")
+                raise typer.Exit(code=1)
+
+        except FileNotFoundError:
+            # This is a fallback, but shutil.which should have caught it.
+            console.print("[bold red]Error: `gh` command not found during execution.[/bold red]")
+            raise typer.Exit(code=1)
+        except Exception as e:
+            console.print(f"[bold red]An unexpected error occurred: {e}[/bold red]")
+            raise typer.Exit(code=1)
+
+
+if __name__ == "__main__":
+    app()

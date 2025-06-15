@@ -1,0 +1,380 @@
+#!/usr/bin/env python
+
+import json
+import re
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Set, Tuple, List, Dict, Optional
+
+import typer
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+# You may need to install these:
+# pip install typer rich bashvar-sentry "thefuzz[speedup]" licensee
+# Optional but recommended:
+# pip install "license-analyzer"
+import bashvar_sentry
+from thefuzz import process
+
+# --- Optional Dependency Handling ---
+try:
+    from license_analyzer import LicenseAnalyzer
+
+    ANALYZER_AVAILABLE = True
+except ImportError:
+    LicenseAnalyzer = None  # Define as None to satisfy type hints
+    ANALYZER_AVAILABLE = False
+
+# --- Configuration ---
+KNOWN_SPDX_IDS_PATH = "/usr/share/licenses/known_spdx_license_identifiers.txt"
+KNOWN_SPDX_EXCEPTIONS_PATH = "/usr/share/licenses/known_spdx_license_exceptions.txt"
+FUZZY_MATCH_THRESHOLD = 80
+ANALYZER_MIN_SCORE = 85
+
+# --- CLI Setup ---
+app = typer.Typer()
+console = Console()
+
+
+# --- Data Structures ---
+@dataclass(frozen=True, eq=True)
+class FoundLicense:
+    """Represents a license found in a specific file by a specific tool."""
+
+    license: str
+    score: float
+    file: Path
+    tool: str
+
+
+# --- Data Collection Functions ---
+
+
+def get_known_spdx_licenses() -> Set[str]:
+    """Loads all known SPDX identifiers from the system into a set."""
+    licenses = set()
+    try:
+        with open(KNOWN_SPDX_IDS_PATH, "r") as f:
+            licenses.update(line.strip() for line in f if line.strip())
+        with open(KNOWN_SPDX_EXCEPTIONS_PATH, "r") as f:
+            licenses.update(line.strip() for line in f if line.strip())
+    except FileNotFoundError:
+        console.print(
+            f"[bold red]Error:[/] Could not find system SPDX lists at '{KNOWN_SPDX_IDS_PATH}'."
+        )
+    return licenses
+
+
+def get_pkgbuild_licenses(pkgbuild_path: Path) -> Set[str]:
+    """Extracts and parses the 'license' variable from a PKGBUILD file."""
+    try:
+        variables = bashvar_sentry.source_and_get_vars(str(pkgbuild_path), ["license"])
+        license_data = variables.get("license", [])
+
+        if isinstance(license_data, str):
+            license_list = [license_data]
+        else:
+            license_list = license_data
+
+        final_licenses = set()
+        splitter = re.compile(r"\s+(?:AND|OR|WITH)\s+|\s+")
+
+        for item in license_list:
+            parts = [part for part in splitter.split(item.strip()) if part]
+            final_licenses.update(parts)
+
+        return final_licenses
+    except Exception as e:
+        console.print(f"[bold red]Error parsing PKGBUILD:[/] {e}")
+        raise typer.Exit(code=1)
+
+
+def _execute_licensee(path: Path) -> List[FoundLicense]:
+    """
+    Helper to run licensee and parse the 'matched_files' array for accurate confidence.
+    """
+    command = ["licensee", "detect", "--json", str(path)]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode > 1 or not result.stdout:
+            return []
+
+        data = json.loads(result.stdout)
+        found = []
+        # *** FIX: Parse the 'matched_files' array for per-file accuracy ***
+        for match_data in data.get("matched_files", []):
+            license_id = match_data.get("matched_license")
+            matcher_info = match_data.get("matcher", {})
+
+            # If matcher_info is None or confidence key is missing, assume no license match
+            if not matcher_info or "confidence" not in matcher_info:
+                continue
+
+            confidence = matcher_info["confidence"]
+            if license_id and confidence > 0:
+                found.append(
+                    FoundLicense(
+                        license=license_id,
+                        score=round(confidence, 2),
+                        file=path,  # The file we passed to licensee
+                        tool="licensee",
+                    )
+                )
+        return found
+
+    except (json.JSONDecodeError, KeyError, FileNotFoundError):
+        return []
+
+
+def _execute_license_analyzer(
+    path: Path, analyzer: "LicenseAnalyzer"
+) -> List[FoundLicense]:
+    """Helper function to run license-analyzer on a file."""
+    if not analyzer:
+        return []
+    try:
+        matches = analyzer.analyze_file(str(path))
+        found = []
+        for match in matches:
+            if match.score * 100 >= ANALYZER_MIN_SCORE:
+                found.append(
+                    FoundLicense(
+                        license=match.name,
+                        score=round(match.score * 100, 2),
+                        file=path,
+                        tool="analyzer",
+                    )
+                )
+        return found
+    except Exception as e:
+        # This can fail on binary or unreadable files, which is okay.
+        return []
+
+
+def discover_licenses_from_source(
+    src_dir: Path, analyzer: Optional["LicenseAnalyzer"]
+) -> List[FoundLicense]:
+    """
+    Discovers licenses by finding common license files and analyzing them.
+    """
+    all_findings: List[FoundLicense] = []
+    console.print("[green]Starting license discovery in source files...[/green]")
+
+    if not src_dir.is_dir():
+        console.print(f"[bold red]Error:[/] Source directory '{src_dir}' not found.")
+        return []
+
+    find_command = [
+        "find",
+        str(src_dir),
+        "-type",
+        "f",
+        "-regextype",
+        "posix-egrep",
+        "-iregex",
+        r".*/(license|copying|readme|notice|legal|authors)(\..*)?$",
+    ]
+
+    try:
+        result = subprocess.run(
+            find_command, capture_output=True, text=True, check=False
+        )
+        if result.returncode > 1 and result.stderr:
+            console.print(
+                f"[yellow]Warning:[/] 'find' command may have failed: {result.stderr.strip()}"
+            )
+        found_files = result.stdout.strip().splitlines()
+    except FileNotFoundError:
+        console.print(
+            "[red]Error:[/] The 'find' command was not found. Please ensure it is in your PATH."
+        )
+        return []
+
+    if not found_files:
+        console.print("  -> No common license files found.")
+        return []
+
+    console.print(
+        f"  -> Found {len(found_files)} potential license files. Scanning them now."
+    )
+    for file_path_str in found_files:
+        file_path = Path(file_path_str)
+        relative_path = file_path.relative_to(src_dir.parent)
+        console.print(f"  -> Scanning file [cyan]{relative_path}[/]...")
+
+        all_findings.extend(_execute_licensee(file_path))
+        if ANALYZER_AVAILABLE:
+            all_findings.extend(_execute_license_analyzer(file_path, analyzer))
+
+    best_findings_map: Dict[Tuple[str, Path], FoundLicense] = {}
+    for finding in all_findings:
+        key = (finding.license, finding.file)
+        if key not in best_findings_map or finding.score > best_findings_map[key].score:
+            best_findings_map[key] = finding
+
+    final_findings = list(best_findings_map.values())
+    if final_findings:
+        console.print("[green]License discovery complete.[/green]")
+    else:
+        console.print(
+            "[yellow]No licenses were identified in the found files.[/yellow]"
+        )
+    return final_findings
+
+
+def check_for_license_install(pkgbuild_path: Path) -> bool:
+    """Checks if the PKGBUILD appears to install a custom license file."""
+    try:
+        content = pkgbuild_path.read_text()
+        return "/usr/share/licenses" in content
+    except Exception as e:
+        console.print(
+            f"[bold red]Error reading PKGBUILD for license install check:[/] {e}"
+        )
+        return False
+
+
+# --- Main Application Logic ---
+@app.command()
+def check(
+    pkgbuild_path: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+        help="Path to the PKGBUILD file.",
+    ),
+):
+    """Verifies the PKGBUILD license field against discovered licenses."""
+    console.print(
+        Panel(
+            f"🔍 Verifying [cyan]{pkgbuild_path.name}[/] in [cyan]{pkgbuild_path.parent}",
+            title="License Check",
+            border_style="blue",
+        )
+    )
+
+    # --- FIX: Warn user if optional dependency is missing ---
+    if not ANALYZER_AVAILABLE:
+        console.print(
+            "[yellow]Note:[/] 'license-analyzer' is not installed. Results may be less comprehensive. "
+            "Run: [bold]pip install 'license-analyzer'[/bold]"
+        )
+
+    with console.status("[bold green]Gathering information...[/]"):
+        pkg_root = pkgbuild_path.parent
+        src_dir = pkg_root / "src"
+        known_spdx = get_known_spdx_licenses()
+        pkg_licenses = get_pkgbuild_licenses(pkgbuild_path)
+        analyzer = LicenseAnalyzer() if ANALYZER_AVAILABLE else None
+        detected_findings = discover_licenses_from_source(src_dir, analyzer)
+        installs_license_file = check_for_license_install(pkgbuild_path)
+
+    detected_licenses_set = {f.license for f in detected_findings}
+
+    summary_table = Table(title="Data Collection Summary")
+    summary_table.add_column("Source", style="magenta")
+    summary_table.add_column("Result", style="cyan")
+    summary_table.add_row(
+        "PKGBUILD Licenses",
+        str(sorted(list(pkg_licenses))) if pkg_licenses else "Not found",
+    )
+    summary_table.add_row(
+        "Detected License Names",
+        str(sorted(list(detected_licenses_set))) if detected_licenses_set else "None",
+    )
+    summary_table.add_row(
+        "Custom License Install", "Yes" if installs_license_file else "No"
+    )
+    console.print(summary_table)
+
+    console.print("\n[bold blue]--- Analysis ---[/]")
+    corrections_needed = []
+    for lic in pkg_licenses:
+        if lic.startswith("LicenseRef-") or lic in known_spdx:
+            continue
+        suggestion, score = process.extractOne(lic, known_spdx)
+        if score >= FUZZY_MATCH_THRESHOLD:
+            corrections_needed.append((lic, suggestion))
+        else:
+            corrections_needed.append((lic, None))
+
+    if corrections_needed:
+        console.print("\n[bold yellow]Spelling & Syntax Issues Found in PKGBUILD[/]")
+        for original, suggestion in corrections_needed:
+            if suggestion:
+                console.print(
+                    f"  - License '[red]{original}[/]' is not a valid SPDX identifier. Did you mean '[green]{suggestion}[/]'?"
+                )
+            else:
+                console.print(
+                    f"  - License '[red]{original}[/]' is not a valid SPDX identifier and no close match was found."
+                )
+
+    if detected_findings:
+        console.print("\n[bold green]Detected License Details[/]")
+        findings_table = Table(show_header=True, header_style="bold magenta")
+        findings_table.add_column("File Path")
+        findings_table.add_column("Detected License", style="cyan")
+        findings_table.add_column("Confidence (%)", style="green")
+        findings_table.add_column("Tool", style="yellow")
+        for finding in sorted(
+            detected_findings, key=lambda f: (str(f.file), f.license)
+        ):
+            findings_table.add_row(
+                str(finding.file.relative_to(pkg_root)),
+                finding.license,
+                f"{finding.score:.2f}",
+                finding.tool,
+            )
+        console.print(findings_table)
+    else:
+        console.print(
+            "\n[yellow]No licenses were detected in the source files.[/yellow]"
+        )
+
+    console.print("\n[bold blue]--- Summary & Recommendations ---[/]")
+    pkg_only = pkg_licenses - detected_licenses_set
+    detected_only = detected_licenses_set - pkg_licenses
+
+    if not pkg_only and not detected_only and pkg_licenses:
+        console.print(
+            "[bold green]✅ MATCH:[/] Licenses in PKGBUILD match the set of licenses found in source files."
+        )
+    else:
+        if pkg_only:
+            console.print(
+                f"🟡 [bold]In PKGBUILD but not detected in files:[/] [yellow]{', '.join(sorted(list(pkg_only)))}[/]"
+            )
+        if detected_only:
+            console.print(
+                f"🔵 [bold]Detected in files but not in PKGBUILD:[/] [cyan]{', '.join(sorted(list(detected_only)))}[/]"
+            )
+
+    is_custom = any(lic.startswith("LicenseRef-") for lic in pkg_licenses)
+    if is_custom:
+        console.print(
+            "\n[cyan]ℹ️ Note:[/] PKGBUILD contains a custom license ('LicenseRef-...')."
+        )
+        if installs_license_file:
+            console.print(
+                "[green]   - A license file appears to be correctly installed to /usr/share/licenses.[/green]"
+            )
+        else:
+            console.print(
+                "[bold yellow]   - WARNING: A custom license is specified, but a license file may not be installed.[/bold yellow]"
+            )
+
+    if not pkg_licenses and not detected_findings:
+        console.print(
+            "[bold red]❌ UNKNOWN:[/] No license is specified in the PKGBUILD and no licenses were found in the source files."
+        )
+
+
+if __name__ == "__main__":
+    app()

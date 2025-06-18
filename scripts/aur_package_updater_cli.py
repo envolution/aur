@@ -82,11 +82,11 @@ def _get_full_version_string(v_str, r_str):
 # --- Data Fetching Functions ---
 # (fetch_aur_data, fetch_local_pkgbuild_data, run_nvchecker remain unchanged from the last version
 #  as they focus on data gathering, not the comparison logic itself)
-def fetch_aur_data(maintainer):
+def fetch_aur_data(ownership, maintainer):
     aur_logger = logging.getLogger("aur_updater_cli.aur")
     aur_data_by_pkgbase = {}
-    url = f"https://aur.archlinux.org/rpc/v5/search/{maintainer}?by=maintainer"
-    aur_logger.info(f"Querying AUR for maintainer '{maintainer}' at: {url}")
+    url = f"https://aur.archlinux.org/rpc/v5/search/{maintainer}?by={ownership}"
+    aur_logger.info(f"Querying AUR for '{ownership}' key '{maintainer}' at: {url}")
     try:
         process = subprocess.run(
             ["curl", "-s", url], capture_output=True, text=True, check=True, timeout=20
@@ -96,10 +96,14 @@ def fetch_aur_data(maintainer):
         )
         data = json.loads(process.stdout)
         if data.get("type") == "error":
-            aur_logger.error(f"AUR API error for '{maintainer}': {data.get('error')}")
+            aur_logger.error(
+                f"AUR API error for '{ownership}' key '{maintainer}': {data.get('error')}"
+            )
             return aur_data_by_pkgbase
         if data.get("resultcount", 0) == 0:
-            aur_logger.info(f"No packages found on AUR for maintainer '{maintainer}'.")
+            aur_logger.info(
+                f"No packages found on AUR for '{ownership}' key '{maintainer}'."
+            )
             return aur_data_by_pkgbase
 
         count = 0
@@ -130,19 +134,43 @@ def fetch_aur_data(maintainer):
             f"Fetched info for {count} unique PkgBase(s) from AUR for '{maintainer}'."
         )
     except subprocess.TimeoutExpired:
-        aur_logger.error(f"AUR query timed out for '{maintainer}'.")
+        aur_logger.error(f"AUR query timed out for '{ownership}' key '{maintainer}'.")
     except subprocess.CalledProcessError as e:
         aur_logger.error(
-            f"AUR query fail for '{maintainer}' (code {e.returncode}): {e.stderr}"
+            f"AUR query fail for '{ownership}' key '{maintainer}' (code {e.returncode}): {e.stderr}"
         )
     except json.JSONDecodeError as e:
-        aur_logger.error(f"Failed to parse AUR JSON for '{maintainer}': {e}")
+        aur_logger.error(
+            f"Failed to parse AUR JSON for '{ownership}' key '{maintainer}': {e}"
+        )
     except Exception as e:
         aur_logger.error(
-            f"AUR fetch error for '{maintainer}': {e}",
+            f"AUR fetch error for '{ownership}' key '{maintainer}': {e}",
             exc_info=aur_logger.isEnabledFor(logging.DEBUG),
         )
     return aur_data_by_pkgbase
+
+
+def get_combined_aur_data(maintainer):
+    """Fetch and combine maintainer and co-maintainer AUR data."""
+    aur_logger = logging.getLogger("aur_updater_cli.aur")
+
+    # Fetch maintainer data (required)
+    aur_data = fetch_aur_data("maintainer", maintainer)
+
+    # Try to fetch co-maintainer data (optional)
+    try:
+        comaintainer_data = fetch_aur_data("comaintainers", maintainer)
+        # Merge the dictionaries - co-maintainer data takes precedence for conflicts
+        aur_data.update(comaintainer_data)
+        aur_logger.info(f"Successfully merged co-maintainer data for '{maintainer}'")
+    except Exception as e:
+        aur_logger.warning(
+            f"Could not fetch co-maintainer data for '{maintainer}': {e}"
+        )
+        # Continue with just maintainer data
+
+    return aur_data
 
 
 def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path):
@@ -705,7 +733,7 @@ class AurPackageUpdater:
         )
 
     def run(self):
-        aur_data = fetch_aur_data(self.args.maintainer)
+        aur_data = get_combined_aur_data(self.args.maintainer)
         for pkgbase, data in aur_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
 

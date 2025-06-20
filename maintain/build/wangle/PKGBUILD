@@ -57,7 +57,7 @@ check() {
   cd $pkgname-$pkgver
   local skipped_tests=(
     SSLContextManagerTest
-    Bootstrap.UDPClientServerTest
+    UDPClientServerTest
   )
   local skipped_tests_pattern="${skipped_tests[0]}$(printf "|%s" "${skipped_tests[@]:1}")"
   ctest --test-dir build --output-on-failure -E "$skipped_tests_pattern"

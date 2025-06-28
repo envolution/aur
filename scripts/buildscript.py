@@ -18,7 +18,9 @@ import pyalpm
 # Setup logger early, but allow ArchPackageBuilder to customize further
 # Logs will be configured to go to stderr by ArchPackageBuilder instance
 logging.basicConfig(
-    level=logging.INFO, format="[%(levelname)s] %(message)s", stream=sys.stderr
+    level=logging.INFO,
+    format="[%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stderr,
 )
 logger = logging.getLogger("arch_builder_script")
 

@@ -7,6 +7,15 @@ import os
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import sys
+import logging
+
+# --- Logging Setup ---
+# This script is called as a subprocess, so it logs to stderr.
+# The parent process will capture and handle this stderr output.
+logging.basicConfig(
+    format="%(levelname)s: %(name)s: %(message)s", level=logging.INFO, stream=sys.stderr
+)
+logger = logging.getLogger("pkgbuild_to_json")
 
 
 def parse_pkgbuild_output(output_str: str) -> dict:
@@ -38,9 +47,8 @@ def parse_pkgbuild_output(output_str: str) -> dict:
         for internal_marker, json_key in current_key_map.items():
             if line == f"{internal_marker}_START":
                 if active_key_internal:
-                    print(
-                        f"Warning: Encountered new START marker '{line}' while '{active_key_internal}' was active.",
-                        file=sys.stderr,
+                    logger.warning(
+                        f"Encountered new START marker '{line}' while '{active_key_internal}' was active."
                     )
                 active_key_internal = internal_marker
                 active_key_json = json_key
@@ -66,18 +74,16 @@ def parse_pkgbuild_output(output_str: str) -> dict:
                 elif (
                     active_key_internal is not None
                 ):  # only warn if an active key was expecting its own end
-                    print(
-                        f"Warning: Mismatched END marker. Expected '{active_key_internal}_END', got '{line}'.",
-                        file=sys.stderr,
+                    logger.warning(
+                        f"Mismatched END marker. Expected '{active_key_internal}_END', got '{line}'."
                     )
 
         if not is_marker and active_key_internal:
             current_values.append(line)
 
     if active_key_internal and current_values:
-        print(
-            f"Warning: Data collection for '{active_key_internal}' might be incomplete (no END marker found).",
-            file=sys.stderr,
+        logger.warning(
+            f"Data collection for '{active_key_internal}' might be incomplete (no END marker found)."
         )
         if active_key_json in ["pkgname", "pkgbase", "pkgver", "pkgrel"]:
             data[active_key_json] = current_values[0] if current_values else ""

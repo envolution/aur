@@ -10,17 +10,19 @@ import glob
 import logging
 from awesomeversion import AwesomeVersion
 
-# --- Logging Setup ---
-logging.basicConfig(
-    format="%(levelname)s: %(name)s: %(message)s", level=logging.INFO, stream=sys.stderr
-)
-logger = logging.getLogger("aur_updater_cli")
+# --- Constants ---
+# Default logger if the script is run standalone.
+# If run as part of a larger system, a configured logger should be passed to the main class.
+DEFAULT_LOGGER = logging.getLogger("aur_updater_cli")
 
 
 # --- Version Comparison Function (Using AwesomeVersion) ---
 def compare_package_versions(
     base_ver1_str: str, rel1_str: str, base_ver2_str: str, rel2_str: str
 ) -> str:
+    # This function is self-contained and does not need a passed-in logger.
+    # It gets a logger instance by name, which will be configured either
+    # by the default setup or by the parent application.
     comp_logger = logging.getLogger("aur_updater_cli.compare")
 
     if base_ver1_str is None and base_ver2_str is None:
@@ -82,8 +84,8 @@ def _get_full_version_string(v_str, r_str):
 # --- Data Fetching Functions ---
 # (fetch_aur_data, fetch_local_pkgbuild_data, run_nvchecker remain unchanged from the last version
 #  as they focus on data gathering, not the comparison logic itself)
-def fetch_aur_data(ownership, maintainer):
-    aur_logger = logging.getLogger("aur_updater_cli.aur")
+def fetch_aur_data(ownership, maintainer, logger=DEFAULT_LOGGER):
+    aur_logger = logger.getChild("aur")
     aur_data_by_pkgbase = {}
     url = f"https://aur.archlinux.org/rpc/v5/search/{maintainer}?by={ownership}"
     aur_logger.info(f"Querying AUR for '{ownership}' key '{maintainer}' at: {url}")
@@ -151,16 +153,16 @@ def fetch_aur_data(ownership, maintainer):
     return aur_data_by_pkgbase
 
 
-def get_combined_aur_data(maintainer):
+def get_combined_aur_data(maintainer, logger=DEFAULT_LOGGER):
     """Fetch and combine maintainer and co-maintainer AUR data."""
-    aur_logger = logging.getLogger("aur_updater_cli.aur")
+    aur_logger = logger.getChild("aur")
 
     # Fetch maintainer data (required)
-    aur_data = fetch_aur_data("maintainer", maintainer)
+    aur_data = fetch_aur_data("maintainer", maintainer, logger=logger)
 
     # Try to fetch co-maintainer data (optional)
     try:
-        comaintainer_data = fetch_aur_data("comaintainers", maintainer)
+        comaintainer_data = fetch_aur_data("comaintainers", maintainer, logger=logger)
         # Merge the dictionaries - co-maintainer data takes precedence for conflicts
         aur_data.update(comaintainer_data)
         aur_logger.info(f"Successfully merged co-maintainer data for '{maintainer}'")
@@ -173,8 +175,8 @@ def get_combined_aur_data(maintainer):
     return aur_data
 
 
-def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path):
-    local_logger = logging.getLogger("aur_updater_cli.local")
+def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path, logger=DEFAULT_LOGGER):
+    local_logger = logger.getChild("local")
     local_data_by_pkgbase = {}
     actual_script_path = os.path.abspath(pkgbuild_script_path)
     if not os.path.exists(actual_script_path):
@@ -285,8 +287,10 @@ def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path):
     return local_data_by_pkgbase
 
 
-def run_nvchecker(path_root, oldver_data_for_nvchecker, key_toml_path_arg):
-    nv_logger = logging.getLogger("aur_updater_cli.nvchecker")
+def run_nvchecker(
+    path_root, oldver_data_for_nvchecker, key_toml_path_arg, logger=DEFAULT_LOGGER
+):
+    nv_logger = logger.getChild("nvchecker")
     results_by_pkgbase = {}
     abs_path_root = os.path.abspath(path_root)
     glob_pattern = os.path.join(abs_path_root, "**", ".nvchecker.toml")
@@ -441,8 +445,8 @@ def run_nvchecker(path_root, oldver_data_for_nvchecker, key_toml_path_arg):
 
 
 # --- Data Processing and Comparison ---
-def process_and_compare_data(all_data_by_pkgbase):
-    proc_logger = logging.getLogger("aur_updater_cli.processing")
+def process_and_compare_data(all_data_by_pkgbase, logger=DEFAULT_LOGGER):
+    proc_logger = logger.getChild("processing")
     output_list = []
 
     for pkgbase_key, data in all_data_by_pkgbase.items():
@@ -594,8 +598,8 @@ def process_and_compare_data(all_data_by_pkgbase):
 
 
 # --- Summary Function ---
-def generate_summary(processed_output_list, stream=sys.stderr):
-    summary_logger = logging.getLogger("aur_updater_cli.summary")
+def generate_summary(processed_output_list, stream=sys.stderr, logger=DEFAULT_LOGGER):
+    summary_logger = logger.getChild("summary")
     (
         updates_nv,
         updates_aur,
@@ -707,41 +711,49 @@ def generate_summary(processed_output_list, stream=sys.stderr):
             [f"\nNVChecker Operational Issues ({len(nv_issues)}):"]
             + [f"  - {s}" for s in nv_issues]
         )
+    # Use the passed-in stream for output, which defaults to sys.stderr
+    # The logger is used for internal logging, but the final summary report is
+    # directed to the specified stream.
     print("\n".join(lines), file=stream)
 
 
 # --- Main Application Class ---
 class AurPackageUpdater:
-    def __init__(self, args):
+    def __init__(self, args, logger_instance=None):
         self.args = args
+        self.logger = logger_instance or self._setup_default_logger()
         self.all_package_data_by_pkgbase = {}
         self._configure_logging()
 
+    def _setup_default_logger(self):
+        # This is a fallback for when the script is run standalone.
+        handler = logging.StreamHandler(sys.stderr)
+        formatter = logging.Formatter("%(levelname)s: %(name)s: %(message)s")
+        handler.setFormatter(formatter)
+        DEFAULT_LOGGER.addHandler(handler)
+        DEFAULT_LOGGER.setLevel(logging.INFO)
+        return DEFAULT_LOGGER
+
     def _configure_logging(self):
-        root_logger = logging.getLogger()
+        # Set the level of the logger instance based on the debug flag.
         app_log_level = logging.DEBUG if self.args.debug else logging.INFO
-        logger.setLevel(app_log_level)
-        if not root_logger.hasHandlers():
-            handler = logging.StreamHandler(sys.stderr)
-            handler.setFormatter(
-                logging.Formatter("%(levelname)s: %(name)s: %(message)s")
-            )
-            root_logger.addHandler(handler)
-        root_logger.setLevel(logging.DEBUG if self.args.debug else logging.INFO)
-        logger.info(
-            f"App logger '{logger.name}' effective level: {logging.getLevelName(logger.getEffectiveLevel())}"
+        self.logger.setLevel(app_log_level)
+        self.logger.info(
+            f"App logger '{self.logger.name}' effective level: {logging.getLevelName(self.logger.getEffectiveLevel())}"
         )
 
     def run(self):
-        aur_data = get_combined_aur_data(self.args.maintainer)
+        aur_data = get_combined_aur_data(self.args.maintainer, logger=self.logger)
         for pkgbase, data in aur_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
 
         if not os.path.isdir(self.args.path_root):
-            logger.critical(f"Path root '{self.args.path_root}' is not valid. Exiting.")
+            self.logger.critical(
+                f"Path root '{self.args.path_root}' is not valid. Exiting."
+            )
             sys.exit(1)
         local_data = fetch_local_pkgbuild_data(
-            self.args.path_root, self.args.pkgbuild_script
+            self.args.path_root, self.args.pkgbuild_script, logger=self.logger
         )
         for pkgbase, data in local_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
@@ -752,12 +764,17 @@ class AurPackageUpdater:
             if d.get("aur_pkgver")
         }
         nvchecker_data = run_nvchecker(
-            self.args.path_root, nvchecker_oldver_input, self.args.key_toml
+            self.args.path_root,
+            nvchecker_oldver_input,
+            self.args.key_toml,
+            logger=self.logger,
         )
         for pkgbase, data in nvchecker_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
 
-        final_output_list = process_and_compare_data(self.all_package_data_by_pkgbase)
+        final_output_list = process_and_compare_data(
+            self.all_package_data_by_pkgbase, logger=self.logger
+        )
 
         output_stream = (
             open(self.args.output_file, "w") if self.args.output_file else sys.stdout
@@ -766,13 +783,15 @@ class AurPackageUpdater:
             json.dump(final_output_list, output_stream, indent=2)
             if self.args.output_file:
                 output_stream.write("\n")
-                logger.info(f"JSON output written to {self.args.output_file}")
+                self.logger.info(f"JSON output written to {self.args.output_file}")
         finally:
             if self.args.output_file and output_stream is not sys.stdout:
                 output_stream.close()
 
         if self.args.summary:
-            generate_summary(final_output_list, stream=sys.stderr)
+            generate_summary(
+                final_output_list, stream=sys.stderr, logger=self.logger
+            )
 
 
 # --- CLI Argument Parsing and Main Execution ---
@@ -809,7 +828,7 @@ def main_cli():
     try:
         app.run()
     except Exception as e:
-        logger.critical(f"Unhandled exception: {e}", exc_info=True)
+        app.logger.critical(f"Unhandled exception: {e}", exc_info=True)
         sys.exit(2)
 
 

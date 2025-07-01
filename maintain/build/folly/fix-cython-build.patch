@@ -1,5 +1,5 @@
---- src_orig/folly/folly/CMakeLists.txt	2025-07-01 08:27:37.450519078 -0400
-+++ src/folly/folly/CMakeLists.txt	2025-07-01 10:08:15.020156573 -0400
+--- folly/folly/CMakeLists.txt	2025-07-01 08:27:37.450519078 -0400
++++ folly/folly/CMakeLists.txt	2025-07-01 10:08:15.020156573 -0400
 @@ -86,7 +86,6 @@
        python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/setup.py
        build_ext -f ${incs} ${libs}

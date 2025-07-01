@@ -62,7 +62,7 @@ source=(
 sha256sums=('40b43ef4895f6a82697577b049daec0cb48e2281cef341ca10c2ce09a4be9624'
             'c4b66347a9db6ddedb516e2a778a7a37e26a4280ce2c0c9fdbac11d8c8190c55'
             'a4701d37451bec6063ce5b5efc29f67ac6cc030fda699dac56d81e6064c0d7b5'
-            'e146db33a7750b21ae9e888b1b1476c29f41d303a91315507189d0a8dfe26a5b'
+            '52ae2232a3488aaf2894d98d626c9c04d88cd8d948e99a680ab07edd9ad1f3f1'
             'b3595e5cd45d4ef5d485549693c11c97b3b53766d06869821b40ad214c61bec2')
 
 prepare() {
@@ -88,8 +88,10 @@ add_definitions(-DGLOG_USE_GLOG_EXPORT)\n\
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)' CMakeLists.txt
 
   # re-detect here as folly_python_cpp couldn't find Python.h
-  add_dependencies(folly_python_cpp folly_python_bindings
-  sed -i -e '/add_dependencies(folly_python_cpp folly_python_bindings.*)/a\
+  sed -i -e '/add_library(/,/folly_python_cpp/{/add_library(/i\
+find_package(Python3 REQUIRED COMPONENTS Development)\
+
+}' -e '/add_dependencies(folly_python_cpp folly_python_bindings create_post_binding_symlink)/i\
 target_include_directories(folly_python_cpp PRIVATE ${Python3_INCLUDE_DIRS})\
 target_link_libraries(folly_python_cpp PRIVATE Python3::Python)' folly/CMakeLists.txt
 

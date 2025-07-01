@@ -88,7 +88,8 @@ add_definitions(-DGLOG_USE_GLOG_EXPORT)\n\
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)' CMakeLists.txt
 
   # re-detect here as folly_python_cpp couldn't find Python.h
-  sed -i -e '/add_dependencies(folly_python_cpp folly_python_bindings)/a\
+  add_dependencies(folly_python_cpp folly_python_bindings
+  sed -i -e '/add_dependencies(folly_python_cpp folly_python_bindings.*)/a\
 target_include_directories(folly_python_cpp PRIVATE ${Python3_INCLUDE_DIRS})\
 target_link_libraries(folly_python_cpp PRIVATE Python3::Python)' folly/CMakeLists.txt
 

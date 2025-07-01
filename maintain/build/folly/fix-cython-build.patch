@@ -1,0 +1,45 @@
+--- folly/folly/CMakeLists.txt	2025-07-01 08:27:37.450519078 -0400
++++ folly/folly/CMakeLists.txt	2025-07-01 08:27:51.652616277 -0400
+@@ -86,24 +86,11 @@
+       python3 ${CMAKE_CURRENT_SOURCE_DIR}/python/setup.py
+       build_ext -f ${incs} ${libs}
+     BYPRODUCTS
+-      ${_cybld}/folly/executor_api.h
+       ${_cybld}/folly/iobuf_api.h
+     WORKING_DIRECTORY ${_cybld}
+   )
+ 
+-  add_custom_target(create_post_binding_symlink ALL)
+-  add_custom_command(TARGET create_post_binding_symlink
+-    COMMAND
+-      ${CMAKE_COMMAND} -E create_symlink
+-      "${_cybld}/folly/executor_api.h"
+-      "${_cybld}/folly/python/executor_api.h"
+-  )
+-  add_custom_command(TARGET create_post_binding_symlink
+-    COMMAND
+-      ${CMAKE_COMMAND} -E create_symlink
+-      "${_cybld}/folly/iobuf_api.h"
+-      "${_cybld}/folly/python/iobuf_api.h"
+-  )
++  
+ 
+   add_library(
+     folly_python_cpp
+@@ -112,7 +99,7 @@
+       python/iobuf.cpp
+   )
+ 
+-  add_dependencies(folly_python_cpp folly_python_bindings create_post_binding_symlink)
++  add_dependencies(folly_python_cpp folly_python_bindings)
+   set_property(TARGET folly_python_cpp PROPERTY VERSION ${PACKAGE_VERSION})
+   target_compile_definitions(folly_python_cpp PRIVATE BOOST_NO_AUTO_PTR)
+   target_include_directories(folly_python_cpp PRIVATE "${_cybld}")
+@@ -143,7 +130,6 @@
+ 
+   install(
+     FILES
+-      ${_cybld}/folly/executor_api.h
+       ${_cybld}/folly/iobuf_api.h
+     DESTINATION ${INCLUDE_INSTALL_DIR}/folly/python
+     COMPONENT dev

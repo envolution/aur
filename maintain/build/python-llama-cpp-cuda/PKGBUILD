@@ -37,6 +37,7 @@ makedepends=(
   python-build
   python-wheel
   python-scikit-build-core
+  gcc14
 )
 checkdepends=(
   python-pytest
@@ -57,6 +58,7 @@ build() {
   PREFIX=/usr
 
   CMAKE_ARGS="-DGGML_CUDA=on -DCUDAToolkit_ROOT=/opt/cuda -DCMAKE_CUDA_COMPILER=/opt/cuda/bin/nvcc" \
+    NVCC_CCBIN='gcc-14' \
     python -m build --wheel --no-isolation
 }
 

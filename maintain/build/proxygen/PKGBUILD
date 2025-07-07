@@ -15,16 +15,16 @@ license=(BSD-3-Clause)
 depends=(
   boost-libs
   double-conversion
-  fizz
+  fizz=$pkgver
   fmt
-  folly
+  folly=$pkgver
   gcc-libs
   gflags
   glibc
   google-glog
-  mvfst
+  mvfst=$pkgver
   openssl
-  wangle
+  wangle=$pkgver
   zlib
   zstd
 )

@@ -12,16 +12,16 @@ license=(Apache-2.0)
 depends=(
   boost-libs
   double-conversion
-  fizz
+  fizz=$pkgver
   fmt
-  folly
+  folly=$pkgver
   gcc-libs
   gflags
   glibc
   google-glog
   openssl
   python
-  wangle
+  wangle=$pkgver
   xxhash
   zlib
 )

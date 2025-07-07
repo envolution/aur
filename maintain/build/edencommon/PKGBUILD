@@ -11,9 +11,9 @@ url="https://github.com/facebookexperimental/edencommon"
 license=(MIT)
 depends=(
   boost-libs
-  fb303
+  fb303=$pkgver
   fmt
-  folly
+  folly=$pkgver
   gcc-libs
   glibc
   google-glog

@@ -11,9 +11,9 @@ url="https://github.com/facebook/mvfst"
 license=(MIT)
 depends=(
   double-conversion
-  fizz
+  fizz=$pkgver
   fmt
-  folly
+  folly=$pkgver
   gcc-libs
   gflags
   glibc

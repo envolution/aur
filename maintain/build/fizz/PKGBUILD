@@ -14,7 +14,7 @@ license=(BSD-3-Clause)
 depends=(
   double-conversion
   fmt
-  folly
+  folly=$pkgver
   gcc-libs
   gflags
   glibc

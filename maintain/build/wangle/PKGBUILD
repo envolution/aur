@@ -14,9 +14,9 @@ url="https://github.com/facebook/wangle"
 license=(Apache-2.0)
 depends=(
   double-conversion
-  fizz
+  fizz=$pkgver
   fmt
-  folly
+  folly=$pkgver
   gcc-libs
   gflags
   glibc

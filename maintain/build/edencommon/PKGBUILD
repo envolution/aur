@@ -22,7 +22,7 @@ makedepends=(
   boost
   cmake
   gtest
-  mvfst
+  mvfst=$pkgver
 )
 provides=(
   libedencommon_os.so

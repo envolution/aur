@@ -22,7 +22,7 @@ depends=(
 makedepends=(
   boost
   cmake
-  mvfst
+  mvfst=$pkgver
 )
 provides=(
   libfb303.so

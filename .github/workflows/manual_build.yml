@@ -114,7 +114,7 @@ jobs:
           echo "Paru installation and configuration complete."
           echo "::endgroup::"
 
-          sudo pacman -S wget
+          sudo pacman -S --noconfirm wget
           wget https://github.com/envolution/aur/releases/download/folly/folly-2025.07.07.00-1-x86_64.pkg.tar.zst
           wget https://github.com/envolution/aur/releases/download/fizz/fizz-2025.07.07.00-1-x86_64.pkg.tar.zst
           wget https://github.com/envolution/aur/releases/download/wangle/wangle-2025.07.07.00-1-x86_64.pkg.tar.zst

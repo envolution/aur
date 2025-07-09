@@ -17,9 +17,10 @@ post_install() {
   echo "PATH clashes (e.g. other executables such as R from GNU R)"
   echo ""
   echo "If this is the first time installing OpenFOAM, you will need"
-  echo "to log out and back in, or: \$ source /etc/profile.d/openfoam-13.sh"
+  echo "to log out and back in"
+  echo " *or*: \$ source /etc/profile.d/openfoam-13.sh"
   echo ""
-  echo "Then type $ ofoam"
+  echo "Then type \$ ofoam"
   echo ""
   echo "OpenFOAM installs to /opt/OpenFOAM/OpenFOAM-<version>"
 }

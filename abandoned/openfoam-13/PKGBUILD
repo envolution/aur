@@ -91,10 +91,6 @@ export PARMETIS_TYPE=system
 export ZOLTAN_TYPE=system
 EOF
 
-    # Add VTK include path to CXXFLAGS in the main settings file
-    sed -i "s|export WM_CXXFLAGS='-m64 -fPIC -std=c++0x'|export WM_CXXFLAGS='-m64 -fPIC -std=c++0x -I/usr/include/vtk'|" \
-        "${_distpkgbase}-${_pkgver}/etc/config.sh/settings"
-
     echo $pkgver >$_cachefile
   fi
 

@@ -153,7 +153,7 @@ class BuildResult:
 
 class ArchPackageBuilder:
     RELEASE_BODY = (
-        "To install gpg keys:\n"
+        "To install - first load GPG keys to the pacman keyring:\n"
         "```bash\n"
         "  sudo pacman-key --recv-keys E6CA536875E45798 --keyserver keyserver.ubuntu.com\n"
         "  sudo pacman-key --lsign-key E6CA536875E45798\n"

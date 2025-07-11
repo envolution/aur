@@ -152,7 +152,12 @@ class BuildResult:
 
 
 class ArchPackageBuilder:
-    RELEASE_BODY = "To install, run: sudo pacman -U PACKAGENAME.pkg.tar.zst"
+    RELEASE_BODY = (
+        "To install, run:\n"
+        "  sudo pacman-key --recv-keys E6CA536875E45798 --keyserver keyserver.ubuntu.com\n"
+        "  sudo pacman-key --lsign-key E6CA536875E45798\n"
+        "  sudo pacman -U PACKAGEURL/PACKAGENAME.pkg.tar.zst"
+    )
     TRACKED_FILES = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml"]
 
     def __init__(self, config: BuildConfig):
@@ -1057,9 +1062,10 @@ class ArchPackageBuilder:
                 if self.result.built_packages
                 else f"{self.config.package_name}-VERSION.pkg.tar.zst"
             )
+            url_for_notes = f"https://github.com/envolution/aur/releases/download/{self.config.package_name}"
             release_notes = self.RELEASE_BODY.replace(
-                "PACKAGENAME.pkg.tar.zst", main_package_for_notes
-            )
+                "PACKAGEURL", url_for_notes
+            ).replace("PACKAGENAME.pkg.tar.zst", main_package_for_notes)
 
             # sign our releases
             signed_package_files = self._sign_package_files(package_files)

@@ -80,8 +80,12 @@ jobs:
           install -d -o builder -g builder -m 755 /home/builder/.cache/paru
           install -d -o builder -g builder -m 755 /home/builder/.local/share/paru
 
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --yes --import
+          echo "use-agent" >> ~/.gnupg/gpg.conf
           echo "Builder user setup complete."
           echo "::endgroup::"
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PRIVATE_KEY}}
 
       - name: Install paru (AUR helper)
         run: |

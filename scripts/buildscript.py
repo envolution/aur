@@ -975,6 +975,35 @@ class ArchPackageBuilder:
             self.logger.warning(f"Failed to query AUR API for package providers: {e}")
             return []
 
+    def _sign_package_files(self, package_files: List[Path]) -> List[Path]:
+        """Sign each package file with GPG and return list of original + .sig files."""
+        signed_files = []
+        for pkg_path in package_files:
+            self.logger.info(f"Signing {pkg_path.name}...")
+            try:
+                subprocess.run(
+                    [
+                        "gpg",
+                        "--batch",
+                        "--yes",
+                        "--detach-sign",
+                        "-u",
+                        "7E7B7BC98F96272B619AD8D7E6CA536875E45798",
+                        str(pkg_path),
+                    ],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.logger.info(f"✔ Signed: {pkg_path.name}")
+                signed_files.append(pkg_path)
+                signed_files.append(pkg_path.with_suffix(pkg_path.suffix + ".sig"))
+            except subprocess.CalledProcessError as e:
+                self.logger.error(
+                    f"✖ Failed to sign {pkg_path.name}:\n{e.stderr.decode().strip()}"
+                )
+        return signed_files
+
     def _create_release(self, package_files: List[Path]):
         if not self.result.version:
             self.logger.error(
@@ -1032,8 +1061,9 @@ class ArchPackageBuilder:
                 "PACKAGENAME.pkg.tar.zst", main_package_for_notes
             )
 
-            package_file_paths_str = [str(p) for p in package_files]
-
+            # sign our releases
+            signed_package_files = self._sign_package_files(package_files)
+            signed_package_file_paths_str = [str(p) for p in signed_package_files]
             create_release_cmd = [
                 "gh",
                 "release",
@@ -1045,10 +1075,10 @@ class ArchPackageBuilder:
                 release_notes,
                 "-R",
                 self.config.github_repo,
-            ] + package_file_paths_str
+            ] + signed_package_file_paths_str
 
             self.logger.info(
-                f"Creating new release for tag '{tag_name}' and uploading {len(package_file_paths_str)} asset(s)."
+                f"Creating new release for tag '{tag_name}' and uploading {len(signed_package_file_paths_str)} asset(s)."
             )
             self.subprocess_runner.run_command(create_release_cmd)
             self.logger.info(

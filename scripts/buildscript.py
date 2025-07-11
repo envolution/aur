@@ -160,9 +160,8 @@ class ArchPackageBuilder:
         "```\n"
         "And then:\n"
         "```bash\n"
-        "  sudo pacman -U PACKAGEURL/PACKAGENAME.pkg.tar.zst\n"
-        "```\n"
     )
+    URL = "https://github.com/envolution/aur/releases/download"
     TRACKED_FILES = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml"]
 
     def __init__(self, config: BuildConfig):
@@ -1061,16 +1060,13 @@ class ArchPackageBuilder:
                 self.logger.warning(
                     f"Could not delete release '{tag_name}'. It might not exist or another error occurred. Stderr: {delete_result.stderr.strip() if delete_result.stderr else 'N/A'}"
                 )
-
-            main_package_for_notes = (
-                self.result.built_packages[0]
-                if self.result.built_packages
-                else f"{self.config.package_name}-VERSION.pkg.tar.zst"
-            )
-            url_for_notes = f"https://github.com/envolution/aur/releases/download/{self.config.package_name}"
-            release_notes = self.RELEASE_BODY.replace(
-                "PACKAGEURL", url_for_notes
-            ).replace("PACKAGENAME.pkg.tar.zst", main_package_for_notes)
+            release_notes = self.RELEASE_BODY
+            for package in self.result.built_packages:
+                if "-debug-" not in package:
+                    release_notes += (
+                        f"  sudo pacman -U {self.URL}/{tag_name}/{package}\n"
+                    )
+            release_notes += "```\n"
 
             # sign our releases
             signed_package_files = self._sign_package_files(package_files)

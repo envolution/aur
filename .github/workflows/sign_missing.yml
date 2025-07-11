@@ -7,6 +7,10 @@ on:
         description: "Only log what would happen (true/false)"
         required: false
         default: "true"
+      iterations:
+        description: "How many packages to process"
+        required: false
+        default: 1
 
 jobs:
   sign:
@@ -43,11 +47,12 @@ jobs:
 
       - name: Process releases
         run: |
+          ITERS="${{ github.event.inputs.iterations }}" 
           DRY_RUN="${{ github.event.inputs.dry_run }}"
           echo "Dry-run: $DRY_RUN"
           mkdir -p work
 
-          jq -c '.[]' releases.json | while read -r release; do
+          jq -c '.[]' releases.json | head -n "$ITERS" | while read -r release; do
             tag_name=$(echo "$release" | jq -r .tag_name)
             release_id=$(echo "$release" | jq -r .id)
 

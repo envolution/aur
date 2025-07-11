@@ -818,18 +818,14 @@ class ArchPackageBuilder:
                 return False
 
             self.logger.info(
-                f"Missing packages installed successfully, retrying build..."
+                "Missing packages installed successfully, retrying build..."
             )
 
         return False
 
     def _get_built_package_files(self) -> list:
         """Get list of built package files."""
-        built_package_files = sorted(
-            self.build_dir.glob(f"{self.config.package_name}*.pkg.tar.zst")
-        )
-        if not built_package_files:
-            built_package_files = sorted(self.build_dir.glob("*.pkg.tar.zst"))
+        built_package_files = sorted(self.build_dir.glob("*.pkg.tar.zst"))
         return built_package_files
 
     def _parse_missing_packages_from_log(self) -> list:

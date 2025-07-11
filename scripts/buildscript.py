@@ -154,9 +154,11 @@ class BuildResult:
 class ArchPackageBuilder:
     RELEASE_BODY = (
         "To install, run:\n"
+        "```bash"
         "  sudo pacman-key --recv-keys E6CA536875E45798 --keyserver keyserver.ubuntu.com\n"
         "  sudo pacman-key --lsign-key E6CA536875E45798\n"
         "  sudo pacman -U PACKAGEURL/PACKAGENAME.pkg.tar.zst"
+        "```"
     )
     TRACKED_FILES = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml"]
 

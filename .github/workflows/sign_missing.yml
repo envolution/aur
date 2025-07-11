@@ -31,8 +31,8 @@ jobs:
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
           gpg --list-keys
 
-      - name: Install GitHub CLI
-        uses: cli/cli-action@v2
+      - name: Check GitHub CLI version (optional sanity check)
+        run: gh --version
 
       - name: List releases
         id: list_releases

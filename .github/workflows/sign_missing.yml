@@ -39,7 +39,7 @@ jobs:
         run: |
           gh api -H "Accept: application/vnd.github+json" \
             repos/envolution/aur/releases \
-            > releases.json
+            --paginate > releases.json
 
       - name: Process releases
         run: |

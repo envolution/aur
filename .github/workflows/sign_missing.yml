@@ -50,6 +50,7 @@ jobs:
           ITERS="${{ github.event.inputs.iterations }}" 
           DRY_RUN="${{ github.event.inputs.dry_run }}"
           echo "Dry-run: $DRY_RUN"
+          echo "Iterations: $ITERS"
           mkdir -p work
 
           jq -c '.[]' releases.json | head -n "$ITERS" | while read -r release; do
@@ -76,7 +77,6 @@ jobs:
                 fi
               fi
             done < <(jq -c '.[]' "work/assets-${tag_name}.json")
-
             for zst in "${missing_sigs[@]}"; do
               echo "Missing sig for $zst"
 
@@ -107,14 +107,22 @@ jobs:
                 ""
                 "And then:"
                 '```bash'
-                "  sudo pacman -U https://github.com/envolution/aur/releases/download/${tag_name}/${zst}"
-                '```'
               )
+              # Loop over all .zst files, excluding *-debug.pkg.tar.zst
+              for zst in "${zst_files[@]}"; do
+                if [[ "$zst" != *-debug*.pkg.tar.zst ]]; then
+                  body_lines+=("  sudo pacman -U https://github.com/envolution/aur/releases/download/${tag_name}/${zst}")
+                fi
+              done
+              body_lines+=('```')
+
               release_body=$(printf "%s\n" "${body_lines[@]}")
 
               gh api --method PATCH -H "Accept: application/vnd.github+json" \
                 /repos/envolution/aur/releases/$release_id \
                 -f body="$release_body"
+
+              rm work/*
             done
             echo "::endgroup::"
           done

@@ -80,10 +80,12 @@ jobs:
           install -d -o builder -g builder -m 755 /home/builder/.cache/paru
           install -d -o builder -g builder -m 755 /home/builder/.local/share/paru
 
-          sudo -u builder env HOME=/home/builder bash -c '
-            echo "$GPG_PRIVATE_KEY" | gpg --batch --yes --import
-            echo "use-agent" >> ~/.gnupg/gpg.conf
-          '
+          echo "$GPG_PRIVATE_KEY" > private.key.asc
+          sudo mv private.key.asc /home/builder/private.key.asc
+          sudo chown builder:builder /home/builder/private.key.asc
+          sudo -u builder env HOME=/home/builder gpg --batch --yes --import /home/builder/private.key.asc
+          rm /home/builder/private.key.asc
+
           echo "Builder user setup complete."
           echo "::endgroup::"
         env:

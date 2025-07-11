@@ -158,7 +158,7 @@ class ArchPackageBuilder:
         "  sudo pacman-key --recv-keys E6CA536875E45798 --keyserver keyserver.ubuntu.com\n"
         "  sudo pacman-key --lsign-key E6CA536875E45798\n"
         "```\n"
-        "And then:"
+        "And then:\n"
         "```bash\n"
         "  sudo pacman -U PACKAGEURL/PACKAGENAME.pkg.tar.zst\n"
         "```\n"

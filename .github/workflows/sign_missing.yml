@@ -1,0 +1,115 @@
+name: Sign Missing Packages in Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only log what would happen (true/false)'
+        required: false
+        default: 'true'
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+
+    env:
+      KEY_ID: 7E7B7BC98F96272B619AD8D7E6CA536875E45798
+      KEY_FPR_SHORT: E6CA536875E45798
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+
+    - name: Install GPG
+      run: sudo apt-get install -y gnupg
+
+    - name: Import signing key
+      run: |
+        mkdir -p ~/.gnupg
+        chmod 700 ~/.gnupg
+        echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+        gpg --list-keys
+
+    - name: Install GitHub CLI
+      uses: cli/cli-action@v2
+
+    - name: List releases
+      id: list_releases
+      run: |
+        gh api -H "Accept: application/vnd.github+json" \
+          repos/envolution/aur/releases \
+          > releases.json
+
+    - name: Process releases
+      run: |
+        DRY_RUN="${{ github.event.inputs.dry_run }}"
+        echo "Dry-run: $DRY_RUN"
+        mkdir -p work
+
+        jq -c '.[]' releases.json | while read -r release; do
+          tag_name=$(echo "$release" | jq -r .tag_name)
+          release_id=$(echo "$release" | jq -r .id)
+
+          echo "::group::Processing release: $tag_name"
+          gh api -H "Accept: application/vnd.github+json" \
+            repos/envolution/aur/releases/$release_id/assets \
+            > "work/assets-${tag_name}.json"
+
+          missing_sigs=()
+          zst_files=()
+
+          while IFS= read -r asset; do
+            name=$(echo "$asset" | jq -r .name)
+            url=$(echo "$asset" | jq -r .url)
+
+            if [[ "$name" == *.pkg.tar.zst ]]; then
+              zst_files+=("$name")
+              sig_name="$name.sig"
+              if ! jq -r '.[].name' "work/assets-${tag_name}.json" | grep -q "^${sig_name}$"; then
+                missing_sigs+=("$name")
+              fi
+            fi
+          done < <(jq -c '.[]' "work/assets-${tag_name}.json")
+
+          for zst in "${missing_sigs[@]}"; do
+            echo "Missing sig for $zst"
+
+            download_url="https://github.com/envolution/aur/releases/download/${tag_name}/${zst}"
+            curl -L "$download_url" -o "work/${zst}"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "[DRY-RUN] Would sign $zst and upload ${zst}.sig"
+              continue
+            fi
+
+            echo "Signing $zst..."
+            gpg --batch --yes --detach-sign -u "$KEY_ID" "work/${zst}"
+
+            echo "Uploading ${zst}.sig..."
+            gh release upload "$tag_name" "work/${zst}.sig" --clobber
+
+            echo "Re-uploading $zst (ensuring signature validity)..."
+            gh release upload "$tag_name" "work/${zst}" --clobber
+
+            echo "Updating release notes..."
+            new_body=$(
+              cat <<EOF
+To install - first load GPG keys to the pacman keyring:
+\`\`\`bash
+  sudo pacman-key --recv-keys $KEY_FPR_SHORT --keyserver keyserver.ubuntu.com
+  sudo pacman-key --lsign-key $KEY_FPR_SHORT
+\`\`\`
+And then:
+\`\`\`bash
+  sudo pacman -U https://github.com/envolution/aur/releases/download/${tag_name}/${zst}
+\`\`\`
+EOF
+            )
+            gh api --method PATCH -H "Accept: application/vnd.github+json" \
+              /repos/envolution/aur/releases/$release_id \
+              -f body="$new_body"
+          done
+          echo "::endgroup::"
+        done
+

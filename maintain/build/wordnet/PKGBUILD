@@ -47,8 +47,8 @@ build() {
 package_wordnet-common() {
   depends+=('wordnet-progs')
   pkgdesc="An Electronic Lexical Database from Princeton University"
-  provides="dict-wn"
-  conflicts="dict-wn"
+  provides=(dict-wn)
+  conflicts=(dict-wn)
 
   cd "${srcdir}/WordNet-${_srcver}"
   make DESTDIR="$pkgdir" install

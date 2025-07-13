@@ -1,0 +1,21 @@
+pkgbase = dict-wn
+	pkgdesc = WordNet for dictd et al.
+	pkgver = 3.1
+	pkgrel = 6
+	url = https://wordnet.princeton.edu/
+	install = dict-wn.install
+	arch = any
+	license = LicenseRef-custom
+	makedepends = dictd
+	makedepends = python
+	optdepends = dictd: dict client and server
+	provides = dictd-wn
+	conflicts = dictd-wn
+	source = http://deb.debian.org/debian/pool/main/w/wordnet/wordnet_3.0-39.debian.tar.xz
+	source = http://deb.debian.org/debian/pool/main/w/wordnet/wordnet_3.0.orig.tar.gz
+	source = https://wordnetcode.princeton.edu/wn3.1.dict.tar.gz
+	sha256sums = 0e3001b38c6f77aaa276deff6276c9bbcb31dd17f32a9d2ee30e806bb4315c6e
+	sha256sums = 73572005ef8eb15be48ea1010d18082b80bfbf8684b78ce64bc3abf11db1f95f
+	sha256sums = 3f7d8be8ef6ecc7167d39b10d66954ec734280b5bdcd57f7d9eafe429d11c22a
+
+pkgname = dict-wn

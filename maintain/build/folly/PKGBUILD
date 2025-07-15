@@ -27,7 +27,7 @@ depends=(
   libevent
   libsodium
   libunwind
-  'liburing>=2.10'
+  liburing
   libdwarf
   onetbb
   lz4
@@ -57,8 +57,8 @@ options=(!lto)
 #this is to correct some path resolution issues from fb internal loads to their OS release loads
 #_commit=1497482399f47b2fdc657674a872896848244878
 #"git+https://github.com/facebook/folly.git#commit=${_commit}"
+#
 # https://github.com/facebook/folly/pull/2466 = cmake-python-noexcept.patch"
-
 source=(
   "git+https://github.com/facebook/folly.git#tag=v${pkgver}"
   "fix-cmake-find-glog.patch"
@@ -122,7 +122,7 @@ check() {
     memory_mallctl_helper_test.MallctlHelperTest.*
     optional_coroutines_test.Optional.CoroutineSuccess
     singleton_thread_local_test.ThreadLocal.DependencyTest
-    singleton_thread_local_test.SingletonThreadLocalDeathTest.Overload 3457 - singleton_thread_local_test.SingletonThreadLocalDeathTest.Overload
+    singleton_thread_local_test.SingletonThreadLocalDeathTest.Overload
   )
   local skipped_tests_pattern="${skipped_tests[0]}$(printf '|%s' "${skipped_tests[@]:1}")"
   ctest --test-dir build --output-on-failure -E "$skipped_tests_pattern"

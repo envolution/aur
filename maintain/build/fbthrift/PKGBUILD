@@ -30,7 +30,7 @@ makedepends=(
   cmake
   cython
   gtest
-  mvfst
+  mvfst=$pkgver
 )
 optdepends=(
   'python-snappy: Snappy compression support'

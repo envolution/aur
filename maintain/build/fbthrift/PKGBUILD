@@ -64,7 +64,8 @@ source=(
   "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
   "add-missing-cpp2-2listfile.patch"
 )
-sha256sums=('3f9faa1b15912379740655d082048f2dd78b47a3b4b660bfd162f8965e1a85ea')
+sha256sums=('9c2df5c98d73eccbda695983d9961578bb21706338f4ffe7dfca562d490e780b'
+            '3fb17037822a8f2bc860e8e091d394f3ee0ad0f9b38fbf51487a647fbf556a2d')
 
 prepare() {
   cd $pkgname-$pkgver
@@ -88,7 +89,7 @@ build() {
     -DPACKAGE_VERSION="$pkgver"
 
   #fixing a missing path issue in the current release
-  mkdir -p build/thrift/conformance/if    
+  mkdir -p build/thrift/conformance/if
 
   cmake --build build
 }

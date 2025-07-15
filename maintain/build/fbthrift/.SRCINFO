@@ -9,7 +9,7 @@ pkgbase = fbthrift
 	makedepends = cmake
 	makedepends = cython
 	makedepends = gtest
-	makedepends = mvfst
+	makedepends = mvfst=2025.07.14.00
 	depends = boost-libs
 	depends = double-conversion
 	depends = fizz=2025.07.14.00
@@ -47,6 +47,8 @@ pkgbase = fbthrift
 	options = !emptydirs
 	options = !lto
 	source = fbthrift-2025.07.14.00.tar.gz::https://github.com/facebook/fbthrift/archive/v2025.07.14.00.tar.gz
-	sha256sums = 3f9faa1b15912379740655d082048f2dd78b47a3b4b660bfd162f8965e1a85ea
+	source = add-missing-cpp2-2listfile.patch
+	sha256sums = 9c2df5c98d73eccbda695983d9961578bb21706338f4ffe7dfca562d490e780b
+	sha256sums = 3fb17037822a8f2bc860e8e091d394f3ee0ad0f9b38fbf51487a647fbf556a2d
 
 pkgname = fbthrift

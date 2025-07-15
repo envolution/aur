@@ -115,6 +115,7 @@ check() {
     io_async_ssl_session_test.SSLSessionTest.NullSessionResumptionTest
     lang_bits_test\.BitsAllUintsTest/.+\.GetBitAtLE
     memory_mallctl_helper_test.MallctlHelperTest.*
+    logging_xlog_test.XlogTest.perFileCategoryHandling
     expected_coroutines_test.Expected.*
     singleton_thread_local_test.ThreadLocal.DependencyTest
     io_async_ssl_session_test.SSLSessionTest.*

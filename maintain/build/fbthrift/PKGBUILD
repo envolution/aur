@@ -60,7 +60,10 @@ options=(
   !emptydirs
   !lto
 )
-source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+source=(
+  "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+  "add-missing-cpp2-2listfile.patch"
+)
 sha256sums=('3f9faa1b15912379740655d082048f2dd78b47a3b4b660bfd162f8965e1a85ea')
 
 prepare() {
@@ -68,6 +71,7 @@ prepare() {
   # Use system CMake config instead of bundled module
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt
+  patch -Np1 -i ../add-missing-cpp2-2listfile.patch
 }
 
 build() {

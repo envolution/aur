@@ -129,7 +129,7 @@ jobs:
           wget https://github.com/envolution/aur/releases/download/wangle/wangle-2025.07.21.00-1-x86_64.pkg.tar.zst
           wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-2025.07.21.00-1-x86_64.pkg.tar.zst 
           wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-2025.07.21.00-2-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/fb303/fb303-2025.07.21.00-1-x86_64.pkg.tar.zst
+          wget https://github.com/envolution/aur/releases/download/fb303/fb303-2025.07.21.00-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-2025.07.21.00-1-x86_64.pkg.tar.zst
           sudo pacman -U --noconfirm *zst && rm -f *zst
 

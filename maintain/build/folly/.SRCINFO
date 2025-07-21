@@ -1,7 +1,7 @@
 pkgbase = folly
 	pkgdesc = An open-source C++ library developed and used at Facebook
-	pkgver = 2025.07.07.00
-	pkgrel = 4
+	pkgver = 2025.07.21.00
+	pkgrel = 1
 	url = https://github.com/facebook/folly
 	arch = x86_64
 	license = Apache-2.0
@@ -26,7 +26,7 @@ pkgbase = folly
 	depends = libevent
 	depends = libsodium
 	depends = libunwind
-	depends = liburing>=2.10
+	depends = liburing
 	depends = libdwarf
 	depends = onetbb
 	depends = lz4
@@ -39,17 +39,15 @@ pkgbase = folly
 	provides = libfolly_test_util.so
 	provides = libfollybenchmark.so
 	options = !lto
-	source = git+https://github.com/facebook/folly.git#tag=v2025.07.07.00
+	source = git+https://github.com/facebook/folly.git#tag=v2025.07.21.00
 	source = fix-cmake-find-glog.patch
 	source = fix-setup-py-for-python-extensions.patch
-	source = fix-cython-build.patch
-	source = fix-executor-noexcept.patch
-	source = stringpiece-fmt.patch
-	sha256sums = 01d2deaba1127dfc94948a73667deffaa5ea0ab76c3f1d4bccbc2f4b7f6b7262
-	sha256sums = c4b66347a9db6ddedb516e2a778a7a37e26a4280ce2c0c9fdbac11d8c8190c55
+	source = fix-cmake-for-setup-py-extensions.patch
+	source = fix-gcc-traits.patch
+	sha256sums = ba78bacd4782a1195e3fb4c59cd27f3a31057ccd637bd689469b0406a91c5eb3
+	sha256sums = a6e57c9ec968ed6de454803d141035585ee9ab1355beba64b2b176ab8c793d2c
 	sha256sums = a4701d37451bec6063ce5b5efc29f67ac6cc030fda699dac56d81e6064c0d7b5
-	sha256sums = 52ae2232a3488aaf2894d98d626c9c04d88cd8d948e99a680ab07edd9ad1f3f1
-	sha256sums = b3595e5cd45d4ef5d485549693c11c97b3b53766d06869821b40ad214c61bec2
-	sha256sums = 078fee7e9c13ca813fc339929b919b60f412166b1fdc5f0c3c6f0eb3073c61e7
+	sha256sums = 78f6127afef08193923b955aae79171a8218a74c6e0e9765bf3b49dee7a1d062
+	sha256sums = f958f12379e301cff2a0983124696c3c40746da8964799a27d3601b1d5c8575a
 
 pkgname = folly

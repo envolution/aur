@@ -40,6 +40,7 @@ build() {
   export NODE_OPTIONS='--max-old-space-size=8192'
   export PUPPETEER_SKIP_DOWNLOAD="true"
   export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  export APP_URL="http://localhost"
 
   # build web
   cd "${pkgname}-${pkgver}"

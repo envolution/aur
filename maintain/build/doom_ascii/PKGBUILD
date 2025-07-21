@@ -12,7 +12,7 @@ license=('GPL-2.0-or-later')
 depends=('glibc' 'sh')
 install=doom_ascii.install
 _pkgsrc="doom-ascii-${pkgver}"
-source=("${_pkgsrc}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
+source=("${_pkgsrc}.tar.gz::${url}/archive/refs/tags/${pkgver}.tar.gz"
   "${pkgname}.sh"
   cstd23.patch)
 sha256sums=('8218747865025aba92380b7ff3e3db17d0c3e912d544c5be08c8f6b6a0e56e6a'

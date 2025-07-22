@@ -129,9 +129,9 @@ def fetch_aur_data(ownership, maintainer, logger=DEFAULT_LOGGER):
                     "aur_pkgver": base_v,
                     "aur_pkgrel": rel_v,
                 }
-                aur_logger.debug(
-                    f"  Stored AUR for PkgBase='{base_name}' (from PkgName='{name}'): Base='{base_v}', Rel='{rel_v}'"
-                )
+                # aur_logger.debug(
+                #    f"  Stored AUR for PkgBase='{base_name}' (from PkgName='{name}'): Base='{base_v}', Rel='{rel_v}'"
+                # )
         aur_logger.info(
             f"Fetched info for {count} unique PkgBase(s) from AUR for '{maintainer}'."
         )
@@ -269,9 +269,9 @@ def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path, logger=DEFAULT_LO
                 "pkgfile": pkgfile,
             }
             count += 1
-            local_logger.debug(
-                f"  Parsed Local PkgBase='{key_pkgbase}' (Name='{actual_name}'): Base='{item.get('pkgver')}', Rel='{item.get('pkgrel')}'"
-            )
+            # local_logger.debug(
+            #    f"  Parsed Local PkgBase='{key_pkgbase}' (Name='{actual_name}'): Base='{item.get('pkgver')}', Rel='{item.get('pkgrel')}'"
+            # )
         local_logger.info(f"Parsed local data for {count} unique PkgBase entries.")
     except subprocess.TimeoutExpired:
         local_logger.error(f"Call to '{actual_script_path}' timed out.")
@@ -431,8 +431,8 @@ def run_nvchecker(
                 )
                 if ev == "updated":
                     nv_logger.info(f"NVCR: {name} UPDATED {ov} -> {v}")
-                elif ev == "up-to-date":
-                    nv_logger.info(f"NVCR: {name} UP-TO-DATE at {v}")
+                # elif ev == "up-to-date":
+                #    nv_logger.info(f"NVCR: {name} UP-TO-DATE at {v}")
                 elif ev == "no-result":
                     nv_logger.warning(f"NVCR: {name} NO-RESULT. {msg}")
                 elif lvl == "error" or entry.get("exc_info"):
@@ -591,8 +591,8 @@ def process_and_compare_data(all_data_by_pkgbase, logger=DEFAULT_LOGGER):
             proc_logger.info(
                 f"Local version for {pkgbase_key} (Name {display_name}) is ahead."
             )
-        elif not pkg_entry["errors"]:
-            proc_logger.info(f"No update for {pkgbase_key} (Name {display_name}).")
+        # elif not pkg_entry["errors"]:
+        #    proc_logger.info(f"No update for {pkgbase_key} (Name {display_name}).")
         output_list.append(pkg_entry)
     return output_list
 
@@ -789,9 +789,7 @@ class AurPackageUpdater:
                 output_stream.close()
 
         if self.args.summary:
-            generate_summary(
-                final_output_list, stream=sys.stderr, logger=self.logger
-            )
+            generate_summary(final_output_list, stream=sys.stderr, logger=self.logger)
 
 
 # --- CLI Argument Parsing and Main Execution ---

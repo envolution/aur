@@ -1,4 +1,4 @@
-name: Grouped NVCHECKER Updates
+name: Scheduled Batch Updates
 on:
   schedule:
     - cron: "0 */12 * * *" # Runs every 12 hours
@@ -7,6 +7,9 @@ on:
 jobs:
   arch-task:
     runs-on: ubuntu-latest
+    concurrency:
+      group: checkupdates
+      cancel-in-progress: true
     container:
       image: archlinux:latest
       options: --privileged # Required for system-level changes like useradd, pacman

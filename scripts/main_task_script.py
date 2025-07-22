@@ -143,144 +143,6 @@ def run_command(
         )
 
 
-
-# --- Path Debugging Helper ---
-def debug_path_permissions(
-    path_to_debug_str: str, user_context: str, as_user: Optional[str] = None
-):
-    start_group(
-        f"Debug Path Access: {path_to_debug_str} (context: {user_context}{f', as {as_user}' if as_user else ''})"
-    )
-    path_to_debug = Path(path_to_debug_str)
-    log_debug(f"[{user_context}] Checking path: {path_to_debug}")
-
-    path_exists_cmd = ["test", "-e", str(path_to_debug)]
-    path_isdir_cmd = ["test", "-d", str(path_to_debug)]
-    path_isfile_cmd = ["test", "-f", str(path_to_debug)]
-    path_readable_cmd = ["test", "-r", str(path_to_debug)]
-    path_executable_cmd = ["test", "-x", str(path_to_debug)]  # For dirs, means listable
-
-    if as_user:
-        path_exists_cmd = ["sudo", "-u", as_user] + path_exists_cmd
-        path_isdir_cmd = ["sudo", "-u", as_user] + path_isdir_cmd
-        path_isfile_cmd = ["sudo", "-u", as_user] + path_isfile_cmd
-        path_readable_cmd = ["sudo", "-u", as_user] + path_readable_cmd
-        path_executable_cmd = ["sudo", "-u", as_user] + path_executable_cmd
-
-    exists_result = run_command(path_exists_cmd, check=False, print_command=True)
-    if exists_result.returncode != 0:
-        log_warning(
-            f"[{user_context}{f' as {as_user}' if as_user else ''}] Path does NOT exist or is inaccessible: {path_to_debug}"
-        )
-        end_group()
-        return
-    log_debug(
-        f"[{user_context}{f' as {as_user}' if as_user else ''}] Path exists: {path_to_debug}"
-    )
-
-    isdir_result = run_command(path_isdir_cmd, check=False, print_command=True)
-    log_debug(
-        f"[{user_context}{f' as {as_user}' if as_user else ''}] Is directory: {isdir_result.returncode == 0}"
-    )
-
-    isfile_result = run_command(path_isfile_cmd, check=False, print_command=True)
-    log_debug(
-        f"[{user_context}{f' as {as_user}' if as_user else ''}] Is file: {isfile_result.returncode == 0}"
-    )
-
-    readable_result = run_command(path_readable_cmd, check=False, print_command=True)
-    log_debug(
-        f"[{user_context}{f' as {as_user}' if as_user else ''}] Is readable: {readable_result.returncode == 0}"
-    )
-
-    if isdir_result.returncode == 0:  # Only check executable if it's a directory
-        executable_result = run_command(
-            path_executable_cmd, check=False, print_command=True
-        )
-        log_debug(
-            f"[{user_context}{f' as {as_user}' if as_user else ''}] Is executable/listable (if dir): {executable_result.returncode == 0}"
-        )
-
-    # Try 'ls'
-    ls_cmd_list = ["ls", "-lha", str(path_to_debug)]
-    if as_user:
-        ls_cmd_list = ["sudo", "-u", as_user] + ls_cmd_list
-
-    log_debug(
-        f"[{user_context}{f' as {as_user}' if as_user else ''}] Attempting '{' '.join(ls_cmd_list)}' (first few lines):"
-    )
-    try:
-        ls_result = run_command(
-            ls_cmd_list, check=False, capture_output=True, print_command=True
-        )
-        if ls_result.returncode == 0:
-            log_debug(
-                f"[{user_context}{f' as {as_user}' if as_user else ''}] 'ls' successful. Output (first 10 lines):"
-            )
-            lines = ls_result.stdout.splitlines()
-            for i, line in enumerate(lines[:10]):
-                log_debug(f"  {line}")
-            if not lines:
-                log_debug("  (ls output was empty)")
-        else:
-            log_warning(
-                f"[{user_context}{f' as {as_user}' if as_user else ''}] '{' '.join(ls_cmd_list)}' FAILED with code {ls_result.returncode}."
-            )
-            if ls_result.stdout:
-                log_debug(f"  LS STDOUT: {ls_result.stdout.strip()}")
-            if ls_result.stderr:
-                log_debug(f"  LS STDERR: {ls_result.stderr.strip()}")
-    except Exception as e:
-        log_warning(
-            f"[{user_context}{f' as {as_user}' if as_user else ''}] Exception running 'ls': {e}"
-        )
-
-    log_debug(
-        f"[{user_context}{f' as {as_user}' if as_user else ''}] Attempting to find PKGBUILD files under {path_to_debug} using 'find':"
-    )
-    find_cmd_list = [
-        "find",
-        str(path_to_debug),
-        "-name",
-        "PKGBUILD",
-        "-type",
-        "f",
-        "-print",
-    ]
-    if as_user:
-        find_cmd_list = ["sudo", "-u", as_user] + find_cmd_list
-
-    find_result = run_command(
-        find_cmd_list, check=False, capture_output=True, print_command=True
-    )
-    if find_result.returncode == 0:
-        found_files_by_find = find_result.stdout.strip().splitlines()
-        if found_files_by_find:
-            log_debug(
-                f"[{user_context}{f' as {as_user}' if as_user else ''}] 'find' found {len(found_files_by_find)} PKGBUILD file(s):"
-            )
-            for f_line_idx, f_line in enumerate(found_files_by_find):
-                if f_line_idx < 10:  # Print first 10
-                    log_debug(f"  {f_line}")
-                elif f_line_idx == 10:
-                    log_debug(f"  ... and {len(found_files_by_find) - 10} more.")
-                    break
-        else:
-            log_debug(
-                f"[{user_context}{f' as {as_user}' if as_user else ''}] 'find' command ran successfully but found no PKGBUILD files."
-            )
-    else:
-        log_warning(
-            f"[{user_context}{f' as {as_user}' if as_user else ''}] '{' '.join(find_cmd_list)}' FAILED with code {find_result.returncode}."
-        )
-        if find_result.stdout:
-            log_debug(f"  FIND STDOUT: {find_result.stdout.strip()}")
-        if find_result.stderr:
-            log_debug(f"  FIND STDERR: {find_result.stderr.strip()}")
-
-    end_group()
-
-
 # --- Core Functions ---
 def setup_environment() -> bool:
     start_group("Setup Environment")
@@ -378,9 +240,10 @@ def create_nvchecker_keyfile() -> bool:
     return True
 
 
-
 def run_aur_updater_cli(
-    path_root_for_cli: str, pkgbuild_script_path_for_cli: Path, logger_instance: logging.Logger
+    path_root_for_cli: str,
+    pkgbuild_script_path_for_cli: Path,
+    logger_instance: logging.Logger,
 ) -> Optional[List[Dict[str, Any]]]:
     start_group("Run AUR Package Updater CLI")
     script_path = NVCHECKER_RUN_DIR / "aur_package_updater_cli.py"
@@ -412,7 +275,9 @@ def run_aur_updater_cli(
         cmd.append("--debug")
 
     try:
-        proc_result = run_command(cmd, cwd=NVCHECKER_RUN_DIR, check=False, logger_instance=logger_instance)
+        proc_result = run_command(
+            cmd, cwd=NVCHECKER_RUN_DIR, check=False, logger_instance=logger_instance
+        )
         if proc_result.returncode != 0:
             logger_instance.error(
                 f"[AUR_UPDATER_NON_ZERO] aur_package_updater_cli.py exited {proc_result.returncode}."
@@ -461,13 +326,15 @@ def run_aur_updater_cli(
                     str(UPDATER_CLI_OUTPUT_JSON_PATH),
                     str(artifact_path),
                 ],
-                logger_instance=logger_instance
+                logger_instance=logger_instance,
             )
             logger_instance.info(
                 f"[ARTIFACT_OK] Copied updater CLI output to artifacts: {artifact_path}"
             )
         except Exception as e:
-            logger_instance.warning(f"[ARTIFACT_FAIL] Failed to copy output to artifacts: {e}")
+            logger_instance.warning(
+                f"[ARTIFACT_FAIL] Failed to copy output to artifacts: {e}"
+            )
 
         if isinstance(update_data, list) and update_data:
             logger_instance.debug(
@@ -499,8 +366,6 @@ def run_aur_updater_cli(
         )
         end_group()
         return None
-
-
 
 
 def get_packages_to_process(update_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -586,7 +451,7 @@ def execute_build_script_py(
                 "-p",
                 str(pkg_artifact_dir),
             ],
-            logger_instance=logger_instance
+            logger_instance=logger_instance,
         )
     except Exception as e:  # Catch specific exceptions if possible, or broad for now
         logger_instance.error(
@@ -646,7 +511,7 @@ def execute_build_script_py(
         "-u",
         BUILDER_USER,
         f"HOME={BUILDER_HOME}",
-        sys.executable, # Use the same python interpreter
+        sys.executable,  # Use the same python interpreter
         str(bs_exe),
         "--github-repo",
         GITHUB_REPOSITORY,
@@ -748,9 +613,7 @@ def execute_build_script_py(
     if bs_err is None:
         bs_err = ""
 
-    summary_err_msg = (
-        bs_err.replace("|", "\|").replace("\r", " ").replace("\n", "<br>")
-    )
+    summary_err_msg = bs_err.replace("|", "\|").replace("\r", " ").replace("\n", "<br>")
     status_md = (
         "✅ Success"
         if bs_ok
@@ -779,12 +642,17 @@ def execute_build_script_py(
     return bs_ok
 
 
-
 def main():
     # Setup logging
-    log_level = logging.DEBUG if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true" else logging.INFO
+    log_level = (
+        logging.DEBUG
+        if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true"
+        else logging.INFO
+    )
     handler = logging.StreamHandler(sys.stderr)
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(log_level)
@@ -838,8 +706,6 @@ def main():
         "PRE_CLI_DEBUG",
         f"Debugging PKGBUILD_ROOT ('{path_root_for_cli_actual}') access before Updater CLI.",
     )
-    debug_path_permissions(path_root_for_cli_actual, "runner")
-    debug_path_permissions(path_root_for_cli_actual, BUILDER_USER, as_user=BUILDER_USER)
 
     if not create_nvchecker_keyfile():
         log_warning(
@@ -958,7 +824,7 @@ def main():
             build_mode,
             str(pkgbuild_dir_rel),
             package_update_info_json_str_for_bs,
-            logger
+            logger,
         ):
             log_error("BUILD_LOOP_PKG_FAIL", f"Build script FAILED for {pkgbase}.")
             overall_build_ok = False

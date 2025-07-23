@@ -1,6 +1,6 @@
 pkgbase = pyinstaller-hooks-contrib
 	pkgdesc = Community maintained hooks for PyInstaller
-	pkgver = 2025.6
+	pkgver = 2025.7
 	pkgrel = 1
 	url = https://github.com/pyinstaller/pyinstaller-hooks-contrib
 	arch = any
@@ -10,7 +10,7 @@ pkgbase = pyinstaller-hooks-contrib
 	makedepends = python-wheel
 	makedepends = python-setuptools
 	depends = python
-	source = pyinstaller-hooks-contrib-2025.6.tar.gz::https://github.com/pyinstaller/pyinstaller-hooks-contrib/archive/refs/tags/v2025.6.tar.gz
-	sha256sums = 08ad3fd63bee08e0c3255d0d9af53ca7f175fe36fc49b17c4cd561e40732dcc3
+	source = pyinstaller-hooks-contrib-2025.7.tar.gz::https://github.com/pyinstaller/pyinstaller-hooks-contrib/archive/refs/tags/v2025.7.tar.gz
+	sha256sums = ce5633d1cf98571de8cbc6f4629ce97d67e34e487ae0f8f9f4898c32f24b4d1b
 
 pkgname = pyinstaller-hooks-contrib

@@ -123,7 +123,7 @@ jobs:
           echo "::endgroup::"
 
           cd ..
-          sudo pacman -S --noconfirm wget
+          #sudo pacman -S --noconfirm wget
           #wget https://github.com/envolution/aur/releases/download/folly/folly-2025.07.21.00-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/fizz/fizz-2025.07.21.00-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/wangle/wangle-2025.07.21.00-1-x86_64.pkg.tar.zst
@@ -131,7 +131,7 @@ jobs:
           #wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-2025.07.21.00-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/fb303/fb303-2025.07.21.00-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-2025.07.21.00-1-x86_64.pkg.tar.zst
-          sudo pacman -U --noconfirm *zst && rm -f *zst
+          #sudo pacman -U --noconfirm *zst && rm -f *zst
 
       - name: Setup SSH key for AUR
         run: |

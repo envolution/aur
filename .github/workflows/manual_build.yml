@@ -113,8 +113,8 @@ jobs:
           cd /tmp
           #sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
           #cd paru-bin
-          sudo -u builder git clone https://aur.archlinux.org/paru.git
-          cd paru-bin
+          sudo -u builder git clone https://aur.archlinux.org/paru-git.git
+          cd paru-git
           # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
           sudo -u builder makepkg -si --noconfirm
 

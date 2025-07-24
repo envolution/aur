@@ -111,12 +111,9 @@ jobs:
           echo "::group::Install paru (AUR helper)"
           echo "Installing paru for 'builder' user..."
           cd /tmp
-          #sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
-          #cd paru-bin
-          sudo -u builder git clone https://aur.archlinux.org/paru-git.git
-          cd paru-git
-          # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
-          sudo -u builder RUST_MIN_STACK=16777216 makepkg -si --noconfirm
+          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          cd paru-bin
+          sudo -u builder makepkg -si --noconfirm
 
           echo "Configuring paru..."
           echo -e "[options]\nBatchInstall\nBottomUp\nRemoveMake\nSudoLoop\nUseAsk" | sudo tee /etc/paru.conf > /dev/null

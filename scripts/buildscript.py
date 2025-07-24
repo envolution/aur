@@ -751,7 +751,7 @@ class ArchPackageBuilder:
                 self.logger.info(
                     f'Starting package build attempt {attempt + 1} (paru -Ui --noconfirm --pgpfetch --mflags "{mflags_arg_str}") in {self.build_dir}...'
                 )
-                build_cmd = f'RUST_MIN_STACK=16777216 paru -Ui --noconfirm --pgpfetch --mflags "{mflags_arg_str}" 2>&1 | tee "paru.log"'
+                build_cmd = f'paru -Ui --noconfirm --pgpfetch --mflags "{mflags_arg_str}" 2>&1 | tee "paru.log"'
 
                 result = self.subprocess_runner.run_command([build_cmd], shell=True)
 

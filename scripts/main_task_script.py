@@ -146,10 +146,10 @@ def run_command(
 # --- Core Functions ---
 def setup_environment() -> bool:
     start_group("Setup Environment")
-    log_notice(
-        "SETUP_ENV",
-        f"Configuring env in {NVCHECKER_RUN_DIR}, {PACKAGE_BUILD_BASE_DIR}, {ARTIFACTS_DIR}...",
-    )
+    # log_notice(
+    #    "SETUP_ENV",
+    #    f"Configuring env in {NVCHECKER_RUN_DIR}, {PACKAGE_BUILD_BASE_DIR}, {ARTIFACTS_DIR}...",
+    # )
     dirs_to_create = [
         NVCHECKER_RUN_DIR,
         PACKAGE_BUILD_BASE_DIR,
@@ -203,7 +203,7 @@ def setup_environment() -> bool:
             log_error("SETUP_FAIL", f"Failed to copy/chown/chmod {script_name}: {e}")
             end_group()
             return False
-    log_notice("SETUP_ENV", "Environment setup SUCCEEDED.")
+    # log_notice("SETUP_ENV", "Environment setup SUCCEEDED.")
     end_group()
     return True
 
@@ -229,7 +229,6 @@ def create_nvchecker_keyfile() -> bool:
                 str(KEYFILE_PATH),
             ]
         )
-        log_notice("KEYFILE_OK", f"{KEYFILE_PATH} created, owned by {BUILDER_USER}.")
     except Exception as e:
         log_error("KEYFILE_FAIL", f"Failed to create/move keyfile.toml: {e}")
         if temp_keyfile_path.exists():
@@ -656,7 +655,7 @@ def main():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(log_level)
-    log_notice("SCRIPT_START", "Arch Package Update Task started.")
+    # log_notice("SCRIPT_START", "Arch Package Update Task started.")
     if GITHUB_STEP_SUMMARY_FILE:
         with open(GITHUB_STEP_SUMMARY_FILE, "w", encoding="utf-8") as f:
             f.write(
@@ -696,15 +695,6 @@ def main():
 
     path_root_for_cli_actual = (
         PKGBUILD_ROOT_PATH_STR if PKGBUILD_ROOT_PATH_STR else str(GITHUB_WORKSPACE)
-    )
-    log_notice(
-        "PATH_ROOT_CONFIG",
-        f"Using --path-root='{path_root_for_cli_actual}' for Updater CLI (derived from PKGBUILD_ROOT: '{PKGBUILD_ROOT_PATH_STR}')",
-    )
-
-    log_notice(
-        "PRE_CLI_DEBUG",
-        f"Debugging PKGBUILD_ROOT ('{path_root_for_cli_actual}') access before Updater CLI.",
     )
 
     if not create_nvchecker_keyfile():

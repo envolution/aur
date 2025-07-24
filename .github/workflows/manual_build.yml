@@ -111,7 +111,9 @@ jobs:
           echo "::group::Install paru (AUR helper)"
           echo "Installing paru for 'builder' user..."
           cd /tmp
-          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          #sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+          #cd paru-bin
+          sudo -u builder git clone https://aur.archlinux.org/paru.git
           cd paru-bin
           # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
           sudo -u builder makepkg -si --noconfirm
@@ -122,7 +124,7 @@ jobs:
           echo "Paru installation and configuration complete."
           echo "::endgroup::"
 
-          cd ..
+          #cd ..
           #sudo pacman -S --noconfirm wget
           #wget https://github.com/envolution/aur/releases/download/folly/folly-2025.07.21.00-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/fizz/fizz-2025.07.21.00-1-x86_64.pkg.tar.zst

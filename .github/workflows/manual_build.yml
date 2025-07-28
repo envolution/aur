@@ -139,7 +139,7 @@ jobs:
           _VER=2025.07.28.00
           wget https://github.com/envolution/aur/releases/download/folly/folly-${_VER}-1-x86_64.pkg.tar.zst
           wget https://github.com/envolution/aur/releases/download/fizz/fizz-${_VER}-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/wangle/wangle-${_VER}-1-x86_64.pkg.tar.zst
+          wget https://github.com/envolution/aur/releases/download/wangle/wangle-${_VER}-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-${_VER}-1-x86_64.pkg.tar.zst 
           #wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-${_VER}-1-x86_64.pkg.tar.zst
           #wget https://github.com/envolution/aur/releases/download/fb303/fb303-${_VER}-1-x86_64.pkg.tar.zst

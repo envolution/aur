@@ -134,15 +134,16 @@ jobs:
           echo "Paru installation and configuration complete."
           echo "::endgroup::"
 
-          #cd ..
-          #sudo pacman -S --noconfirm wget
-          #wget https://github.com/envolution/aur/releases/download/folly/folly-2025.07.21.00-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/fizz/fizz-2025.07.21.00-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/wangle/wangle-2025.07.21.00-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-2025.07.21.00-1-x86_64.pkg.tar.zst 
-          #wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-2025.07.21.00-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/fb303/fb303-2025.07.21.00-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-2025.07.21.00-1-x86_64.pkg.tar.zst
+          cd ..
+          sudo pacman -S --noconfirm wget
+          _VER=2025.07.28.00
+          wget https://github.com/envolution/aur/releases/download/folly/folly-${_VER}-1-x86_64.pkg.tar.zst
+          #wget https://github.com/envolution/aur/releases/download/fizz/fizz-${_VER}-1-x86_64.pkg.tar.zst
+          #wget https://github.com/envolution/aur/releases/download/wangle/wangle-${_VER}-1-x86_64.pkg.tar.zst
+          #wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-${_VER}-1-x86_64.pkg.tar.zst 
+          #wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-${_VER}-1-x86_64.pkg.tar.zst
+          #wget https://github.com/envolution/aur/releases/download/fb303/fb303-${_VER}-1-x86_64.pkg.tar.zst
+          #wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-${_VER}-1-x86_64.pkg.tar.zst
           #sudo pacman -U --noconfirm *zst && rm -f *zst
 
       - name: Setup SSH key for AUR

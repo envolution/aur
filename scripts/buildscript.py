@@ -982,6 +982,11 @@ class ArchPackageBuilder:
 
     def _sign_package_files(self, package_files: List[Path]) -> List[Path]:
         """Sign each package file with GPG and return list of original + .sig files."""
+        gpg_key = os.environ.get("GPG_SIGNATURE")
+        if not gpg_key:
+            self.logger.info("No GPG_SIGNATURE found; skipping signing.")
+            return package_files  # Return only original files
+
         signed_files = []
         for pkg_path in package_files:
             self.logger.info(f"Signing {pkg_path.name}...")
@@ -993,7 +998,7 @@ class ArchPackageBuilder:
                         "--yes",
                         "--detach-sign",
                         "-u",
-                        "7E7B7BC98F96272B619AD8D7E6CA536875E45798",
+                        gpg_key,
                         str(pkg_path),
                     ],
                     check=True,

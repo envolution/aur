@@ -741,7 +741,12 @@ class ArchPackageBuilder:
             extra_mflags = []
 
         # Dynamically construct the --mflags argument string
-        mflags_parts = ["-Lfs", "--noconfirm", "--noprogressbar"] + extra_mflags
+        mflags_parts = [
+            "-Lfs",
+            "--check",
+            "--noconfirm",
+            "--noprogressbar",
+        ] + extra_mflags
         mflags_arg_str = " ".join(mflags_parts)
 
         for attempt in range(max_retries):

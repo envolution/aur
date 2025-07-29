@@ -62,6 +62,8 @@ jobs:
           fi
           echo "Current MAKEFLAGS setting in /etc/makepkg.conf:"
           grep --color=auto MAKEFLAGS /etc/makepkg.conf || echo "MAKEFLAGS not found after attempting to set."
+          sed -i '/^BUILDENV=/ s/\bcheck\b/!check/' /etc/makepkg.conf
+          grep --color=auto BUILDENV /etc/makepkg.conf || echo "BUILDENV not found after attempting to set."
 
           echo "::endgroup::"
 

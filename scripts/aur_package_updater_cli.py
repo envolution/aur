@@ -9,6 +9,7 @@ import tempfile
 import glob
 import logging
 from awesomeversion import AwesomeVersion
+import pyalpm
 
 # --- Constants ---
 # Default logger if the script is run standalone.
@@ -16,13 +17,10 @@ from awesomeversion import AwesomeVersion
 DEFAULT_LOGGER = logging.getLogger("aur_updater_cli")
 
 
-# --- Version Comparison Function (Using AwesomeVersion) ---
+# --- Version Comparison Function (Using AwesomeVersion, falling back on pyalpm vercmp) ---
 def compare_package_versions(
     base_ver1_str: str, rel1_str: str, base_ver2_str: str, rel2_str: str
 ) -> str:
-    # This function is self-contained and does not need a passed-in logger.
-    # It gets a logger instance by name, which will be configured either
-    # by the default setup or by the parent application.
     comp_logger = logging.getLogger("aur_updater_cli.compare")
 
     if base_ver1_str is None and base_ver2_str is None:
@@ -32,31 +30,36 @@ def compare_package_versions(
     if base_ver2_str is None:
         return "downgrade"
 
+    # First try AwesomeVersion
     try:
         lv1 = AwesomeVersion(base_ver1_str)
         lv2 = AwesomeVersion(base_ver2_str)
-    except (
-        Exception
-    ) as e:  # Catch any unexpected error during AwesomeVersion assignment
-        comp_logger.error(
-            f"Error instantiating AwesomeVersion for '{base_ver1_str}' or '{base_ver2_str}': {e}"
+
+        if lv1 < lv2:
+            return "upgrade"
+        if lv1 > lv2:
+            return "downgrade"
+
+    except Exception as e:
+        comp_logger.warning(
+            f"AwesomeVersion failed for '{base_ver1_str}' or '{base_ver2_str}', falling back to pyalpm.vercmp: {e}"
         )
-        return "unknown"
+        try:
+            result = pyalpm.vercmp(base_ver1_str, base_ver2_str)
+            if result < 0:
+                return "upgrade"
+            if result > 0:
+                return "downgrade"
+        except Exception as e2:
+            comp_logger.error(
+                f"Fallback pyalpm.vercmp failed for '{base_ver1_str}' vs '{base_ver2_str}': {e2}"
+            )
+            return "unknown"
 
-    # Compare AwesomeVersion objects
-    if lv1 < lv2:
-        return "upgrade"
-    if lv1 > lv2:
-        return "downgrade"
-
-    # Base versions are equivalent according to AwesomeVersion, compare release numbers
+    # Compare release numbers only if base versions are the same
     try:
-        num_rel1 = (
-            int(rel1_str) if rel1_str and rel1_str.strip() and rel1_str.isdigit() else 0
-        )
-        num_rel2 = (
-            int(rel2_str) if rel2_str and rel2_str.strip() and rel2_str.isdigit() else 0
-        )
+        num_rel1 = int(rel1_str) if rel1_str and rel1_str.strip().isdigit() else 0
+        num_rel2 = int(rel2_str) if rel2_str and rel2_str.strip().isdigit() else 0
     except ValueError:
         comp_logger.error(
             f"Invalid non-integer release: '{rel1_str}' or '{rel2_str}' with base '{base_ver1_str}'."

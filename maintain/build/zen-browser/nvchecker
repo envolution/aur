@@ -1,7 +1,0 @@
-[zen-browser]
-#source = 'github'
-#github = 'zen-browser/desktop'
-#sort_version_key = 'vercmp'
-#use_latest_release = true
-source = "git"
-git = "https://github.com/zen-browser/desktop.git"

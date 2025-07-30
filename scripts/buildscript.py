@@ -14,6 +14,7 @@ import base64
 import shutil
 from typing import List, Dict, Optional, Any
 import pyalpm
+from requests.auth import parse_dict_header
 
 # Setup logger early, but allow ArchPackageBuilder to customize further
 # Logs will be configured to go to stderr by ArchPackageBuilder instance
@@ -570,39 +571,47 @@ class ArchPackageBuilder:
             f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection."
         )
 
-    def _parse_ci_flags_from_pkgbuild(self) -> Dict[str, List[str]]:
+    def _parse_ci_flags_from_pkgbuild(self) -> Dict[str, List[str] | Optional[str]]:
         """
         Parses a special # ci|...| comment in a PKGBUILD for runner flags.
-        Example: # ci|skipcheck,forcedep=package1 package2,anotherflag|
-        Returns a dictionary: {"flags": ["skipcheck", "anotherflag"], "forced_dependencies": ["package1", "package2"]}
+        Example: # ci|skipcheck,forcedep=package1 package2,anotherflag,prebuild=prebuild.sh|
+        Returns a dictionary:
+            {
+                "flags": ["skipcheck", "anotherflag"],
+                "forced_dependencies": ["package1", "package2"],
+                "prebuild_script": "prebuild.sh"  # or None if not present
+            }
         """
         pkgbuild_path = self.build_dir / "PKGBUILD"
-        default_return = {"flags": [], "forced_dependencies": []}
+        default_return = {
+            "flags": [],
+            "forced_dependencies": [],
+            "prebuild_script": None,
+        }
 
         if not pkgbuild_path.is_file():
             return default_return
 
         try:
             content = pkgbuild_path.read_text()
-            # Regex to find a line like: # ci|skipcheck,forcedep=pkgA pkgB|
             match = re.search(r"^\s*#\s*ci\|([^|]+)\|", content, re.MULTILINE)
             if match:
                 flags_str = match.group(1).strip()
-                # Split by comma to get individual flag items
                 raw_flag_items = [f.strip() for f in flags_str.split(",") if f.strip()]
 
                 parsed_simple_flags = []
                 parsed_forced_deps = []
+                prebuild_script = None
 
                 for item in raw_flag_items:
                     if item.startswith("forcedep="):
-                        # Extract the part after "forcedep="
                         deps_value_str = item.split("=", 1)[1].strip()
-                        # Split by whitespace and filter out any empty strings
                         deps_list = [dep for dep in deps_value_str.split() if dep]
                         if deps_list:
                             parsed_forced_deps.extend(deps_list)
-                    elif item:  # Ensure it's not an empty string after stripping
+                    elif item.startswith("prebuild="):
+                        prebuild_script = item.split("=", 1)[1].strip()
+                    elif item:
                         parsed_simple_flags.append(item)
 
                 if parsed_simple_flags:
@@ -613,15 +622,42 @@ class ArchPackageBuilder:
                     self.logger.info(
                         f"Found CI forced dependencies in PKGBUILD: {parsed_forced_deps}"
                     )
+                if prebuild_script:
+                    self.logger.info(
+                        f"Found CI prebuild script in PKGBUILD: {prebuild_script}"
+                    )
 
                 return {
                     "flags": parsed_simple_flags,
                     "forced_dependencies": parsed_forced_deps,
+                    "prebuild_script": prebuild_script,
                 }
         except Exception as e:
             self.logger.warning(f"Could not parse CI flags from PKGBUILD: {e}")
 
         return default_return
+
+    def _execute_prebuild_script(self, script_name: str) -> bool:
+        """
+        Executes the given prebuild script from self.build_dir.
+        Returns True if execution succeeds, False otherwise.
+        """
+        script_path = self.build_dir / script_name
+        if not script_path.is_file():
+            self.logger.error(f"Prebuild script not found: {script_path}")
+            return False
+
+        try:
+            subprocess.run(["bash", str(script_path)], cwd=self.build_dir, check=True)
+            self.logger.info(f"Prebuild script executed successfully: {script_name}")
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error(
+                f"Prebuild script failed with exit code {e.returncode}: {script_name}"
+            )
+        except Exception as e:
+            self.logger.error(f"Error running prebuild script {script_name}: {e}")
+        return False
 
     def build_package(self) -> bool:
         if self.config.build_mode not in ["build", "test"]:
@@ -650,6 +686,9 @@ class ArchPackageBuilder:
             parsed_ci_options = self._parse_ci_flags_from_pkgbuild()
             ci_simple_flags = parsed_ci_options.get("flags", [])
             forced_dependencies = parsed_ci_options.get("forced_dependencies", [])
+
+            if parsed_ci_options["prebuild_script"]:
+                self._execute_prebuild_script(parsed_ci_options["prebuild_script"])
 
             # Install forced dependencies if specified
             if forced_dependencies:

@@ -667,8 +667,10 @@ class ArchPackageBuilder:
             if self.result.changes_detected:
                 try:
                     self.logger.info(
-                        "PKGBUILD changed, regenerating .SRCINFO for nobuild/test mode..."
+                        "PKGBUILD changed, updating checksums in PKGBUILD (updpkgsums)..."
                     )
+                    self.subprocess_runner.run_command(["updpkgsums"])
+                    self.logger.info("Regenerating .SRCINFO for nobuild mode...")
                     srcinfo_result = self.subprocess_runner.run_command(
                         ["makepkg", "--printsrcinfo"]
                     )
@@ -676,7 +678,7 @@ class ArchPackageBuilder:
                     self.logger.info(".SRCINFO regenerated.")
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to regenerate .SRCINFO in '{self.config.build_mode}' mode: {e}"
+                        f"Failed to update shasums/regenerate .SRCINFO in '{self.config.build_mode}' mode: {e}"
                     )
             return True
 

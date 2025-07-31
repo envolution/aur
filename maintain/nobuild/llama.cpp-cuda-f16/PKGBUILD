@@ -68,6 +68,7 @@ build() {
     -DGGML_RPC=ON
     -DGGML_CUDA=ON
     -DGGML_CUDA_F16=ON
+    -DGGML_BUILD_SERVER=ON
     -Wno-dev
   )
   if [[ ${aur_llamacpp_build_universal} == true ]]; then

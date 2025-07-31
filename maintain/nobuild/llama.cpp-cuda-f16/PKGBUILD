@@ -2,6 +2,8 @@
 # Contributor: txtsd <aur.archlinux@ihavea.quest>
 # shellcheck shell=bash disable=SC2034,SC2154
 
+: ${aur_llamacpp_build_universal:=false}
+
 pkgname=llama.cpp-cuda-f16
 _pkgname="${pkgname%-cuda-f16}"
 pkgver=b6047
@@ -65,9 +67,16 @@ build() {
     -DGGML_RPC=ON
     -DGGML_CUDA=ON
     -DGGML_CUDA_F16=ON
-    -DGGML_NATIVE=ON
     -Wno-dev
   )
+  if [[ ${aur_llamacpp_build_universal} == true ]]; then
+    echo "Building universal binary [aur_llamacpp_build_universal == true]"
+    _cmake_options+=(
+      -DGGML_BACKEND_DL=ON
+      -DGGML_NATIVE=OFF
+      -DGGML_CPU_ALL_VARIANTS=ON
+    )
+  fi
   cmake "${_cmake_options[@]}"
   cmake --build build
 }

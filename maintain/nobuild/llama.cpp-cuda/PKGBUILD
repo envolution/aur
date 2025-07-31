@@ -1,6 +1,7 @@
 # Maintainer: envolution
 # Contributor: txtsd <aur.archlinux@ihavea.quest>
 # shellcheck shell=bash disable=SC2034,SC2154
+# ci|envset_aur_llamacpp_build_universal=true|
 
 : ${aur_llamacpp_build_universal:=false}
 

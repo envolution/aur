@@ -54,6 +54,7 @@ build() {
     -DGGML_LTO=ON
     -DGGML_RPC=ON
     -DGGML_BLAS=OFF
+    -DGGML_BUILD_SERVER=ON
     -Wno-dev
   )
   cmake "${_cmake_options[@]}"

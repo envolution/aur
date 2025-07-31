@@ -42,6 +42,12 @@ prepare(){
   ln -sf "${_pkgname}-${pkgver}" llama.cpp
 }
 build() {
+  # This may not be set if the user's session
+  # has not restarted on a new 'cuda' install
+  if [[ -z "${NVCC_CCBIN}" ]]; then
+    source /etc/profile
+  fi
+
   local _cmake_options=(
     -B build
     -S "${_pkgname}"

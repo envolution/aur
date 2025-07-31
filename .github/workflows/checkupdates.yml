@@ -169,7 +169,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_COMMIT_USER_NAME: envolution
           GIT_COMMIT_USER_EMAIL: involution@gmail.com
-          PKGBUILD_ROOT: ${{ github.workspace }}/maintain/build
+          PKGBUILD_ROOT: ${{ github.workspace }}/maintain
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUNID: ${{ github.run_id }}

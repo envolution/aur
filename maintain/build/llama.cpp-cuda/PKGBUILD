@@ -43,6 +43,7 @@ sha256sums=('b9f1204f5b9a97f19d88ff74ea2d8bb8eac8949c7391cdee1a3f4164687ff25a'
 
 prepare() {
   ln -sf "${_pkgname}-${pkgver}" llama.cpp
+  pacman -Q glibc cuda nvidia-utils
 }
 build() {
   # This may not be set if the user's session

@@ -571,15 +571,18 @@ class ArchPackageBuilder:
             f"Restored CWD to {original_cwd_for_artifact_collection} after artifact collection."
         )
 
-    def _parse_ci_flags_from_pkgbuild(self) -> Dict[str, List[str] | Optional[str]]:
+    def _parse_ci_flags_from_pkgbuild(
+        self,
+    ) -> Dict[str, List[str] | Optional[str] | Dict[str, str]]:
         """
         Parses a special # ci|...| comment in a PKGBUILD for runner flags.
-        Example: # ci|skipcheck,forcedep=package1 package2,anotherflag,prebuild=prebuild.sh|
+        Example: # ci|skipcheck,forcedep=package1 package2,anotherflag,prebuild=prebuild.sh,envset_VARIABLE=true,envset_DEBUG|
         Returns a dictionary:
             {
                 "flags": ["skipcheck", "anotherflag"],
                 "forced_dependencies": ["package1", "package2"],
-                "prebuild_script": "prebuild.sh"  # or None if not present
+                "prebuild_script": "prebuild.sh",  # or None if not present
+                "environment_variables": {"VARIABLE": "true", "DEBUG": "true"}
             }
         """
         pkgbuild_path = self.build_dir / "PKGBUILD"
@@ -587,6 +590,7 @@ class ArchPackageBuilder:
             "flags": [],
             "forced_dependencies": [],
             "prebuild_script": None,
+            "environment_variables": {},
         }
 
         if not pkgbuild_path.is_file():
@@ -601,6 +605,7 @@ class ArchPackageBuilder:
 
                 parsed_simple_flags = []
                 parsed_forced_deps = []
+                environment_variables = {}
                 prebuild_script = None
 
                 for item in raw_flag_items:
@@ -611,6 +616,14 @@ class ArchPackageBuilder:
                             parsed_forced_deps.extend(deps_list)
                     elif item.startswith("prebuild="):
                         prebuild_script = item.split("=", 1)[1].strip()
+                    elif item.startswith("envset_"):
+                        key_value = item[len("envset_") :]
+                        if "=" in key_value:
+                            var, value = key_value.split("=", 1)
+                            environment_variables[var.strip()] = value.strip()
+                        else:
+                            # No value specified, default to "true"
+                            environment_variables[key_value.strip()] = "true"
                     elif item:
                         parsed_simple_flags.append(item)
 
@@ -626,11 +639,16 @@ class ArchPackageBuilder:
                     self.logger.info(
                         f"Found CI prebuild script in PKGBUILD: {prebuild_script}"
                     )
+                if environment_variables:
+                    self.logger.info(
+                        f"Found CI environment variables in PKGBUILD: {environment_variables}"
+                    )
 
                 return {
                     "flags": parsed_simple_flags,
                     "forced_dependencies": parsed_forced_deps,
                     "prebuild_script": prebuild_script,
+                    "environment_variables": environment_variables,
                 }
         except Exception as e:
             self.logger.warning(f"Could not parse CI flags from PKGBUILD: {e}")
@@ -688,6 +706,9 @@ class ArchPackageBuilder:
             parsed_ci_options = self._parse_ci_flags_from_pkgbuild()
             ci_simple_flags = parsed_ci_options.get("flags", [])
             forced_dependencies = parsed_ci_options.get("forced_dependencies", [])
+            additional_environment_variables = parsed_ci_options.get(
+                "environment_variables", {}
+            )
 
             if parsed_ci_options["prebuild_script"]:
                 self._execute_prebuild_script(parsed_ci_options["prebuild_script"])
@@ -734,7 +755,7 @@ class ArchPackageBuilder:
 
             # Attempt the build with retry logic for missing packages
             build_process_successful = self._attempt_build_with_retry(
-                extra_mflags=extra_mflags
+                extra_mflags=extra_mflags, add_env=additional_environment_variables
             )
 
             if not build_process_successful:
@@ -775,11 +796,16 @@ class ArchPackageBuilder:
             return False
 
     def _attempt_build_with_retry(
-        self, max_retries: int = 3, extra_mflags: Optional[List[str]] = None
+        self,
+        max_retries: int = 3,
+        extra_mflags: Optional[List[str]] = None,
+        add_env: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Attempt to build the package, retrying with missing package installation if needed."""
         if extra_mflags is None:
             extra_mflags = []
+        if add_env is None:
+            add_env = {}
 
         # Dynamically construct the --mflags argument string
         mflags_parts = [
@@ -799,7 +825,13 @@ class ArchPackageBuilder:
                 )
                 build_cmd = f'paru -Ui --noconfirm --pgpfetch --mflags "{mflags_arg_str}" 2>&1 | tee "paru.log"'
 
-                result = self.subprocess_runner.run_command([build_cmd], shell=True)
+                # Merge environment variables
+                env = os.environ.copy()
+                env.update(add_env)
+
+                result = self.subprocess_runner.run_command(
+                    [build_cmd], shell=True, env=env
+                )
 
                 # Check if paru failed even if the shell command succeeded
                 if result.returncode != 0:

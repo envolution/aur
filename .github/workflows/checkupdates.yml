@@ -20,8 +20,19 @@ jobs:
       ACTIONS_STEP_SUMMARY: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#step:${{ github.job }}:markdown-summary
 
     steps:
-      - name: Checkout repository
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: "true"
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          echo "Free space:"
+          df -h
 
       - name: Initialize pacman, Update System, and Configure Makepkg
         run: |

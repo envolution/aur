@@ -178,7 +178,9 @@ def get_combined_aur_data(maintainer, logger=DEFAULT_LOGGER):
     return aur_data
 
 
-def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path, logger=DEFAULT_LOGGER):
+def fetch_local_pkgbuild_data(
+    path_root, pkgbuild_script_path, manual_packages=None, logger=DEFAULT_LOGGER
+):
     local_logger = logger.getChild("local")
     local_data_by_pkgbase = {}
     actual_script_path = os.path.abspath(pkgbuild_script_path)
@@ -191,6 +193,23 @@ def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path, logger=DEFAULT_LO
         f"Searching PKGBUILDs in '{abs_path_root}' using '{pkgbuild_glob}'"
     )
     pkg_files = glob.glob(pkgbuild_glob, recursive=True)
+
+    if manual_packages:
+        local_logger.info(f"Filtering PKGBUILDs for manual packages: {manual_packages}")
+        filtered_pkg_files = []
+        for pkg_file in pkg_files:
+            package_name = os.path.basename(os.path.dirname(pkg_file))
+            if package_name in manual_packages:
+                filtered_pkg_files.append(pkg_file)
+            else:
+                local_logger.debug(
+                    f"Ignoring PKGBUILD in '{pkg_file}' as '{package_name}' not in manual list."
+                )
+        pkg_files = filtered_pkg_files
+        local_logger.info(
+            f"Found {len(pkg_files)} PKGBUILD(s) after manual package filtering."
+        )
+
     if not pkg_files:
         local_logger.warning(f"No PKGBUILDs found in '{abs_path_root}'.")
         return local_data_by_pkgbase
@@ -291,13 +310,36 @@ def fetch_local_pkgbuild_data(path_root, pkgbuild_script_path, logger=DEFAULT_LO
 
 
 def run_nvchecker(
-    path_root, oldver_data_for_nvchecker, key_toml_path_arg, logger=DEFAULT_LOGGER
+    path_root,
+    oldver_data_for_nvchecker,
+    key_toml_path_arg,
+    manual_packages=None,
+    logger=DEFAULT_LOGGER,
 ):
     nv_logger = logger.getChild("nvchecker")
     results_by_pkgbase = {}
     abs_path_root = os.path.abspath(path_root)
     glob_pattern = os.path.join(abs_path_root, "**", ".nvchecker.toml")
     toml_files = glob.glob(glob_pattern, recursive=True)
+
+    if manual_packages:
+        nv_logger.info(
+            f"Filtering .nvchecker.toml files for manual packages: {manual_packages}"
+        )
+        filtered_toml_files = []
+        for toml_file in toml_files:
+            package_name = os.path.basename(os.path.dirname(toml_file))
+            if package_name in manual_packages:
+                filtered_toml_files.append(toml_file)
+            else:
+                nv_logger.debug(
+                    f"Ignoring .nvchecker.toml in '{toml_file}' as '{package_name}' not in manual list."
+                )
+        toml_files = filtered_toml_files
+        nv_logger.info(
+            f"Found {len(toml_files)} .nvchecker.toml file(s) after manual package filtering."
+        )
+
     if not toml_files:
         nv_logger.warning(
             f"No .nvchecker.toml in '{abs_path_root}'. Skipping NVChecker."
@@ -746,6 +788,25 @@ class AurPackageUpdater:
         )
 
     def run(self):
+        manual_packages_list = None
+        if self.args.manual_packages:
+            try:
+                manual_packages_list = json.loads(self.args.manual_packages)
+                if not isinstance(manual_packages_list, list):
+                    self.logger.error(
+                        "--manual-packages argument is not a valid JSON list. Treating as empty."
+                    )
+                    manual_packages_list = []
+                else:
+                    self.logger.info(
+                        f"Manual mode activated for packages: {manual_packages_list}"
+                    )
+            except json.JSONDecodeError:
+                self.logger.error(
+                    "Failed to decode JSON from --manual-packages. Ignoring."
+                )
+                manual_packages_list = []
+
         aur_data = get_combined_aur_data(self.args.maintainer, logger=self.logger)
         for pkgbase, data in aur_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
@@ -756,7 +817,10 @@ class AurPackageUpdater:
             )
             sys.exit(1)
         local_data = fetch_local_pkgbuild_data(
-            self.args.path_root, self.args.pkgbuild_script, logger=self.logger
+            self.args.path_root,
+            self.args.pkgbuild_script,
+            manual_packages=manual_packages_list,
+            logger=self.logger,
         )
         for pkgbase, data in local_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
@@ -770,6 +834,7 @@ class AurPackageUpdater:
             self.args.path_root,
             nvchecker_oldver_input,
             self.args.key_toml,
+            manual_packages=manual_packages_list,
             logger=self.logger,
         )
         for pkgbase, data in nvchecker_data.items():
@@ -816,6 +881,11 @@ def main_cli():
         "--key-toml",
         default=None,
         help="Path to NVChecker's key.toml. Checks GITHUB_TOKEN env var if not set.",
+    )
+    parser.add_argument(
+        "--manual-packages",
+        default=None,
+        help="JSON string of a list of package names to process manually.",
     )
     parser.add_argument(
         "--output-file", default=None, help="File for JSON output (default: STDOUT)."

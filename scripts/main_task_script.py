@@ -83,7 +83,7 @@ def start_group(title: str):
 
 
 def end_group():
-    print(f"::endgroup::")
+    print("::endgroup::")
 
 
 # --- Subprocess Helper ---
@@ -270,6 +270,8 @@ def run_aur_updater_cli(
     ]
     if KEYFILE_PATH.exists():
         cmd.extend(["--key-toml", str(KEYFILE_PATH)])
+    if MANUAL_PACKAGES_JSON:
+        cmd.extend(["--manual-packages", MANUAL_PACKAGES_JSON])
     if os.getenv("RUNNER_DEBUG") == "1" or os.getenv("ACTIONS_STEP_DEBUG") == "true":
         cmd.append("--debug")
 

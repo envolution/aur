@@ -143,7 +143,7 @@ jobs:
           wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-${_VER}-1-x86_64.pkg.tar.zst 
           wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-${_VER}-1-x86_64.pkg.tar.zst
           wget https://github.com/envolution/aur/releases/download/fb303/fb303-${_VER}-1-x86_64.pkg.tar.zst
-          #wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-${_VER}-1-x86_64.pkg.tar.zst
+          wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-${_VER}-1-x86_64.pkg.tar.zst
           sudo pacman -U --noconfirm *zst && rm -f *zst
 
       - name: Setup SSH key for AUR

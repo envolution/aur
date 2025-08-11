@@ -40,18 +40,16 @@ jobs:
           du -sh /usr/share/* 2>/dev/null | sort -hr | head -10 || true
           echo ""
           echo "=== Available Space ==="
-          df -h / | awk 'NR==2{printf "Available: %s\n", $4}'      
+          df -h / | awk 'NR==2{printf "Available: %s\n", $4}'
 
-      - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true      
+      - name: Free up space from inside container
+        run: |
+          # Install docker client in container
+          pacman -Sy --noconfirm docker
+
+          # Clean up Docker on the host from inside container
+          docker system prune -af
+          docker builder prune -af
 
       - name: Show disk space information
         run: |
@@ -62,7 +60,7 @@ jobs:
           du -sh /usr/share/* 2>/dev/null | sort -hr | head -10 || true
           echo ""
           echo "=== Available Space ==="
-          df -h / | awk 'NR==2{printf "Available: %s\n", $4}'      
+          df -h / | awk 'NR==2{printf "Available: %s\n", $4}'
 
       - name: Checkout repository
         uses: actions/checkout@v4

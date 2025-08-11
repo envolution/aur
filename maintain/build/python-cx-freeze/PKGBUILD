@@ -33,6 +33,7 @@ python-packaging
 python-build
 python-installer)
 checkdepends=(
+python-uv
 python-packaging
 python-pytest 
 python-pluggy 
@@ -81,7 +82,7 @@ EOF
   # Run tests with the wrapper script available in PATH
   PATH="$PWD/test-bin:$PATH" \
     PYTHONPATH="$PWD" \
-    pytest -rpfEsXx \
+    pytest --venv-backend=uv -rpfEsXx \
     --basetemp="$PWD/.pytest-tmp" \
     --ignore=tests/test_command_bdist_deb.py \
     --ignore=tests/test_command_bdist_rpm.py \

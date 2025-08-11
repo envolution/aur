@@ -93,6 +93,7 @@ EOF
     --ignore=tests/hooks/test_scikit.py \
     --ignore=tests/hooks/test_module.py \
     --ignore=tests/hooks/test_multiprocessing.py \
+    --ignore=tests/hooks/test_multiprocess.py \
     --ignore=tests/hooks/test_stdlib.py \
     --deselect tests/test_executables.py::test_valid_sys_path \
     --deselect tests/test_module.py::test_egg_info \

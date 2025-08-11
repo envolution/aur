@@ -82,6 +82,7 @@ EOF
   # Run tests with the wrapper script available in PATH
   PATH="$PWD/test-bin:$PATH" \
     PYTHONPATH="$PWD" \
+    TMPDIR="$PWD/.pytest-tmp" \
     pytest --venv-backend=uv -rpfEsXx \
     --basetemp="$PWD/.pytest-tmp" \
     --ignore=tests/test_command_bdist_deb.py \

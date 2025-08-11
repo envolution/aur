@@ -48,6 +48,7 @@ depends=(
 )
 makedepends=(cli11 nlohmann-json fast_float qt5-svg qt5-x11extras qt5-tools qt5-xmlpatterns flex)
 provides=(openfoam)
+  #"${pkgname}-${pkgver}.tar.gz::https://github.com/OpenFOAM/$_gitname/archive/refs/tags/$_subver.tar.gz"
 source=(
   "$_gitname-$_subver::git+https://github.com/OpenFOAM/OpenFOAM-13.git#commit=${_commit}"
   paraview.arch
@@ -101,8 +102,21 @@ EOF
   # Drop in Arch paraview environment script
   cd ${_distpkgbase}-${_pkgver}
   cp ${srcdir}/paraview.arch etc/config.sh/paraview
+
+  # fix some policy restrictions implemented in newer paraview
   sed -i -E '/^[[:space:]]*PARAVIEW_ADD_PLUGIN/ i set(_paraview_build_plugin ${TARGET_NAME})' applications/utilities/postProcessing/graphics/PVReaders/PVFoamReader/CMakeLists.txt
   sed -i -E '/^[[:space:]]*PARAVIEW_ADD_PLUGIN/ i set(_paraview_build_plugin ${TARGET_NAME})' applications/utilities/postProcessing/graphics/PVReaders/PVblockMeshReader/CMakeLists.txt
+  sed -i '/PARAVIEW_ADD_PLUGIN/i\
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")\
+    get_filename_component(_rel_libdir "${CMAKE_INSTALL_LIBDIR}" NAME)\
+    set(CMAKE_INSTALL_LIBDIR "${_rel_libdir}" CACHE STRING "Relative lib dir" FORCE)\
+endif()' applications/utilities/postProcessing/graphics/PVReaders/PVFoamReader/CMakeLists.txt
+sed -i '/PARAVIEW_ADD_PLUGIN/i\
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")\
+    get_filename_component(_rel_libdir "${CMAKE_INSTALL_LIBDIR}" NAME)\
+    set(CMAKE_INSTALL_LIBDIR "${_rel_libdir}" CACHE STRING "Relative lib dir" FORCE)\
+endif()' applications/utilities/postProcessing/graphics/PVReaders/PVblockMeshReader/CMakeLists.txt
+
 }
 
 build() {

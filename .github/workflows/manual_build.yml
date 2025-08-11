@@ -31,6 +31,39 @@ jobs:
       MANUAL_BUILD_MODE: ${{ inputs.build_mode }}
 
     steps:
+      - name: Show disk space information
+        run: |
+          echo "=== Disk Usage ==="
+          df -h /
+          echo ""
+          echo "=== Disk Usage by Directory ==="
+          du -sh /usr/share/* 2>/dev/null | sort -hr | head -10 || true
+          echo ""
+          echo "=== Available Space ==="
+          df -h / | awk 'NR==2{printf "Available: %s\n", $4}'      
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true      
+
+      - name: Show disk space information
+        run: |
+          echo "=== Disk Usage ==="
+          df -h /
+          echo ""
+          echo "=== Disk Usage by Directory ==="
+          du -sh /usr/share/* 2>/dev/null | sort -hr | head -10 || true
+          echo ""
+          echo "=== Available Space ==="
+          df -h / | awk 'NR==2{printf "Available: %s\n", $4}'      
+
       - name: Checkout repository
         uses: actions/checkout@v4
 

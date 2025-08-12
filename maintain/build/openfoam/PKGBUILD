@@ -28,6 +28,7 @@ depends=(
   vtk
   bzip2
   paraview
+  paraview-catalyst
   parmetis
   scotch
   boost
@@ -46,7 +47,13 @@ depends=(
   hdf5
   zlib
 )
-makedepends=(cli11 nlohmann-json fast_float qt5-svg qt5-x11extras qt5-tools qt5-xmlpatterns flex)
+makedepends=(
+  git
+  cli11 
+  nlohmann-json 
+  fast_float 
+  flex
+)
 provides=(openfoam)
   #"${pkgname}-${pkgver}.tar.gz::https://github.com/OpenFOAM/$_gitname/archive/refs/tags/$_subver.tar.gz"
 source=(

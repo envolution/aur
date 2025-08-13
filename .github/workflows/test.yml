@@ -1,0 +1,36 @@
+name: Arch Chroot Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  arch-chroot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install arch-install-scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y arch-install-scripts
+
+      - name: Create Arch root directory
+        run: sudo mkdir -p /opt/arch-root
+
+      - name: Bootstrap Arch Linux base
+        run: |
+          sudo pacstrap -c /opt/arch-root base base-devel --needed --noconfirm
+          sudo mount --bind /dev /opt/arch-root/dev
+          sudo mount --bind /proc /opt/arch-root/proc
+          sudo mount --bind /sys /opt/arch-root/sys
+
+      - name: Test pacman inside chroot
+        run: |
+          sudo arch-chroot /opt/arch-root pacman -Sy --noconfirm
+          sudo arch-chroot /opt/arch-root pacman -Q pacman
+
+      - name: Cleanup mounts
+        if: always()
+        run: |
+          sudo umount /opt/arch-root/dev || true
+          sudo umount /opt/arch-root/proc || true
+          sudo umount /opt/arch-root/sys || true

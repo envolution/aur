@@ -48,13 +48,13 @@ depends=(
 )
 makedepends=(
   git
+  cmake
   cli11 
   nlohmann-json 
   fast_float 
   flex
 )
 provides=(openfoam)
-  #"${pkgname}-${pkgver}.tar.gz::https://github.com/OpenFOAM/$_gitname/archive/refs/tags/$_subver.tar.gz"
 source=(
   "$_gitname-$_subver::git+https://github.com/OpenFOAM/OpenFOAM-13.git#commit=${_commit}"
   paraview.arch
@@ -62,7 +62,7 @@ source=(
 )
 install="${pkgbase}.install"
 sha256sums=('0819222f24fa6395181684058ccb2397579fdb015b60ae3a9cc992757f4c79db'
-            'b852310066aac8a4a99b73c2864aa1c800676308b57ccf34b235eda0b79ab95d'
+            'bbec057b1153a616ea388dc80fdaeb6337edc6150e0601f140a1304f82a10ddb'
             'a94080d4e5bc4736868269d66f61f5430dec961c70bdcdaa1c9a402dba5203d2')
 
 _cache_notify() {
@@ -102,9 +102,6 @@ export PARMETIS_TYPE=system
 export ZOLTAN_TYPE=system
 EOF
 
-  # fix some policy restrictions implemented in newer paraview
-  #  sed -i -E '/^[[:space:]]*PARAVIEW_ADD_PLUGIN/ i set(_paraview_build_plugin ${TARGET_NAME})' applications/utilities/postProcessing/graphics/PVReaders/PVFoamReader/CMakeLists.txt
-  #  sed -i -E '/^[[:space:]]*PARAVIEW_ADD_PLUGIN/ i set(_paraview_build_plugin ${TARGET_NAME})' applications/utilities/postProcessing/graphics/PVReaders/PVblockMeshReader/CMakeLists.txt
     echo $pkgver >$_cachefile
   fi
 

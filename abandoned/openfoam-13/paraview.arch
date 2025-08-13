@@ -4,7 +4,7 @@ export PYTHONPATH=/opt/paraview/lib/python3.13/site-packages/:"${PYTHONPATH}"
 # Set hardcoded paths for Arch Linux system paraview
 export ParaView_DIR=/opt/paraview
 export ParaView_LIB_DIR=$ParaView_DIR/lib
-export ParaView_VERSION=$(paraview --version | awk '{print $NF}')
+export ParaView_VERSION=$(pvserver --version | awk '{print $NF}')
 export ParaView_MAJOR=${ParaView_VERSION%.*}
 export ParaView_INCLUDE_DIR=$ParaView_DIR/include/paraview
 #export PV_PLUGIN_PATH_SYSTEM=/opt/paraview/lib/paraview/plugins

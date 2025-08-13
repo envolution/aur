@@ -56,7 +56,7 @@ makedepends=(
 )
 provides=(openfoam)
 source=(
-  "$_gitname-$_subver::git+https://github.com/OpenFOAM/OpenFOAM-13.git#commit=${_commit}"
+  "$_gitname-$_subver::git+https://github.com/OpenFOAM/OpenFOAM-${_pkgver}.git#commit=${_commit}"
   paraview.arch
   openfoam.install
 )
@@ -142,6 +142,8 @@ package() {
   _bash_profile=${pkgdir}/etc/profile.d/openfoam-${_pkgver}.sh
   echo "export FOAM_INST_DIR=/opt/${_distpkgbase}" >$_bash_profile
   echo "alias ofoam=\"source \${FOAM_INST_DIR}/${_distpkgbase}-${_pkgver}/etc/bashrc\"" \
+    >>$_bash_profile
+  echo "alias ofoam${_pkgver}=\"source \${FOAM_INST_DIR}/${_distpkgbase}-${_pkgver}/etc/bashrc\"" \
     >>$_bash_profile
   chmod 755 $_bash_profile
 

@@ -6,27 +6,23 @@ on:
 jobs:
   arch-chroot:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Install arch-install-scripts
+      - name: Download Arch bootstrap
         run: |
-          sudo apt-get update
-          sudo apt-get install -y arch-install-scripts
+          curl -LO https://mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.gz
+          tar xzf archlinux-bootstrap-x86_64.tar.gz
+          sudo mv root.x86_64 /opt/arch-root
 
-      - name: Create Arch root directory
-        run: sudo mkdir -p /opt/arch-root
-
-      - name: Bootstrap Arch Linux base
+      - name: Bind mounts
         run: |
-          sudo pacstrap -c /opt/arch-root base base-devel --needed --noconfirm
           sudo mount --bind /dev /opt/arch-root/dev
           sudo mount --bind /proc /opt/arch-root/proc
           sudo mount --bind /sys /opt/arch-root/sys
 
-      - name: Test pacman inside chroot
+      - name: Test pacman
         run: |
-          sudo arch-chroot /opt/arch-root pacman -Sy --noconfirm
-          sudo arch-chroot /opt/arch-root pacman -Q pacman
+          sudo chroot /opt/arch-root pacman -Sy --noconfirm
+          sudo chroot /opt/arch-root pacman -Q pacman
 
       - name: Cleanup mounts
         if: always()

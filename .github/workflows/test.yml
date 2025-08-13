@@ -9,9 +9,8 @@ jobs:
     steps:
       - name: Download Arch bootstrap
         run: |
-          sudo apt-get install -y zstd
           curl -LO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
-          tar --zstd -xvf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp
+          tar --zstd -xvf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp || true
           sudo mv root.x86_64 /opt/arch-root
 
       - name: Bind mounts

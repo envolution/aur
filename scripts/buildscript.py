@@ -288,13 +288,94 @@ class ArchPackageBuilder:
             self.result.error_message = f"GitHub authentication failed: {str(e)}"
             return False
 
-    def setup_build_environment(self):
-        aur_repo = f"ssh://aur@aur.archlinux.org/{self.config.package_name}.git"
-        self.subprocess_runner.run_command(
-            ["git", "clone", aur_repo, str(self.build_dir)]
+    def setup_build_environment(
+        self, max_retries: int = 5, retry_delay: int = 30
+    ) -> bool:
+        """
+        Setup build environment by cloning AUR repository with retry logic for network instability.
+
+        Args:
+            max_retries: Maximum number of retry attempts (default: 5)
+            retry_delay: Delay in seconds between retry attempts (default: 30)
+
+        Returns:
+            bool: True if successful, False if all attempts failed
+        """
+
+        def _attempt_setup_build_environment() -> bool:
+            """Internal function containing the original setup build environment logic."""
+            aur_repo = f"ssh://aur@aur.archlinux.org/{self.config.package_name}.git"
+
+            # Clean up any existing build directory from previous failed attempts
+            if self.build_dir.exists():
+                self.logger.debug(
+                    f"Removing existing build directory: {self.build_dir}"
+                )
+                shutil.rmtree(self.build_dir)
+
+            try:
+                self.subprocess_runner.run_command(
+                    ["git", "clone", aur_repo, str(self.build_dir)]
+                )
+                os.chdir(self.build_dir)
+                self.logger.info(f"Changed directory to {self.build_dir}")
+                return True
+
+            except Exception as e:
+                self.logger.error(f"Failed to setup build environment: {e}")
+                # Clean up partial clone if it exists
+                if self.build_dir.exists():
+                    try:
+                        shutil.rmtree(self.build_dir)
+                    except Exception as cleanup_e:
+                        self.logger.warning(
+                            f"Failed to cleanup partial build directory: {cleanup_e}"
+                        )
+                raise
+
+        # Main retry logic
+        last_exception: Optional[Exception] = None
+
+        for attempt in range(max_retries):
+            attempt_num = attempt + 1
+
+            if attempt > 0:
+                self.logger.info(
+                    f"Retrying setup build environment (attempt {attempt_num}/{max_retries})..."
+                )
+
+            try:
+                result = _attempt_setup_build_environment()
+                if result:
+                    if attempt > 0:
+                        self.logger.info(
+                            f"Setup build environment succeeded on attempt {attempt_num}"
+                        )
+                    return True
+
+            except Exception as e:
+                last_exception = e
+                self.logger.warning(
+                    f"Setup build environment failed on attempt {attempt_num}: {e}"
+                )
+
+            # Don't wait after the last attempt
+            if attempt < max_retries - 1:
+                self.logger.info(
+                    f"Waiting {retry_delay} seconds before next attempt..."
+                )
+                time.sleep(retry_delay)
+
+        # All attempts failed
+        self.logger.error(
+            f"All {max_retries} attempts failed for setup build environment"
         )
-        os.chdir(self.build_dir)
-        self.logger.info(f"Changed directory to {self.build_dir}")
+        if last_exception:
+            self.logger.error(f"Last exception: {last_exception}")
+            # Re-raise the last exception to maintain original behavior
+            raise last_exception
+
+        return False
 
     def collect_package_files(self):
         workspace_source_path = (
@@ -1512,7 +1593,7 @@ class ArchPackageBuilder:
                     )
 
             # 2. Setup build environment (clone AUR repo, cd into it)
-            self.setup_build_environment()
+            self.setup_build_environment(max_retries=5, retry_delay=60)
 
             # 3. Check for "Sync Down from AUR" scenario
             # Check if AUR version is newer AND (NVChecker is not newer than AUR OR NVChecker has no info)

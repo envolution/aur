@@ -126,7 +126,7 @@ jobs:
           cd /tmp
           sudo -u builder mkdir -p paru-bin && cd paru-bin
           sudo -u builder git clone --depth 1 --filter=blob:none --sparse --branch paru-bin https://github.com/archlinux/aur.git
-          sudo -u builder makepkg -si --noconfirm
+          cd aur && sudo -u builder makepkg -si --noconfirm
           cd .. && rm -rf paru-bin
           echo "::endgroup::"
 

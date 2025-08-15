@@ -114,17 +114,46 @@ jobs:
           set -e
           echo "::group::Install paru (AUR helper)"
           echo "Installing paru for 'builder' user..."
-          cd /tmp
-          sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
-          cd paru-bin
-          # Paru will use MAKEFLAGS from /etc/makepkg.conf if not overridden by user config
-          sudo -u builder makepkg -si --noconfirm
 
-          echo "Configuring paru..."
-          echo -e "[options]\nBatchInstall\nBottomUp\nRemoveMake\nSudoLoop\nUseAsk" | sudo tee /etc/paru.conf > /dev/null
+          # Retry configuration
+          MAX_RETRIES=5
+          RETRY_DELAY=30
 
-          echo "Paru installation and configuration complete."
+          install_paru() {
+            cd /tmp
+            # Clean up any existing clone
+            if [ -d "paru-bin" ]; then
+              echo "Removing existing paru-bin directory..."
+              rm -rf paru-bin
+            fi
+            
+            sudo -u builder git clone https://aur.archlinux.org/paru-bin.git
+            cd paru-bin
+            sudo -u builder makepkg -si --noconfirm
+          }
+
+          # Main retry loop
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Attempting to install paru (attempt $attempt/$MAX_RETRIES)..."
+            
+            if install_paru; then
+              echo "Paru installation successful on attempt $attempt"
+              echo "::endgroup::"
+              exit 0
+            else
+              echo "Paru installation failed on attempt $attempt"
+              
+              # Don't wait after the last attempt
+              if [ $attempt -lt $MAX_RETRIES ]; then
+                echo "Waiting $RETRY_DELAY seconds before next attempt..."
+                sleep $RETRY_DELAY
+              fi
+            fi
+          done
+
+          echo "All $MAX_RETRIES attempts failed for paru installation"
           echo "::endgroup::"
+          exit 1
 
       - name: Setup SSH key for AUR
         run: |

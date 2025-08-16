@@ -96,8 +96,10 @@ jobs:
       - name: Setup non-root user for AUR operations
         shell: bash
         run: |
+          export -p | sed 's/^export //' > ${ARCHCHROOT}/env.tmp
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup non-root user 'builder'"
+          source /env.tmp && rm /env.tmp
           echo "Creating build user 'builder'..."
           useradd -m -s /bin/bash builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
@@ -128,8 +130,10 @@ jobs:
       - name: Export GPG signature if key is present
         if: env.GPG_PRIVATE_KEY != ''
         run: |
+          export -p | sed 's/^export //' > ${ARCHCHROOT}/env.tmp
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Exporting GPG_SIGNATURE short key"
+          source /env.tmp && rm /env.tmp
           SHORT_KEY=$(sudo -u builder env HOME=/home/builder \
             gpg --with-colons --import-options show-only --import <<< "$GPG_PRIVATE_KEY" \
             | awk -F: '/^fpr:/ { print $10; exit }')

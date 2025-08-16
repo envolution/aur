@@ -43,13 +43,6 @@ jobs:
           df -h
           ls -la ${ARCHROOT}
 
-      - name: Test pacman
-        run: |
-          sudo chroot ${ARCHROOT} /bin/bash -c "
-          echo ${GIT_USERNAME}
-          echo 'Free space:'
-          df -h
-          "
       - name: Test pacman 2
         run: |
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
@@ -96,10 +89,101 @@ jobs:
           grep --color=auto MAKEFLAGS /etc/makepkg.conf || echo "MAKEFLAGS not found after attempting to set."
 
           echo "::endgroup::"
+          EOF
+          chmod +x ${ARCHROOT}/${WORKFLOWCMD}
+          sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
 
-          pacman -Sy --noconfirm
-          pacman -Q pacman
-          echo "$GIT_USERNAME"
+      - name: Setup non-root user for AUR operations
+        shell: bash
+        run: |
+          cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
+          echo "::group::Setup non-root user 'builder'"
+          echo "Creating build user 'builder'..."
+          useradd -m -s /bin/bash builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+
+          echo "Setting up directories for builder..."
+          install -d -o builder -g builder -m 700 /home/builder/.gnupg
+          install -d -o builder -g builder -m 755 /home/builder/.cache
+          install -d -o builder -g builder -m 755 /home/builder/.local
+          install -d -o builder -g builder -m 755 /home/builder/.local/share
+          install -d -o builder -g builder -m 755 /home/builder/.cache/paru
+          install -d -o builder -g builder -m 755 /home/builder/.local/share/paru
+
+          echo "$GPG_PRIVATE_KEY" > private.key.asc
+          sudo mv private.key.asc /home/builder/private.key.asc
+          sudo chown builder:builder /home/builder/private.key.asc
+          sudo -u builder env HOME=/home/builder gpg --batch --yes --import /home/builder/private.key.asc
+          rm /home/builder/private.key.asc
+
+          echo "Builder user setup complete."
+          echo "::endgroup::"
+          EOF
+          chmod +x ${ARCHROOT}/${WORKFLOWCMD}
+          sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY}}
+
+      - name: Export GPG signature if key is present
+        if: env.GPG_PRIVATE_KEY != ''
+        run: |
+          cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
+          echo "::group::Exporting GPG_SIGNATURE short key"
+          SHORT_KEY=$(sudo -u builder env HOME=/home/builder \
+            gpg --with-colons --import-options show-only --import <<< "$GPG_PRIVATE_KEY" \
+            | awk -F: '/^fpr:/ { print $10; exit }')
+          echo "GPG_SIGNATURE = $SHORT_KEY"
+          echo "GPG_SIGNATURE=${SHORT_KEY}" >> "$GITHUB_ENV"
+          echo "::endgroup::"
+          EOF
+          chmod +x ${ARCHROOT}/${WORKFLOWCMD}
+          sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Install paru (AUR helper)
+        run: |
+          cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
+          echo "::group::Install paru (AUR helper)"
+          echo "Installing paru for 'builder' user..."
+          cd /tmp
+          sudo -u builder mkdir -p paru-bin && cd paru-bin
+          sudo -u builder git clone --depth 1 --filter=blob:none --sparse --branch paru-bin https://github.com/archlinux/aur.git
+          cd aur && sudo -u builder makepkg -si --noconfirm
+          cd ../.. && rm -rf paru-bin
+          echo "::endgroup::"
+          EOF
+          chmod +x ${ARCHROOT}/${WORKFLOWCMD}
+          sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
+
+      - name: Setup SSH key for AUR
+        run: |
+          cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
+          echo "::group::Setup SSH key for AUR"
+          echo "Setting up SSH key for AUR access..."
+          SSH_DIR="/home/builder/.ssh"
+          mkdir -p "${SSH_DIR}"
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > "${SSH_DIR}/aur"
+
+          #ssh-keyscan aur.archlinux.org >> "${SSH_DIR}/known_hosts"
+          echo 'aur.archlinux.org ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDKF9vAFWdgm9Bi8uc+tYRBmXASBb5cB5iZsB7LOWWFeBrLp3r14w0/9S2vozjgqY5sJLDPONWoTTaVTbhe3vwO8CBKZTEt1AcWxuXNlRnk9FliR1/eNB9uz/7y1R0+c1Md+P98AJJSJWKN12nqIDIhjl2S1vOUvm7FNY43fU2knIhEbHybhwWeg+0wxpKwcAd/JeL5i92Uv03MYftOToUijd1pqyVFdJvQFhqD4v3M157jxS5FTOBrccAEjT+zYmFyD8WvKUa9vUclRddNllmBJdy4NyLB8SvVZULUPrP3QOlmzemeKracTlVOUG1wsDbxknF1BwSCU7CmU6UFP90kpWIyz66bP0bl67QAvlIc52Yix7pKJPbw85+zykvnfl2mdROsaT8p8R9nwCdFsBc9IiD0NhPEHcyHRwB8fokXTajk2QnGhL+zP5KnkmXnyQYOCUYo3EKMXIlVOVbPDgRYYT/XqvBuzq5S9rrU70KoI/S5lDnFfx/+lPLdtcnnEPk=' \
+            >> "${SSH_DIR}/known_hosts"
+
+          echo "Host aur.archlinux.org" >> "${SSH_DIR}/config"
+          echo "  IdentityFile ${SSH_DIR}/aur" >> "${SSH_DIR}/config"
+          echo "  User aur" >> "${SSH_DIR}/config"
+          echo "  StrictHostKeyChecking yes" >> "${SSH_DIR}/config"
+
+          chown -R builder:builder "${SSH_DIR}"
+          chmod 700 "${SSH_DIR}"
+          chmod 600 "${SSH_DIR}/aur"
+          chmod 600 "${SSH_DIR}/config"
+          chmod 644 "${SSH_DIR}/known_hosts"
+
+          echo "SSH key setup complete. Permissions:"
+          ls -ldn "${SSH_DIR}" "${SSH_DIR}/aur" "${SSH_DIR}/config" "${SSH_DIR}/known_hosts" # Use -n to show numeric UID/GID
+          echo "::endgroup::"
           EOF
           chmod +x ${ARCHROOT}/${WORKFLOWCMD}
           sudo chroot ${ARCHROOT} ${WORKFLOWCMD}

@@ -6,6 +6,10 @@ on:
 jobs:
   arch-chroot:
     runs-on: ubuntu-latest
+    env:
+      AUR_MAINTAINER_NAME: envolution
+      GIT_USERNAME: envolution
+
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@master
@@ -37,6 +41,7 @@ jobs:
         run: |
           sudo chroot /opt/arch-root pacman -Sy --noconfirm
           sudo chroot /opt/arch-root pacman -Q pacman
+          sudo chroot /opt/arch-root echo ${{ env.GIT_USERNAME }}
 
       - name: Cleanup mounts
         if: always()

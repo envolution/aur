@@ -36,6 +36,7 @@ jobs:
         run: |
           echo "Free space:"
           df -h
+          ls -la /home/runner/work/aur/aur
 
       - name: Test pacman
         run: |

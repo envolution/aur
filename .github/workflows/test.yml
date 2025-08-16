@@ -33,6 +33,7 @@ jobs:
           sudo mount --bind /dev ${ROOT}/arch-root/dev
           sudo mount --bind /proc ${ROOT}/arch-root/proc
           sudo mount --bind /sys ${ROOT}/arch-root/sys
+          sudo mount --bind /run ${ROOT}/arch-root/run
 
       - name: Build
         run: |

@@ -3,7 +3,7 @@
 # shellcheck shell=bash disable=SC2034,SC2154
 
 pkgname=fb303
-pkgver=2025.08.04.00
+pkgver=2025.08.11.00
 pkgrel=1
 pkgdesc="thrift functions that provide a mechanism for querying information from a service"
 arch=(x86_64)
@@ -47,6 +47,7 @@ build() {
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=None \
     -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_CXX_STANDARD=20 \
     -Wno-dev \
     -DBUILD_SHARED_LIBS=ON \
     -DPYTHON_EXTENSIONS=ON \

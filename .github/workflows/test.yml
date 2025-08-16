@@ -20,11 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build
-        run: |
-          echo "Free space:"
-          df -h
-
       - name: Download Arch bootstrap
         run: |
           curl -LO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
@@ -37,11 +32,18 @@ jobs:
           sudo mount --bind /proc /opt/arch-root/proc
           sudo mount --bind /sys /opt/arch-root/sys
 
+      - name: Build
+        run: |
+          echo "Free space:"
+          df -h
+
       - name: Test pacman
         run: |
-          sudo chroot /opt/arch-root pacman -Sy --noconfirm
-          sudo chroot /opt/arch-root pacman -Q pacman
-          sudo chroot /opt/arch-root echo ${{ env.GIT_USERNAME }}
+          sudo chroot /opt/arch-root /bin/bash -c "
+          echo ${{ env.GIT_USERNAME }}
+          echo 'Free space:'
+          df -h
+          "
 
       - name: Cleanup mounts
         if: always()

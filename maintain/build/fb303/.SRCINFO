@@ -21,7 +21,7 @@ pkgbase = fb303
 	options = !lto
 	source = fb303-2025.08.11.00.tar.gz::https://github.com/facebook/fb303/archive/v2025.08.11.00.tar.gz
 	source = pass-thrift-include-to-python.patch::https://patch-diff.githubusercontent.com/raw/facebook/fb303/pull/68.patch
-	sha256sums = 15476f7de72f0270ac43626c1b50f7dabbf131e5939ba284a11797ad71b0ceab
+	sha256sums = 69123178f5e00c0a507a82dc5cd33ff81300ee3a50d7951425d9f5931ee8fbbd
 	sha256sums = 89ccb751f778b43d1eb4804eee1c041a5f9d8626d82034564300ee2bd4e731d9
 
 pkgname = fb303

@@ -1133,7 +1133,7 @@ def main_cli():
         "--aur-data-source",
         default="rpc",
         choices=["rpc", "file"],
-        help="Method to fetch AUR data. 'rpc' is faster for single maintainers, 'file' may be better for many.",
+        help="Method to fetch AUR data. 'rpc' has a limit of approximately 200 packages, 'file' would capture all AUR packages and support any number of results.",
     )
     parser.add_argument(
         "--path-root",

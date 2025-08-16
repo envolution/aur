@@ -29,6 +29,7 @@ jobs:
 
       - name: Bind mounts
         run: |
+          sudo mount --bind ${ROOT}/arch-root ${ROOT}/arch-root
           sudo mount --bind /dev ${ROOT}/arch-root/dev
           sudo mount --bind /proc ${ROOT}/arch-root/proc
           sudo mount --bind /sys ${ROOT}/arch-root/sys

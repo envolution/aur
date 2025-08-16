@@ -10,6 +10,8 @@ jobs:
       AUR_MAINTAINER_NAME: envolution
       GIT_USERNAME: envolution
       ROOT: /home/runner/work/aur/aur
+      ARCHROOT: /home/runner/work/aur/aur/arch-root
+      WORKFLOWCMD: /tmp/workflowcmd.sh
 
     steps:
       - name: Maximize build space
@@ -43,11 +45,59 @@ jobs:
 
       - name: Test pacman
         run: |
-          sudo chroot ${ROOT}/arch-root /bin/bash -c "
+          sudo chroot ${ARCHROOT} /bin/bash -c "
           echo ${GIT_USERNAME}
           echo 'Free space:'
           df -h
           "
+      - name: Test pacman 2
+        run: |
+          cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
+          echo "::group::Initialize pacman, Update System, and Configure Makepkg"
+          echo "Initializing pacman keyring..."
+          mkdir -p /etc/pacman.d/gnupg
+          pacman-key --init
+          pacman-key --populate archlinux
+
+          echo "Enabling multilib repository..."
+          echo -e "\n[multilib]\nInclude = /etc/pacman.d/mirrorlist" >> /etc/pacman.conf
+
+          echo "Updating system and installing core dependencies..."
+          pacman -Sy --noconfirm --needed archlinux-keyring
+          pacman -Syu --noconfirm
+
+          echo "Installing necessary packages..."
+          pacman -S --noconfirm --needed \
+            git base-devel pacman-contrib openssh github-cli jq expac \
+            ruby-rdoc ruby-pkg-config gnupg \
+            python python-pip \
+            pyalpm python-awesomeversion python-packaging python-lxml \
+            python-gobject python-requests libnotify nvchecker \
+            binutils multilib-devel python-aiohttp clang python-jq \
+            sudo
+
+          echo "Configuring makepkg for parallel compilation..."
+          # Check if MAKEFLAGS is already set and uncommented
+          if grep -q -E '^#?\s*MAKEFLAGS=' /etc/makepkg.conf; then
+            # If found (commented or uncommented), replace the line
+            sed -i "s|^#*\s*MAKEFLAGS=.*|MAKEFLAGS=\"-j$(nproc)\"|g" /etc/makepkg.conf
+            echo "Updated existing MAKEFLAGS in /etc/makepkg.conf."
+          else
+            # If not found, append it
+            echo "MAKEFLAGS=\"-j$(nproc)\"" >> /etc/makepkg.conf
+            echo "Appended MAKEFLAGS to /etc/makepkg.conf."
+          fi
+          echo "Current MAKEFLAGS setting in /etc/makepkg.conf:"
+          grep --color=auto MAKEFLAGS /etc/makepkg.conf || echo "MAKEFLAGS not found after attempting to set."
+
+          echo "::endgroup::"
+
+          pacman -Sy --noconfirm
+          pacman -Q pacman
+          echo "$GIT_USERNAME"
+          EOF
+          chmod +x ${WORKFLOWCMD}
+          sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
 
       - name: Cleanup mounts
         if: always()

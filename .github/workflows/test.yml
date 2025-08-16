@@ -27,15 +27,17 @@ jobs:
         run: |
           curl -sSLO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
           tar --zstd -xf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp 2>/dev/null || true
-          sudo mv root.x86_64 ${ROOT}/arch-root
+          sudo mv root.x86_64 ${ARCHROOT}
+          mkdir ${ARCHROOT}/tmp
+          chmod 777 ${ARCHROOT}/tmp
 
       - name: Bind mounts
         run: |
-          sudo mount --bind ${ROOT}/arch-root ${ROOT}/arch-root
-          sudo mount --bind /dev ${ROOT}/arch-root/dev
-          sudo mount --bind /proc ${ROOT}/arch-root/proc
-          sudo mount --bind /sys ${ROOT}/arch-root/sys
-          sudo mount --bind /run ${ROOT}/arch-root/run
+          sudo mount --bind ${ARCHROOT} ${ARCHROOT}
+          sudo mount --bind /dev ${ARCHROOT}/dev
+          sudo mount --bind /proc ${ARCHROOT}/proc
+          sudo mount --bind /sys ${ARCHROOT}/sys
+          sudo mount --bind /run ${ARCHROOT}/run
 
       - name: Build
         run: |

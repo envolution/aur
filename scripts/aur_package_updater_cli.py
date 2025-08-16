@@ -10,11 +10,17 @@ import glob
 import logging
 from awesomeversion import AwesomeVersion
 import pyalpm
+import gzip
+import time
+from typing import Dict, Any, Optional
 
 # --- Constants ---
 # Default logger if the script is run standalone.
 # If run as part of a larger system, a configured logger should be passed to the main class.
 DEFAULT_LOGGER = logging.getLogger("aur_updater_cli")
+CACHE_FILE_PATH = os.path.join(
+    tempfile.gettempdir(), "aur_package_updater_cli_cache.json.gz"
+)
 
 
 # --- Version Comparison Function (Using AwesomeVersion, falling back on pyalpm vercmp) ---
@@ -84,91 +90,338 @@ def _get_full_version_string(v_str, r_str):
     return v_str
 
 
-# --- Data Fetching Functions ---
-# (fetch_aur_data, fetch_local_pkgbuild_data, run_nvchecker remain unchanged from the last version
-#  as they focus on data gathering, not the comparison logic itself)
-def fetch_aur_data(ownership, maintainer, logger=DEFAULT_LOGGER):
-    aur_logger = logger.getChild("aur")
+def fetch_aur_data(
+    ownership, maintainer, data_source="rpc", logger=None, max_retries=3, retry_delay=1
+):
+    """
+    Fetch AUR package data using either RPC API or metadata file.
+
+    Args:
+        ownership: The field to filter on (e.g., 'maintainer')
+        maintainer: The value to filter for
+        data_source: Data collection method - either 'rpc' or 'file' (default: 'rpc')
+        logger: Logger instance (optional)
+        max_retries: Maximum number of retry attempts on failure (default: 3)
+        retry_delay: Delay between retries in whole seconds (default: 1)
+
+    Returns:
+        Dict[str, Dict[str, Any]]: Dictionary of package data keyed by package base name
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    if data_source not in ["rpc", "file"]:
+        raise ValueError(f"data_source must be 'rpc' or 'file', got '{data_source}'")
+
+    aur_logger = logger.getChild(f"aur_{data_source}")
+
+    if data_source == "rpc":
+        return _fetch_aur_data_rpc(
+            ownership, maintainer, aur_logger, max_retries, retry_delay
+        )
+    else:  # data_source == 'file'
+        return _fetch_aur_data_file(
+            ownership, maintainer, aur_logger, max_retries, retry_delay
+        )
+
+
+def _fetch_aur_data_rpc(ownership, maintainer, aur_logger, max_retries, retry_delay):
+    """Internal function to fetch AUR data via RPC API."""
     aur_data_by_pkgbase = {}
     url = f"https://aur.archlinux.org/rpc/v5/search/{maintainer}?by={ownership}"
-    aur_logger.info(f"Querying AUR for '{ownership}' key '{maintainer}' at: {url}")
-    try:
-        process = subprocess.run(
-            ["curl", "-s", url], capture_output=True, text=True, check=True, timeout=20
-        )
-        aur_logger.debug(
-            f"AUR raw response for '{maintainer}': {process.stdout[:300]}..."
-        )
-        data = json.loads(process.stdout)
-        if data.get("type") == "error":
-            aur_logger.error(
-                f"AUR API error for '{ownership}' key '{maintainer}': {data.get('error')}"
-            )
-            return aur_data_by_pkgbase
-        if data.get("resultcount", 0) == 0:
-            aur_logger.info(
-                f"No packages found on AUR for '{ownership}' key '{maintainer}'."
-            )
-            return aur_data_by_pkgbase
+    aur_logger.info(f"Querying AUR RPC for '{ownership}' key '{maintainer}' at: {url}")
 
-        count = 0
-        for result in data.get("results", []):
-            name, base_name, full_ver = (
-                result["Name"],
-                result["PackageBase"],
-                result["Version"],
+    for attempt in range(max_retries):
+        try:
+            aur_logger.debug(f"RPC attempt {attempt + 1}/{max_retries}")
+            process = subprocess.run(
+                ["curl", "-s", url],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=20,
             )
-            ver_no_epoch = full_ver.split(":", 1)[-1]
-            parts = ver_no_epoch.rsplit("-", 1)
-            base_v, rel_v = (
-                parts[0],
-                (parts[1] if len(parts) > 1 and parts[1].isdigit() else "0"),
+
+            aur_logger.debug(
+                f"AUR raw response for '{maintainer}': {process.stdout[:300]}..."
             )
-            if base_name not in aur_data_by_pkgbase:
-                count += 1
-                aur_data_by_pkgbase[base_name] = {
-                    "aur_actual_pkgname": name,
-                    "aur_pkgbase_reported": base_name,
-                    "aur_pkgver": base_v,
-                    "aur_pkgrel": rel_v,
-                }
-                # aur_logger.debug(
-                #    f"  Stored AUR for PkgBase='{base_name}' (from PkgName='{name}'): Base='{base_v}', Rel='{rel_v}'"
-                # )
-        aur_logger.info(
-            f"Fetched info for {count} unique PkgBase(s) from AUR for '{maintainer}'."
-        )
-    except subprocess.TimeoutExpired:
-        aur_logger.error(f"AUR query timed out for '{ownership}' key '{maintainer}'.")
-    except subprocess.CalledProcessError as e:
-        aur_logger.error(
-            f"AUR query fail for '{ownership}' key '{maintainer}' (code {e.returncode}): {e.stderr}"
-        )
-    except json.JSONDecodeError as e:
-        aur_logger.error(
-            f"Failed to parse AUR JSON for '{ownership}' key '{maintainer}': {e}"
-        )
-    except Exception as e:
-        aur_logger.error(
-            f"AUR fetch error for '{ownership}' key '{maintainer}': {e}",
-            exc_info=aur_logger.isEnabledFor(logging.DEBUG),
-        )
+
+            data = json.loads(process.stdout)
+
+            if data.get("type") == "error":
+                aur_logger.error(
+                    f"AUR API error for '{ownership}' key '{maintainer}': {data.get('error')}"
+                )
+                return aur_data_by_pkgbase
+
+            if data.get("resultcount", 0) == 0:
+                aur_logger.info(
+                    f"No packages found on AUR for '{ownership}' key '{maintainer}'."
+                )
+                return aur_data_by_pkgbase
+
+            count = 0
+            for result in data.get("results", []):
+                name, base_name, full_ver = (
+                    result["Name"],
+                    result["PackageBase"],
+                    result["Version"],
+                )
+                ver_no_epoch = full_ver.split(":", 1)[-1]
+                parts = ver_no_epoch.rsplit("-", 1)
+                base_v, rel_v = (
+                    parts[0],
+                    (parts[1] if len(parts) > 1 and parts[1].isdigit() else "0"),
+                )
+                if base_name not in aur_data_by_pkgbase:
+                    count += 1
+                    aur_data_by_pkgbase[base_name] = {
+                        "aur_actual_pkgname": name,
+                        "aur_pkgbase_reported": base_name,
+                        "aur_pkgver": base_v,
+                        "aur_pkgrel": rel_v,
+                    }
+                    # aur_logger.debug(
+                    #    f"  Stored AUR for PkgBase='{base_name}' (from PkgName='{name}'): Base='{base_v}', Rel='{rel_v}'"
+                    # )
+
+            aur_logger.info(
+                f"Fetched info for {count} unique PkgBase(s) from AUR RPC for '{maintainer}'."
+            )
+
+            # Success - break out of retry loop
+            break
+
+        except subprocess.TimeoutExpired:
+            aur_logger.warning(
+                f"AUR RPC timeout on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}'"
+            )
+        except subprocess.CalledProcessError as e:
+            aur_logger.warning(
+                f"AUR RPC failed on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}' (code {e.returncode}): {e.stderr}"
+            )
+        except json.JSONDecodeError as e:
+            aur_logger.warning(
+                f"Failed to parse AUR JSON on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}': {e}"
+            )
+        except Exception as e:
+            aur_logger.warning(
+                f"AUR RPC error on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}': {e}"
+            )
+
+        # If this wasn't the last attempt, wait before retrying
+        if attempt < max_retries - 1:
+            aur_logger.info(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+        else:
+            # Final attempt failed
+            aur_logger.error(
+                f"All {max_retries} RPC attempts failed for '{ownership}' key '{maintainer}'"
+            )
+
     return aur_data_by_pkgbase
 
 
-def get_combined_aur_data(maintainer, logger=DEFAULT_LOGGER):
+def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_delay):
+    """Internal function to fetch AUR data from metadata file."""
+    aur_data_by_pkgbase = {}
+    url = "https://aur.archlinux.org/packages-meta-ext-v1.json.gz"
+
+    raw_gzipped_data = None
+
+    # Try to load from cache first
+    if os.path.exists(CACHE_FILE_PATH):
+        aur_logger.info(f"Found cached metadata file at '{CACHE_FILE_PATH}'.")
+        try:
+            with open(CACHE_FILE_PATH, "rb") as f:
+                raw_gzipped_data = f.read()
+            if not raw_gzipped_data:
+                aur_logger.warning("Cached file is empty, will re-download.")
+            else:
+                aur_logger.info(
+                    f"Loaded {len(raw_gzipped_data)} bytes from cached metadata file."
+                )
+        except Exception as e:
+            aur_logger.warning(
+                f"Error reading cache file '{CACHE_FILE_PATH}': {e}. Re-downloading."
+            )
+            raw_gzipped_data = None
+
+    if not raw_gzipped_data:
+        aur_logger.info(
+            f"Downloading AUR metadata file for '{ownership}' key '{maintainer}' from: {url}"
+        )
+
+        for attempt in range(max_retries):
+            try:
+                aur_logger.debug(f"File download attempt {attempt + 1}/{max_retries}")
+                process = subprocess.run(
+                    ["curl", "-s", "-L", url],
+                    capture_output=True,
+                    text=False,  # Binary data
+                    check=True,
+                    timeout=60,  # Longer timeout for file download
+                )
+
+                if not process.stdout:
+                    raise ValueError("Empty response from server")
+
+                raw_gzipped_data = process.stdout
+                aur_logger.debug(
+                    f"Downloaded {len(raw_gzipped_data)} bytes of compressed data"
+                )
+
+                # Try to cache the downloaded file
+                try:
+                    with open(CACHE_FILE_PATH, "wb") as f:
+                        f.write(raw_gzipped_data)
+                    aur_logger.info(f"Cached metadata file to '{CACHE_FILE_PATH}'.")
+                except Exception as e:
+                    aur_logger.warning(
+                        f"Failed to write cache file to '{CACHE_FILE_PATH}': {e}"
+                    )
+                break  # Success
+            except subprocess.TimeoutExpired:
+                aur_logger.warning(
+                    f"File download timeout on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}'"
+                )
+            except subprocess.CalledProcessError as e:
+                aur_logger.warning(
+                    f"File download failed on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}' (code {e.returncode}): {e.stderr}"
+                )
+            except ValueError as e:
+                aur_logger.warning(
+                    f"Data processing failed on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}': {e}"
+                )
+            except Exception as e:
+                aur_logger.warning(
+                    f"Unexpected error on attempt {attempt + 1}/{max_retries} for '{ownership}' key '{maintainer}': {e}"
+                )
+
+            if attempt < max_retries - 1:
+                aur_logger.info(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                aur_logger.error(
+                    f"All {max_retries} file download attempts failed for '{ownership}' key '{maintainer}'"
+                )
+                return aur_data_by_pkgbase
+
+    if not raw_gzipped_data:
+        aur_logger.error("No metadata available to process.")
+        return aur_data_by_pkgbase
+
+    try:
+        decompressed_data = gzip.decompress(raw_gzipped_data)
+        aur_logger.debug(f"Decompressed to {len(decompressed_data)} bytes")
+        data = json.loads(decompressed_data.decode("utf-8"))
+    except (gzip.BadGzipFile, json.JSONDecodeError, UnicodeDecodeError) as e:
+        aur_logger.error(f"Failed to process metadata file: {e}")
+        return aur_data_by_pkgbase
+
+    if not isinstance(data, list):
+        aur_logger.error(f"Expected JSON array, got {type(data).__name__}")
+        return aur_data_by_pkgbase
+
+    aur_logger.info(
+        f"Successfully loaded {len(data)} total packages from AUR metadata file"
+    )
+
+    # Filter packages by the specified ownership field and maintainer value
+    count = 0
+    filtered_count = 0
+
+    for pkg in data:
+        if not isinstance(pkg, dict):
+            continue
+
+        # Check if the package matches our filter criteria
+        match = False
+        if ownership == "maintainer":
+            # Case-insensitive comparison for the main maintainer
+            pkg_owner = pkg.get("Maintainer")
+            if pkg_owner and pkg_owner.lower() == maintainer.lower():
+                match = True
+        elif ownership == "comaintainers":
+            # Case-insensitive check for list membership for co-maintainers
+            pkg_co_owners = pkg.get("CoMaintainers")
+            if isinstance(pkg_co_owners, list):
+                if any(co.lower() == maintainer.lower() for co in pkg_co_owners):
+                    match = True
+
+        if not match:
+            continue
+
+        filtered_count += 1
+
+        # Extract required fields
+        name = pkg.get("Name")
+        base_name = pkg.get(
+            "PackageBase", name
+        )  # Fallback to Name if PackageBase missing
+        full_ver = pkg.get("Version")
+
+        if not all([name, base_name, full_ver]):
+            aur_logger.warning(
+                f"Skipping package with missing required fields: Name={name}, PackageBase={base_name}, Version={full_ver}"
+            )
+            continue
+
+        # Parse version string (same logic as RPC function)
+        ver_no_epoch = full_ver.split(":", 1)[-1]
+        parts = ver_no_epoch.rsplit("-", 1)
+        base_v = parts[0]
+        rel_v = parts[1] if len(parts) > 1 and parts[1].isdigit() else "0"
+
+        # Only store the first occurrence of each package base
+        if base_name not in aur_data_by_pkgbase:
+            count += 1
+            aur_data_by_pkgbase[base_name] = {
+                "aur_actual_pkgname": name,
+                "aur_pkgbase_reported": base_name,
+                "aur_pkgver": base_v,
+                "aur_pkgrel": rel_v,
+            }
+            # aur_logger.debug(
+            #     f"  Stored AUR for PkgBase='{base_name}' (from PkgName='{name}'): Base='{base_v}', Rel='{rel_v}'"
+            # )
+
+    aur_logger.info(
+        f"Found {filtered_count} packages for '{ownership}' key '{maintainer}'"
+    )
+    aur_logger.info(
+        f"Fetched info for {count} unique PkgBase(s) from AUR metadata file for '{maintainer}'."
+    )
+
+    return aur_data_by_pkgbase
+
+
+def get_combined_aur_data(maintainer, data_source="rpc", logger=DEFAULT_LOGGER):
     """Fetch and combine maintainer and co-maintainer AUR data."""
     aur_logger = logger.getChild("aur")
+    aur_data = {}
 
     # Fetch maintainer data (required)
-    aur_data = fetch_aur_data("maintainer", maintainer, logger=logger)
+    try:
+        maintainer_data = fetch_aur_data(
+            "maintainer", maintainer, data_source=data_source, logger=logger
+        )
+        if maintainer_data:
+            aur_data.update(maintainer_data)
+    except Exception as e:
+        aur_logger.error(f"Could not fetch maintainer data for '{maintainer}': {e}")
 
     # Try to fetch co-maintainer data (optional)
     try:
-        comaintainer_data = fetch_aur_data("comaintainers", maintainer, logger=logger)
-        # Merge the dictionaries - co-maintainer data takes precedence for conflicts
-        aur_data.update(comaintainer_data)
-        aur_logger.info(f"Successfully merged co-maintainer data for '{maintainer}'")
+        comaintainer_data = fetch_aur_data(
+            "comaintainers", maintainer, data_source=data_source, logger=logger
+        )
+        if comaintainer_data:
+            # Merge the dictionaries - co-maintainer data takes precedence for conflicts
+            aur_data.update(comaintainer_data)
+            aur_logger.info(
+                f"Successfully merged co-maintainer data for '{maintainer}'"
+            )
     except Exception as e:
         aur_logger.warning(
             f"Could not fetch co-maintainer data for '{maintainer}': {e}"
@@ -807,7 +1060,16 @@ class AurPackageUpdater:
                 )
                 manual_packages_list = []
 
-        aur_data = get_combined_aur_data(self.args.maintainer, logger=self.logger)
+        aur_data = {}
+        try:
+            aur_data = get_combined_aur_data(
+                self.args.maintainer,
+                data_source=self.args.aur_data_source,
+                logger=self.logger,
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get AUR data: {e}", exc_info=True)
+
         for pkgbase, data in aur_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)
 
@@ -868,15 +1130,26 @@ def main_cli():
     )
     parser.add_argument("--maintainer", required=True, help="AUR maintainer name.")
     parser.add_argument(
+        "--aur-data-source",
+        default="rpc",
+        choices=["rpc", "file"],
+        help="Method to fetch AUR data. 'rpc' is faster for single maintainers, 'file' may be better for many.",
+    )
+    parser.add_argument(
         "--path-root",
         required=True,
         help="Root directory for PKGBUILDs and .nvchecker.toml files.",
     )
+
+    # Make the default path for the helper script relative to this script's location
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_pkgbuild_script = os.path.join(script_dir, "pkgbuild_to_json.py")
     parser.add_argument(
         "--pkgbuild-script",
-        default="./pkgbuild_to_json.py",
+        default=default_pkgbuild_script,
         help="Script to parse PKGBUILDs to JSON.",
     )
+
     parser.add_argument(
         "--key-toml",
         default=None,
@@ -901,6 +1174,16 @@ def main_cli():
     except Exception as e:
         app.logger.critical(f"Unhandled exception: {e}", exc_info=True)
         sys.exit(2)
+    finally:
+        # Cleanup the cache file on exit
+        if os.path.exists(CACHE_FILE_PATH):
+            try:
+                os.remove(CACHE_FILE_PATH)
+                app.logger.info(f"Cleaned up cache file: {CACHE_FILE_PATH}")
+            except OSError as e:
+                app.logger.warning(
+                    f"Error cleaning up cache file {CACHE_FILE_PATH}: {e}"
+                )
 
 
 if __name__ == "__main__":

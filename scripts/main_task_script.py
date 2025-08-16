@@ -267,6 +267,9 @@ def run_aur_updater_cli(
         str(UPDATER_CLI_OUTPUT_JSON_PATH),
         "--pkgbuild-script",
         str(pkgbuild_script_path_for_cli),  # Pass the correct script path
+        "--summary",  # Summarize results to stdout
+        "--aur-data-source",
+        "file",  # can be file or rpc - rpc can support ~ 200 packages, file has no such limitations
     ]
     if KEYFILE_PATH.exists():
         cmd.extend(["--key-toml", str(KEYFILE_PATH)])

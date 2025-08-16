@@ -22,8 +22,8 @@ jobs:
 
       - name: Download Arch bootstrap
         run: |
-          curl -LO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
-          tar --zstd -xvf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp || true
+          curl -sSLO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
+          tar --zstd -xf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp 2>/dev/null || true
           sudo mv root.x86_64 /opt/arch-root
 
       - name: Bind mounts

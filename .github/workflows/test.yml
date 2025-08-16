@@ -28,8 +28,6 @@ jobs:
           curl -sSLO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
           tar --zstd -xf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp 2>/dev/null || true
           sudo mv root.x86_64 ${ARCHROOT}
-          mkdir ${ARCHROOT}/tmp
-          chmod 777 ${ARCHROOT}/tmp
 
       - name: Bind mounts
         run: |
@@ -43,7 +41,7 @@ jobs:
         run: |
           echo "Free space:"
           df -h
-          ls -la ${ROOT}
+          ls -la ${ARCHROOT}
 
       - name: Test pacman
         run: |

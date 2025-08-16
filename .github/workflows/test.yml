@@ -96,7 +96,7 @@ jobs:
           pacman -Q pacman
           echo "$GIT_USERNAME"
           EOF
-          chmod +x ${WORKFLOWCMD}
+          chmod +x ${ARCHROOT}/${WORKFLOWCMD}
           sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
 
       - name: Cleanup mounts

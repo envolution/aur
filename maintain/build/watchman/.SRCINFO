@@ -1,6 +1,6 @@
 pkgbase = watchman
 	pkgdesc = Watches files and records, or triggers actions, when they change
-	pkgver = 2025.08.04.00
+	pkgver = 2025.08.11.00
 	pkgrel = 1
 	url = https://github.com/facebook/watchman
 	arch = x86_64
@@ -8,17 +8,17 @@ pkgbase = watchman
 	makedepends = boost
 	makedepends = cmake
 	makedepends = cpptoml
-	makedepends = fizz=2025.08.04.00
+	makedepends = fizz=2025.08.11.00
 	makedepends = gtest
-	makedepends = mvfst=2025.08.04.00
+	makedepends = mvfst=2025.08.11.00
 	makedepends = python-setuptools
 	makedepends = rust
 	depends = boost-libs
-	depends = edencommon=2025.08.04.00
-	depends = fb303=2025.08.04.00
-	depends = fbthrift=2025.08.04.00
+	depends = edencommon=2025.08.11.00
+	depends = fb303=2025.08.11.00
+	depends = fbthrift=2025.08.11.00
 	depends = fmt
-	depends = folly=2025.08.04.00
+	depends = folly=2025.08.11.00
 	depends = gcc-libs
 	depends = glibc
 	depends = google-glog
@@ -27,7 +27,7 @@ pkgbase = watchman
 	depends = pcre2
 	depends = python
 	backup = etc/watchman.json
-	source = watchman-2025.08.04.00.tar.gz::https://github.com/facebook/watchman/archive/v2025.08.04.00.tar.gz
+	source = watchman-2025.08.11.00.tar.gz::https://github.com/facebook/watchman/archive/v2025.08.11.00.tar.gz
 	source = watchman-destdir.patch::https://src.fedoraproject.org/rpms/watchman/raw/a446ccc61c73d74053792656c3832f93bf0fe262/f/watchman-destdir.patch
 	source = watchman.conf
 	source = watchman.json

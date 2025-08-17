@@ -200,7 +200,7 @@ jobs:
           chmod +x ${ARCHROOT}/${WORKFLOWCMD}
           sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
           echo "$AUR_SSH_PRIVATE_KEY" | sudo tee ${ARCHROOT}/home/builder/.ssh/aur > /dev/null
-          ls -la ${ARCHROOT}/home/builder/.ssh/
+          sudo ls -la ${ARCHROOT}/home/builder/.ssh/
 
       - name: Cleanup mounts
         if: always()

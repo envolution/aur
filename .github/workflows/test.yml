@@ -138,6 +138,7 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
+          echo $GPG_PRIVATE_KEY >> $GITHUB_ENV
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Exporting GPG_SIGNATURE short key"
           source /tmp/tmp.env
@@ -171,6 +172,7 @@ jobs:
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
+          echo $AUR_SSH_PRIVATE_KEY >> $GITHUB_ENV
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup SSH key for AUR"
           cat /tmp/tmp.env

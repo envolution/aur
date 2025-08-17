@@ -100,10 +100,11 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY}}
         run: |
-          export -p | sed 's/^export //' > ${ARCHCHROOT}/env.tmp
+          # export -p | sed 's/^export //' > ${ARCHCHROOT}/env.tmp
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup non-root user 'builder'"
-          source /env.tmp && rm /env.tmp
+          # source /env.tmp && rm /env.tmp
+          source /github_env
           echo "Creating build user 'builder'..."
           useradd -m -s /bin/bash builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder

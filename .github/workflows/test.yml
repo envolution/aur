@@ -28,6 +28,7 @@ jobs:
           curl -sSLO https://iad.mirror.rackspace.com/archlinux/iso/latest/archlinux-bootstrap-x86_64.tar.zst
           tar --zstd -xf archlinux-bootstrap-x86_64.tar.zst --ignore-failed-read --warning=no-timestamp 2>/dev/null || true
           sudo chown -R root:root root.x86_64
+          sudo chmod 777 root.x86_64/tmp
           sudo mv root.x86_64 ${ARCHROOT}
 
       - name: Bind mounts

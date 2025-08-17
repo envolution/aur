@@ -32,6 +32,7 @@ jobs:
       - name: Bind mounts
         run: |
           sudo mount --bind ${ARCHROOT} ${ARCHROOT}
+          sudo touch ${ARCHROOT}/github_env
           sudo mount --bind "$GITHUB_ENV" ${ARCHROOT}/github_env
           sudo mount --bind /dev ${ARCHROOT}/dev
           sudo mount --bind /proc ${ARCHROOT}/proc

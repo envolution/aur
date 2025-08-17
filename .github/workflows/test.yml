@@ -12,6 +12,7 @@ jobs:
       ROOT: /home/runner/work/aur/aur
       ARCHROOT: /home/runner/work/aur/aur/arch-root
       WORKFLOWCMD: /tmp/workflowcmd.sh
+      TEMPENV: /tmp/tmp.env
 
     steps:
       - name: Maximize build space
@@ -40,6 +41,7 @@ jobs:
           sudo mount --bind /proc ${ARCHROOT}/proc
           sudo mount --bind /sys ${ARCHROOT}/sys
           sudo mount --bind /run ${ARCHROOT}/run
+          export -p | sed 's/^export //' > ${ARCHROOT}/${TEMPENV}
 
       - name: Build
         run: |
@@ -102,10 +104,9 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY}}
         run: |
-          # export -p | sed 's/^export //' > ${ARCHCHROOT}/env.tmp
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup non-root user 'builder'"
-          # source /env.tmp && rm /env.tmp
+          source /tmp/tmp.env
           source /github_env
           echo "Creating build user 'builder'..."
           useradd -m -s /bin/bash builder
@@ -137,16 +138,15 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          # export -p | sed 's/^export //' > ${ARCHCHROOT}/env.tmp
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Exporting GPG_SIGNATURE short key"
-          # source /env.tmp && rm /env.tmp
+          source /tmp/tmp.env
           source /github_env
           SHORT_KEY=$(sudo -u builder env HOME=/home/builder \
             gpg --with-colons --import-options show-only --import <<< "$GPG_PRIVATE_KEY" \
             | awk -F: '/^fpr:/ { print $10; exit }')
           echo "GPG_SIGNATURE = $SHORT_KEY"
-          echo "GPG_SIGNATURE=${SHORT_KEY}"  >> /github_env
+          echo "GPG_SIGNATURE=${SHORT_KEY}" >> /github_env
           echo "::endgroup::"
           EOF
           chmod +x ${ARCHROOT}/${WORKFLOWCMD}
@@ -173,6 +173,7 @@ jobs:
         run: |
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup SSH key for AUR"
+          source /tmp/tmp.env
           source /github_env
           echo "Setting up SSH key for AUR access..."
           SSH_DIR="/home/builder/.ssh"

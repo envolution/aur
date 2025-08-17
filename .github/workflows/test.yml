@@ -138,7 +138,7 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          echo $GPG_PRIVATE_KEY >> $GITHUB_ENV
+          printf "GPG_PRIVATE_KEY<<EOF\n%s\nEOF\n" "$GPG_PRIVATE_KEY" >> "$GITHUB_ENV"
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Exporting GPG_SIGNATURE short key"
           source /tmp/tmp.env

@@ -173,7 +173,7 @@ jobs:
         run: |
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup SSH key for AUR"
-          cat /tmp/env
+          cat /tmp/tmp.env
           echo "^env"
           cat /github_env
           echo "^ghenv"

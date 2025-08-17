@@ -172,19 +172,13 @@ jobs:
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
-          echo $AUR_SSH_PRIVATE_KEY >> $GITHUB_ENV
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup SSH key for AUR"
-          cat /tmp/tmp.env
-          echo "^env"
-          cat /github_env
-          echo "^ghenv"
-          source /tmp/tmp.env
           source /github_env
           echo "Setting up SSH key for AUR access..."
           SSH_DIR="/home/builder/.ssh"
           mkdir -p "${SSH_DIR}"
-          echo "${AUR_SSH_PRIVATE_KEY}" > "${SSH_DIR}/aur"
+          touch "${SSH_DIR}/aur"
 
           #ssh-keyscan aur.archlinux.org >> "${SSH_DIR}/known_hosts"
           echo 'aur.archlinux.org ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDKF9vAFWdgm9Bi8uc+tYRBmXASBb5cB5iZsB7LOWWFeBrLp3r14w0/9S2vozjgqY5sJLDPONWoTTaVTbhe3vwO8CBKZTEt1AcWxuXNlRnk9FliR1/eNB9uz/7y1R0+c1Md+P98AJJSJWKN12nqIDIhjl2S1vOUvm7FNY43fU2knIhEbHybhwWeg+0wxpKwcAd/JeL5i92Uv03MYftOToUijd1pqyVFdJvQFhqD4v3M157jxS5FTOBrccAEjT+zYmFyD8WvKUa9vUclRddNllmBJdy4NyLB8SvVZULUPrP3QOlmzemeKracTlVOUG1wsDbxknF1BwSCU7CmU6UFP90kpWIyz66bP0bl67QAvlIc52Yix7pKJPbw85+zykvnfl2mdROsaT8p8R9nwCdFsBc9IiD0NhPEHcyHRwB8fokXTajk2QnGhL+zP5KnkmXnyQYOCUYo3EKMXIlVOVbPDgRYYT/XqvBuzq5S9rrU70KoI/S5lDnFfx/+lPLdtcnnEPk=' \
@@ -201,12 +195,12 @@ jobs:
           chmod 600 "${SSH_DIR}/config"
           chmod 644 "${SSH_DIR}/known_hosts"
 
-          echo "SSH key setup complete. Permissions:"
-          ls -ldn "${SSH_DIR}" "${SSH_DIR}/aur" "${SSH_DIR}/config" "${SSH_DIR}/known_hosts" # Use -n to show numeric UID/GID
           echo "::endgroup::"
           EOF
           chmod +x ${ARCHROOT}/${WORKFLOWCMD}
           sudo chroot ${ARCHROOT} ${WORKFLOWCMD}
+          sudo echo "$AUR_SSH_PRIVATE_KEY" > ${ARCHROOT}/home/builder/.ssh/aur
+          ls -la ${ARCHROOT}/home/builder/.ssh/
 
       - name: Cleanup mounts
         if: always()

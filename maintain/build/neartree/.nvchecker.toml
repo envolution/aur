@@ -1,4 +1,4 @@
 [neartree]
-source='regex'
-regex='Release.([0-9.]+)'
-url='https://neartree.sourceforge.net/'
+source = 'regex'
+regex = 'Release.([0-9.]+)'
+url = 'https://neartree.sourceforge.net/'

@@ -19,7 +19,7 @@ source=(
   "hyperrogue-$_pkgver.tgz::https://github.com/zenorogue/hyperrogue/archive/refs/tags/v${_pkgver}.tar.gz"
   "hyperrogue.sh"
 )
-sha256sums=('fc3da7b6e265ccdcc96a256eead3b30cf5b21bc7d87557a874973e599082b66a'
+sha256sums=('f9f8f1750a4f6b7de0b89367bcfbafd632f7f855be9d2b1869d610efb14c31e7'
             'd8b6b3d6d8bfe7d7ce97e2fd2a35d148505890dc9c6ea972a7ecb2453245b032')
 
 build() {

@@ -13,16 +13,6 @@ arch=('i686' 'x86_64')
 url="http://www.roguetemple.com/z/hyper.php"
 license=('GPL-2.0-or-later')
 options=(!strip !debug)
-<<<<<<< Updated upstream
-depends=('sdl_gfx' 'sdl_ttf' 'sdl_mixer' 'mesa' 'ttf-dejavu')
-makedepends=('glu' 'glew')
-source=(
-  "hyperrogue-$_pkgver.tgz::https://github.com/zenorogue/hyperrogue/archive/refs/tags/v${_pkgver}.tar.gz"
-  "hyperrogue.sh"
-)
-sha256sums=('f9f8f1750a4f6b7de0b89367bcfbafd632f7f855be9d2b1869d610efb14c31e7'
-            'd8b6b3d6d8bfe7d7ce97e2fd2a35d148505890dc9c6ea972a7ecb2453245b032')
-=======
 depends=(
   'sdl_gfx'
   'sdl_ttf'
@@ -40,7 +30,6 @@ depends=(
 makedepends=('glu')
 source=("hyperrogue-$_pkgver.tgz::https://github.com/zenorogue/hyperrogue/archive/refs/tags/v${_pkgver}.tar.gz")
 sha256sums=('f9f8f1750a4f6b7de0b89367bcfbafd632f7f855be9d2b1869d610efb14c31e7')
->>>>>>> Stashed changes
 
 build() {
   cd "$srcdir/$pkgname-${_pkgver}"

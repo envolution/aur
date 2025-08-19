@@ -32,6 +32,7 @@ makedepends=(
   cython
   gtest
   mvfst=$pkgver
+  git
 )
 optdepends=(
   'python-snappy: Snappy compression support'
@@ -61,15 +62,16 @@ options=(
   !emptydirs
   !lto
 )
+_commit='bc9eeffa4b5a5c464795cd8d930148c855920e67'
+ # tag 2025.08.18 generates incorrect header imports
+ # "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
 source=(
-  "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
-  "fix-remove-private-targets.patch::https://github.com/facebook/fbthrift/commit/9186f7f2d5644352bd997acdb6d7bd7b16d79a42.patch"
+ "git+::$url.git#commit=${_commit}"
 )
 sha256sums=('e3abde5a00cd7b52db21f4097d5a2c8b32ab8e17071e795c0af27991410d0dde')
 
 prepare() {
   cd $pkgname-$pkgver
-  patch -Np1 -i ../fix-remove-private-targets.patch
   # Use system CMake config instead of bundled module
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt

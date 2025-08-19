@@ -369,36 +369,47 @@ def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_d
 
 
 def get_combined_aur_data(maintainer, data_source="rpc", logger=DEFAULT_LOGGER):
-    """Fetch and combine maintainer and co-maintainer AUR data."""
-    aur_logger = logger.getChild("aur")
-    aur_data = {}
+    """Fetch and combine maintainer and co-maintainer AUR data.
 
-    # Fetch maintainer data (required)
+    Maintainer data is required. If it cannot be fetched, an exception is raised.
+    Co-maintainer data is optional and merged if available.
+    """
+    aur_logger = logger.getChild("aur")
+
+    # --- Required: maintainer data ---
     try:
         maintainer_data = fetch_aur_data(
             "maintainer", maintainer, data_source=data_source, logger=logger
         )
-        if maintainer_data:
-            aur_data.update(maintainer_data)
+        # Even an empty dict is a valid "no packages" result
+        aur_logger.info(
+            f"Fetched maintainer data for '{maintainer}' "
+            f"({len(maintainer_data)} packages)."
+        )
     except Exception as e:
-        aur_logger.error(f"Could not fetch maintainer data for '{maintainer}': {e}")
+        aur_logger.error(f"Failed to fetch maintainer data for '{maintainer}': {e}")
+        # Abort early
+        raise
 
-    # Try to fetch co-maintainer data (optional)
+    aur_data = dict(maintainer_data)
+
+    # --- Optional: co-maintainer data ---
     try:
         comaintainer_data = fetch_aur_data(
             "comaintainers", maintainer, data_source=data_source, logger=logger
         )
         if comaintainer_data:
-            # Merge the dictionaries - co-maintainer data takes precedence for conflicts
             aur_data.update(comaintainer_data)
             aur_logger.info(
-                f"Successfully merged co-maintainer data for '{maintainer}'"
+                f"Successfully merged co-maintainer data for '{maintainer}' "
+                f"({len(comaintainer_data)} packages)."
             )
     except Exception as e:
         aur_logger.warning(
             f"Could not fetch co-maintainer data for '{maintainer}': {e}"
         )
-        # Continue with just maintainer data
+        # Abort early
+        raise
 
     return aur_data
 

@@ -71,14 +71,14 @@ source=(
 sha256sums=('e3abde5a00cd7b52db21f4097d5a2c8b32ab8e17071e795c0af27991410d0dde')
 
 prepare() {
-  cd $pkgname-$pkgver
+  cd $pkgname
   # Use system CMake config instead of bundled module
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt
 }
 
 build() {
-  cd $pkgname-$pkgver
+  cd $pkgname
   cmake -S . -B build \
     -DCMAKE_BUILD_TYPE=None \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -97,12 +97,12 @@ build() {
 }
 
 check() {
-  cd $pkgname-$pkgver
+  cd $pkgname
   ctest --test-dir build --output-on-failure --exclude-regex "[Bb]ig|[Ii]ntegration"
 }
 
 package() {
-  cd $pkgname-$pkgver
+  cd $pkgname
   DESTDIR="$pkgdir" cmake --install build
 
   # Move Python extensions to site-packages

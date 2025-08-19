@@ -90,7 +90,7 @@ prepare() {
 
   # Apply patch only for 0.10.1
   if [ "$pkgver" = "0.10.1" ]; then
-      patch -Np1 -i "$srcdir/add-python-313-support.patch"
+      patch -Np1 -i "../add-python-313-support.patch"
   fi
 }
 

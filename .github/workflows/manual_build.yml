@@ -197,7 +197,7 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUNID: ${{ github.run_id }}
-          ACTIONS_STEP_DEBUG: true
+          # ACTIONS_STEP_DEBUG: true
         run: |
           echo "::notice::Executing manual build task from main_task_script.py"
           # The main_task_script.py will detect the MANUAL_* env vars and run accordingly

@@ -170,7 +170,7 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUNID: ${{ github.run_id }}
-          ACTIONS_STEP_DEBUG: true
+          # ACTIONS_STEP_DEBUG: true
         run: |
           echo "::notice::Attempting to execute external script main_task_script.py"
           # Ensure the script is executable inside the container if permissions were lost

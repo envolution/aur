@@ -617,7 +617,9 @@ def execute_build_script_py(
     if bs_err is None:
         bs_err = ""
 
-    summary_err_msg = bs_err.replace("|", "\|").replace("\r", " ").replace("\n", "<br>")
+    summary_err_msg = (
+        bs_err.replace("|", r"\|").replace("\r", " ").replace("\n", "<br>")
+    )
     status_md = (
         "✅ Success"
         if bs_ok

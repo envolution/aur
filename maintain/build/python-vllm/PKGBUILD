@@ -74,7 +74,7 @@ optdepends=(
 
 source=("git+https://github.com/vllm-project/vllm.git#tag=v${pkgver}")
 sha256sums=('82b7a0812eb5833c6e5c8a5804cd70cdc9a29d453375179f6d57c0fee46e072f'
-  '34455097b0127d697294c81c9acf47fdabea51746daf682b1211429c9a6f2bd5')
+            '34455097b0127d697294c81c9acf47fdabea51746daf682b1211429c9a6f2bd5')
 #
 # the following patch was merged so only needed for 0.10.1
 if [ "$pkgver" = "0.10.1" ]; then

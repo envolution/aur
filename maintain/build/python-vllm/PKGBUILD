@@ -73,7 +73,7 @@ optdepends=(
 )
 
 source=("git+https://github.com/vllm-project/vllm.git#tag=v${pkgver}")
-sha256sums=('82b7a0812eb5833c6e5c8a5804cd70cdc9a29d453375179f6d57c0fee46e072f'
+sha256sums=('cb1dfb5fef044348a1419a8d046c41fdd3c7bfe467c32b5c5df1cdae38bb46fc'
             '34455097b0127d697294c81c9acf47fdabea51746daf682b1211429c9a6f2bd5')
 #
 # the following patch was merged so only needed for 0.10.1.1

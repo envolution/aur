@@ -91,7 +91,7 @@ def _get_full_version_string(v_str, r_str):
 
 
 def fetch_aur_data(
-    ownership, maintainer, data_source="rpc", logger=None, max_retries=3, retry_delay=1
+    ownership, maintainer, data_source="rpc", logger=None, max_retries=5, retry_delay=60
 ):
     """
     Fetch AUR package data using either RPC API or metadata file.
@@ -138,8 +138,16 @@ def _fetch_aur_data_rpc(ownership, maintainer, aur_logger, max_retries, retry_de
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=100,
+                timeout=10,  # Reduced timeout
             )
+
+            # Basic validation
+            if not process.stdout.strip().startswith(
+                "{"
+            ) or not process.stdout.strip().endswith("}"):
+                raise json.JSONDecodeError(
+                    "Invalid JSON response from RPC.", process.stdout, 0
+                )
 
             data = json.loads(process.stdout)
 
@@ -148,6 +156,10 @@ def _fetch_aur_data_rpc(ownership, maintainer, aur_logger, max_retries, retry_de
                 raise RuntimeError(
                     f"AUR API error for '{ownership}' key '{maintainer}': {data.get('error')}"
                 )
+
+            # More robust validation
+            if not isinstance(data, dict) or "resultcount" not in data:
+                raise ValueError("Unexpected JSON structure from AUR RPC.")
 
             # Valid but empty
             if data.get("resultcount", 0) == 0:
@@ -187,7 +199,8 @@ def _fetch_aur_data_rpc(ownership, maintainer, aur_logger, max_retries, retry_de
             subprocess.TimeoutExpired,
             subprocess.CalledProcessError,
             json.JSONDecodeError,
-            Exception,
+            ValueError,
+            RuntimeError,
         ) as e:
             aur_logger.warning(
                 f"AUR RPC error on attempt {attempt + 1}/{max_retries} "
@@ -196,8 +209,9 @@ def _fetch_aur_data_rpc(ownership, maintainer, aur_logger, max_retries, retry_de
 
         # delay before retry unless last attempt
         if attempt < max_retries - 1:
-            aur_logger.info(f"Retrying in {retry_delay} seconds...")
-            time.sleep(retry_delay)
+            delay = retry_delay * (2**attempt)
+            aur_logger.info(f"Retrying in {delay} seconds...")
+            time.sleep(delay)
 
     # If we’re here, all retries failed
     aur_logger.error(
@@ -247,7 +261,7 @@ def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_d
                     capture_output=True,
                     text=False,  # binary
                     check=True,
-                    timeout=100,
+                    timeout=30,  # Reduced timeout
                 )
                 if not process.stdout:
                     raise RuntimeError("Empty response from server")
@@ -273,7 +287,6 @@ def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_d
                 subprocess.TimeoutExpired,
                 subprocess.CalledProcessError,
                 RuntimeError,
-                Exception,
             ) as e:
                 aur_logger.warning(
                     f"File download error on attempt {attempt + 1}/{max_retries} "
@@ -281,8 +294,9 @@ def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_d
                 )
 
             if attempt < max_retries - 1:
-                aur_logger.info(f"Retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
+                delay = retry_delay * (2**attempt)
+                aur_logger.info(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
 
         else:
             aur_logger.error(
@@ -297,9 +311,24 @@ def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_d
     try:
         decompressed_data = gzip.decompress(raw_gzipped_data)
         aur_logger.debug(f"Decompressed to {len(decompressed_data)} bytes")
+
+        # Validate that the data looks like a JSON array
+        if not decompressed_data.strip().startswith(
+            b"["
+        ) or not decompressed_data.strip().endswith(b"]"):
+            raise json.JSONDecodeError(
+                "Invalid JSON array structure.",
+                decompressed_data.decode("utf-8", "ignore"),
+                0,
+            )
+
         data = json.loads(decompressed_data.decode("utf-8"))
     except (gzip.BadGzipFile, json.JSONDecodeError, UnicodeDecodeError) as e:
         aur_logger.error(f"Failed to process metadata file: {e}")
+        # If the data is bad, remove the cache file
+        if os.path.exists(CACHE_FILE_PATH):
+            os.remove(CACHE_FILE_PATH)
+            aur_logger.info(f"Removed bad cache file: {CACHE_FILE_PATH}")
         raise RuntimeError(f"Failed to process metadata file: {e}")
 
     if not isinstance(data, list):
@@ -387,7 +416,9 @@ def get_combined_aur_data(maintainer, data_source="rpc", logger=DEFAULT_LOGGER):
             f"({len(maintainer_data)} packages)."
         )
     except Exception as e:
-        aur_logger.error(f"Failed to fetch maintainer data for '{maintainer}': {e}")
+        aur_logger.error(
+            f"Failed to fetch required maintainer data for '{maintainer}': {e}"
+        )
         # Abort early
         raise
 
@@ -406,10 +437,9 @@ def get_combined_aur_data(maintainer, data_source="rpc", logger=DEFAULT_LOGGER):
             )
     except Exception as e:
         aur_logger.warning(
-            f"Could not fetch co-maintainer data for '{maintainer}': {e}"
+            f"Could not fetch co-maintainer data for '{maintainer}', proceeding without it: {e}"
         )
-        # Abort early
-        raise
+        # Do not re-raise, just warn and continue
 
     return aur_data
 
@@ -1050,8 +1080,17 @@ class AurPackageUpdater:
                 data_source=self.args.aur_data_source,
                 logger=self.logger,
             )
+        except RuntimeError as e:
+            self.logger.critical(
+                f"Could not retrieve essential AUR data: {e}. Aborting."
+            )
+            sys.exit(1)
         except Exception as e:
-            self.logger.error(f"Failed to get AUR data: {e}", exc_info=True)
+            self.logger.error(
+                f"An unexpected error occurred while fetching AUR data: {e}",
+                exc_info=True,
+            )
+            sys.exit(1)
 
         for pkgbase, data in aur_data.items():
             self.all_package_data_by_pkgbase.setdefault(pkgbase, {}).update(data)

@@ -16,4 +16,3 @@ else
 fi
 
 sed -i "s/^_pkgver=.*/_pkgver=${_upstream_ver}/" PKGBUILD
-echo "Transformed: $_pkgver -> $_upstream_ver"

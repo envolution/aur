@@ -11,7 +11,7 @@ elif [[ $pkgver =~ ^[0-9.]+$ ]]; then
   # numeric version, no transformation needed
   _upstream_ver="$pkgver"
 else
-  echo "Warning: Unexpected pkgver format: $pkgver"
+  echo "Warning: Unexpected pkgver format: $pkgver" >&2
   exit 1
 fi
 

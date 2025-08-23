@@ -12,7 +12,7 @@ elif [[ $pkgver =~ ^[0-9.]+$ ]]; then
   _upstream_ver="$pkgver"
 else
   echo "Warning: Unexpected pkgver format: $pkgver"
-  exit 0
+  exit 1
 fi
 
 sed -i "s/^_pkgver=.*/_pkgver=${_upstream_ver}/" PKGBUILD

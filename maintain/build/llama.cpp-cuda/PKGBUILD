@@ -34,6 +34,7 @@ optdepends=(
 )
 provides=(${_pkgname})
 conflicts=(${_pkgname} libggml ggml)
+replaces=(llama.cpp-cuda-f16)
 source=(
   "${pkgname}-${pkgver}.tar.gz::https://github.com/ggml-org/llama.cpp/archive/refs/tags/${pkgver}.tar.gz"
   llama.cpp.conf

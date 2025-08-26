@@ -27,6 +27,7 @@ depends=(
   wangle=$pkgver
   zlib
   zstd
+  c-ares
 )
 makedepends=(
   boost

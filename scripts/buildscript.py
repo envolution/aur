@@ -843,7 +843,7 @@ class ArchPackageBuilder:
             if not build_process_successful:
                 return False
 
-            if self.config.build_mode == "build":
+            if self.config.build_mode in ["build", "test"]:
                 if self.result.version:
                     built_package_files = self._get_built_package_files()
                     if built_package_files:
@@ -854,7 +854,7 @@ class ArchPackageBuilder:
                         )
                 else:
                     self.logger.warning(
-                        "Build mode is 'build' but no version determined. Skipping GitHub Release creation."
+                        f"Build mode is '{self.config.build_mode}' but no version determined. Skipping GitHub Release creation."
                     )
             return True
 

@@ -224,7 +224,8 @@ def _fetch_aur_data_rpc(ownership, maintainer, aur_logger, max_retries, retry_de
 
 def _fetch_aur_data_file(ownership, maintainer, aur_logger, max_retries, retry_delay):
     """Internal function to fetch AUR data from metadata file."""
-    url = "https://aur.archlinux.org/packages-meta-ext-v1.json.gz"
+    # url = "https://aur.archlinux.org/packages-meta-ext-v1.json.gz"
+    url = "https://aur.manjaro.org/packages-meta-ext-v1.json.gz"
     raw_gzipped_data = None
     aur_data_by_pkgbase = {}
 

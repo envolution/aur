@@ -292,20 +292,19 @@ class ArchPackageBuilder:
         self, max_retries: int = 5, retry_delay: int = 30
     ) -> bool:
         """
-        Setup build environment by cloning AUR repository with retry logic for network instability.
+        Setup build environment by cloning AUR repository with retry logic and GitHub fallback.
+
+        First attempts to clone from AUR SSH, then falls back to GitHub mirror if all retries fail.
 
         Args:
-            max_retries: Maximum number of retry attempts (default: 5)
+            max_retries: Maximum number of retry attempts per method (default: 5)
             retry_delay: Delay in seconds between retry attempts (default: 30)
-
         Returns:
             bool: True if successful, False if all attempts failed
         """
 
-        def _attempt_setup_build_environment() -> bool:
-            """Internal function containing the original setup build environment logic."""
-            aur_repo = f"ssh://aur@aur.archlinux.org/{self.config.package_name}.git"
-
+        def attempt_clone(repo_url: str, clone_args: list[str]) -> bool:
+            """Internal function to attempt cloning from a specific repository."""
             # Clean up any existing build directory from previous failed attempts
             if self.build_dir.exists():
                 self.logger.debug(
@@ -314,15 +313,12 @@ class ArchPackageBuilder:
                 shutil.rmtree(self.build_dir)
 
             try:
-                self.subprocess_runner.run_command(
-                    ["git", "clone", aur_repo, str(self.build_dir)]
-                )
+                self.subprocess_runner.run_command(clone_args)
                 os.chdir(self.build_dir)
                 self.logger.info(f"Changed directory to {self.build_dir}")
                 return True
-
             except Exception as e:
-                self.logger.error(f"Failed to setup build environment: {e}")
+                self.logger.error(f"Failed to clone from {repo_url}: {e}")
                 # Clean up partial clone if it exists
                 if self.build_dir.exists():
                     try:
@@ -333,48 +329,80 @@ class ArchPackageBuilder:
                         )
                 raise
 
-        # Main retry logic
-        last_exception: Optional[Exception] = None
+        def try_with_retries(
+            repo_url: str, clone_args: list[str], method_name: str
+        ) -> bool:
+            """Try cloning with retry logic for a specific method."""
+            last_exception: Optional[Exception] = None
 
-        for attempt in range(max_retries):
-            attempt_num = attempt + 1
+            for attempt in range(max_retries):
+                attempt_num = attempt + 1
+                if attempt > 0:
+                    self.logger.info(
+                        f"Retrying {method_name} (attempt {attempt_num}/{max_retries})..."
+                    )
 
-            if attempt > 0:
-                self.logger.info(
-                    f"Retrying setup build environment (attempt {attempt_num}/{max_retries})..."
-                )
+                try:
+                    result = attempt_clone(repo_url, clone_args)
+                    if result:
+                        if attempt > 0:
+                            self.logger.info(
+                                f"{method_name} succeeded on attempt {attempt_num}"
+                            )
+                        else:
+                            self.logger.info(f"{method_name} succeeded")
+                        return True
+                except Exception as e:
+                    last_exception = e
+                    self.logger.warning(
+                        f"{method_name} failed on attempt {attempt_num}: {e}"
+                    )
 
-            try:
-                result = _attempt_setup_build_environment()
-                if result:
-                    if attempt > 0:
-                        self.logger.info(
-                            f"Setup build environment succeeded on attempt {attempt_num}"
-                        )
-                    return True
+                # Don't wait after the last attempt
+                if attempt < max_retries - 1:
+                    self.logger.info(
+                        f"Waiting {retry_delay} seconds before next attempt..."
+                    )
+                    time.sleep(retry_delay)
 
-            except Exception as e:
-                last_exception = e
-                self.logger.warning(
-                    f"Setup build environment failed on attempt {attempt_num}: {e}"
-                )
+            # All attempts failed for this method
+            self.logger.error(f"All {max_retries} attempts failed for {method_name}")
+            if last_exception:
+                self.logger.error(f"Last exception: {last_exception}")
 
-            # Don't wait after the last attempt
-            if attempt < max_retries - 1:
-                self.logger.info(
-                    f"Waiting {retry_delay} seconds before next attempt..."
-                )
-                time.sleep(retry_delay)
+            return False
 
-        # All attempts failed
+        # Main logic: Try AUR SSH first, then GitHub fallback
+        package_name = self.config.package_name
+
+        # Method 1: AUR SSH
+        aur_repo = f"ssh://aur@aur.archlinux.org/{package_name}.git"
+        aur_clone_args = ["git", "clone", aur_repo, str(self.build_dir)]
+
+        self.logger.info(f"Attempting to clone {package_name} from AUR SSH...")
+        if try_with_retries(aur_repo, aur_clone_args, "AUR SSH clone"):
+            return True
+
+        # Method 2: GitHub mirror fallback
+        self.logger.info("AUR SSH failed, trying GitHub mirror fallback...")
+        github_repo = "https://github.com/archlinux/aur.git"
+        github_clone_args = [
+            "git",
+            "clone",
+            "--branch",
+            package_name,
+            "--single-branch",
+            github_repo,
+            str(self.build_dir),
+        ]
+
+        if try_with_retries(github_repo, github_clone_args, "GitHub mirror clone"):
+            return True
+
+        # Both methods failed
         self.logger.error(
-            f"All {max_retries} attempts failed for setup build environment"
+            f"Both AUR SSH and GitHub mirror failed after {max_retries} attempts each"
         )
-        if last_exception:
-            self.logger.error(f"Last exception: {last_exception}")
-            # Re-raise the last exception to maintain original behavior
-            raise last_exception
-
         return False
 
     def collect_package_files(self):

@@ -6,7 +6,7 @@
 : ${aur_llamacpp_build_universal:=false}
 
 pkgname=llama.cpp
-pkgver=b6277
+pkgver=b6280
 pkgrel=1
 _build_number=6277
 _commit_id=74f52f7
@@ -79,7 +79,12 @@ build() {
       -DGGML_NATIVE=ON
     )
   fi
-
+  # Allow user-specified additional flags
+  if [[ -n "${aur_llamacpp_cmakeopts:-}" ]]; then
+    echo "Applying custom CMake options: ${aur_llamacpp_cmakeopts}"
+    # shellcheck disable=SC2206 # intentional word splitting
+    _cmake_options+=(${aur_llamacpp_cmakeopts})
+  fi
   cmake "${_cmake_options[@]}"
   cmake --build build
 }

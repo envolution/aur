@@ -7,7 +7,7 @@
 
 pkgname=llama.cpp-cuda-f16
 _pkgname="${pkgname%-cuda-f16}"
-pkgver=b6269
+pkgver=b6280
 pkgrel=1
 _build_number=6269
 _commit_id=6b64f74
@@ -89,6 +89,12 @@ build() {
       -DGGML_NATIVE=ON
     )
   fi
+  # Allow user-specified additional flags
+  if [[ -n "${aur_llamacpp_cmakeopts:-}" ]]; then
+    echo "Applying custom CMake options: ${aur_llamacpp_cmakeopts}"
+    # shellcheck disable=SC2206 # intentional word splitting
+    _cmake_options+=(${aur_llamacpp_cmakeopts})
+  fi  
   cmake "${_cmake_options[@]}"
   cmake --build build
 }

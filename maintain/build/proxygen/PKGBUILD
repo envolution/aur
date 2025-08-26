@@ -63,6 +63,7 @@ build() {
     -Wno-dev \
     -DBUILD_TESTS=ON \
     -DBUILD_SHARED_LIBS=ON \
+    -DCARES_STATIC=OFF \
     -DPACKAGE_VERSION=$pkgver
   cmake --build build
 }

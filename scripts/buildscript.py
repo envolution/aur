@@ -1702,7 +1702,8 @@ class ArchPackageBuilder:
             # Only commit/push if not a "sync down" operation (already handled)
             # AND (changes_detected OR build_mode forces it)
             if self.result.action_taken != "synced_down_from_aur" and (
-                self.result.changes_detected or self.config.build_mode in ["build"]
+                self.result.changes_detected
+                or self.config.build_mode in ["build", "nobuild"]
             ):
                 if not self.commit_and_push(max_retries=5, retry_delay=60):
                     if (

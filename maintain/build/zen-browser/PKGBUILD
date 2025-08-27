@@ -55,7 +55,7 @@ makedepends=(
   llvm
   mesa
   nasm
-  nodejs-lts-iron
+  nodejs
   #  pyenv
   python
   rust

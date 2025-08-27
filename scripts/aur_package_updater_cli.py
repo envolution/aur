@@ -23,10 +23,28 @@ CACHE_FILE_PATH = os.path.join(
 )
 
 
-# --- Version Comparison Function (Using AwesomeVersion, falling back on pyalpm vercmp) ---
+# --- Version Comparison Function (Configurable tool priority) ---
 def compare_package_versions(
-    base_ver1_str: str, rel1_str: str, base_ver2_str: str, rel2_str: str
+    base_ver1_str: str,
+    rel1_str: str,
+    base_ver2_str: str,
+    rel2_str: str,
+    prefer_vercmp: bool = True,
 ) -> str:
+    """
+    Compare package versions using configurable tool priority.
+
+    Args:
+        base_ver1_str: Base version string for package 1
+        rel1_str: Release string for package 1
+        base_ver2_str: Base version string for package 2
+        rel2_str: Release string for package 2
+        prefer_vercmp: If True, use pyalpm.vercmp first (default: True)
+                      If False, use AwesomeVersion first
+
+    Returns:
+        "upgrade", "downgrade", "same", or "unknown"
+    """
     comp_logger = logging.getLogger("aur_updater_cli.compare")
 
     if base_ver1_str is None and base_ver2_str is None:
@@ -36,31 +54,65 @@ def compare_package_versions(
     if base_ver2_str is None:
         return "downgrade"
 
-    # First try AwesomeVersion
-    try:
-        lv1 = AwesomeVersion(base_ver1_str)
-        lv2 = AwesomeVersion(base_ver2_str)
-
-        if lv1 < lv2:
-            return "upgrade"
-        if lv1 > lv2:
-            return "downgrade"
-
-    except Exception as e:
-        comp_logger.warning(
-            f"AwesomeVersion failed for '{base_ver1_str}' or '{base_ver2_str}', falling back to pyalpm.vercmp: {e}"
-        )
+    # Define comparison functions
+    def try_vercmp():
         try:
             result = pyalpm.vercmp(base_ver1_str, base_ver2_str)
             if result < 0:
                 return "upgrade"
             if result > 0:
                 return "downgrade"
-        except Exception as e2:
-            comp_logger.error(
-                f"Fallback pyalpm.vercmp failed for '{base_ver1_str}' vs '{base_ver2_str}': {e2}"
+            return None  # Equal, continue to release comparison
+        except Exception as e:
+            comp_logger.warning(
+                f"pyalpm.vercmp failed for '{base_ver1_str}' vs '{base_ver2_str}': {e}"
             )
-            return "unknown"
+            return "fallback_needed"
+
+    def try_awesome_version():
+        try:
+            lv1 = AwesomeVersion(base_ver1_str)
+            lv2 = AwesomeVersion(base_ver2_str)
+            if lv1 < lv2:
+                return "upgrade"
+            if lv1 > lv2:
+                return "downgrade"
+            return None  # Equal, continue to release comparison
+        except Exception as e:
+            comp_logger.warning(
+                f"AwesomeVersion failed for '{base_ver1_str}' or '{base_ver2_str}': {e}"
+            )
+            return "fallback_needed"
+
+    # Try primary tool based on preference
+    if prefer_vercmp:
+        primary_result = try_vercmp()
+        if primary_result == "fallback_needed":
+            comp_logger.info("Falling back to AwesomeVersion")
+            fallback_result = try_awesome_version()
+            if fallback_result == "fallback_needed":
+                comp_logger.error(
+                    f"Both tools failed for '{base_ver1_str}' vs '{base_ver2_str}'"
+                )
+                return "unknown"
+            elif fallback_result is not None:
+                return fallback_result
+        elif primary_result is not None:
+            return primary_result
+    else:
+        primary_result = try_awesome_version()
+        if primary_result == "fallback_needed":
+            comp_logger.info("Falling back to pyalpm.vercmp")
+            fallback_result = try_vercmp()
+            if fallback_result == "fallback_needed":
+                comp_logger.error(
+                    f"Both tools failed for '{base_ver1_str}' vs '{base_ver2_str}'"
+                )
+                return "unknown"
+            elif fallback_result is not None:
+                return fallback_result
+        elif primary_result is not None:
+            return primary_result
 
     # Compare release numbers only if base versions are the same
     try:

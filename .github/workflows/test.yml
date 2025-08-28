@@ -41,13 +41,16 @@ jobs:
           sudo mount --bind /proc ${ARCHROOT}/proc
           sudo mount --bind /sys ${ARCHROOT}/sys
           sudo mount --bind /run ${ARCHROOT}/run
-          export -p | sed 's/^export //' > ${ARCHROOT}/${TEMPENV}
+          ( set -o posix ; set ) | \
+            sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/export \1=${\1:-\2}/' \
+            > ${ARCHROOT}/${TEMPENV}
 
       - name: Build
         run: |
           echo "Free space:"
           df -h
           ls -la ${ARCHROOT}
+          cat ${ARCHROOT}/${TEMPENV}
 
       - name: Test pacman 2
         run: |

@@ -1,0 +1,61 @@
+name: Debug Issue Trigger
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug issue details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Issue triggered!');
+            console.log('Issue number:', context.issue.number);
+            console.log('Issue title:', context.payload.issue.title);
+            console.log('Issue labels:', JSON.stringify(context.payload.issue.labels));
+            console.log('Issue body:');
+            console.log('---START BODY---');
+            console.log(context.payload.issue.body);
+            console.log('---END BODY---');
+
+            // Check if it has the build-request label
+            const hasLabel = context.payload.issue.labels.some(label => label.name === 'build-request');
+            console.log('Has build-request label:', hasLabel);
+
+            // Try to parse the body
+            const issueBody = context.payload.issue.body || '';
+
+            // Look for different possible formats
+            console.log('Looking for package selection...');
+
+            // Try multiple regex patterns
+            const patterns = [
+              /### Package to Build\s*\n\s*([^\n]+)/,
+              /Package to Build[:\s]*\n+([^\n]+)/i,
+              /\*\*Package to Build\*\*[:\s]*\n+([^\n]+)/i
+            ];
+
+            for (let i = 0; i < patterns.length; i++) {
+              const match = issueBody.match(patterns[i]);
+              if (match) {
+                console.log(`Pattern ${i} matched:`, match[1]);
+              } else {
+                console.log(`Pattern ${i} did not match`);
+              }
+            }
+
+      - name: Comment debug info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const hasLabel = context.payload.issue.labels.some(label => label.name === 'build-request');
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🔍 **Debug Info**\n\n- Workflow triggered: ✅\n- Has build-request label: ${hasLabel}\n- Check the workflow logs for detailed body parsing results.`
+            });

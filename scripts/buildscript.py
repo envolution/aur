@@ -535,6 +535,31 @@ class ArchPackageBuilder:
         pkgbuild_path.write_text(content)
         self.result.changes_detected = True
 
+    def _increment_pkgrel(self):
+        pkgbuild_path = self.build_dir / "PKGBUILD"
+        if not pkgbuild_path.is_file():
+            self.logger.error("PKGBUILD not found for pkgrel increment.")
+            raise FileNotFoundError("PKGBUILD not found for pkgrel increment")
+
+        content = pkgbuild_path.read_text()
+        pkgrel_match = re.search(r"^\s*pkgrel=([^\s#]+)", content, re.MULTILINE)
+        if not pkgrel_match:
+            self.logger.error("pkgrel not found in PKGBUILD.")
+            raise ValueError("pkgrel not found in PKGBUILD")
+
+        current_pkgrel = int(pkgrel_match.group(1))
+        new_pkgrel = current_pkgrel + 1
+        self.logger.info(f"Bumping pkgrel from {current_pkgrel} to {new_pkgrel}")
+        content = re.sub(
+            r"(^\s*pkgrel=)([^\s#]+)",
+            rf"\g<1>{new_pkgrel}",
+            content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        pkgbuild_path.write_text(content)
+        self.result.changes_detected = True
+
     # In class ArchPackageBuilder:
 
     def _get_installed_packages(self) -> set:
@@ -1297,6 +1322,31 @@ class ArchPackageBuilder:
                 self.result.error_message or ""
             ) + f"; Unexpected error during GitHub release for {tag_name}"
 
+    def _working_dir_has_changes(self) -> bool:
+        if Path.cwd() != self.build_dir:
+            self.logger.warning(
+                f"Git check called from {Path.cwd()}, expected {self.build_dir}. This might be an issue."
+            )
+
+        # This will check for changes in tracked files in the working directory
+        diff_result = self.subprocess_runner.run_command(
+            ["git", "diff", "--quiet"], check=False
+        )
+
+        # A non-zero return code means there are changes.
+        has_changes = diff_result.returncode != 0
+
+        if has_changes:
+            # For better logging, let\'s see what those changes are.
+            status_result = self.subprocess_runner.run_command(
+                ["git", "status", "--porcelain"], check=False
+            )
+            self.logger.debug(
+                f"Git porcelain status (changes detected):\n{status_result.stdout.strip()}"
+            )
+
+        return has_changes
+
     def commit_and_push(self, max_retries: int = 5, retry_delay: int = 30) -> bool:
         """
         Commit and push changes to AUR with retry logic for network instability.
@@ -1708,6 +1758,26 @@ class ArchPackageBuilder:
                     f"No direct update trigger. Current version for {self.config.package_name} from PKGBUILD is {self.result.version}."
                 )
                 # changes_detected might be set by updpkgsums or if local files differ from AUR git history later
+
+            # Check for file content changes when versions are identical
+            if (
+                self.package_update_info.pkgver
+                == self.package_update_info.aur_pkgver
+                and self.package_update_info.pkgrel
+                == self.package_update_info.aur_pkgrel
+                and self._working_dir_has_changes()
+            ):
+                self.logger.info(
+                    "Versions match AUR, but changes detected in tracked files. Bumping pkgrel."
+                )
+                self._increment_pkgrel()
+                # Regenerate .SRCINFO after bumping pkgrel
+                self.logger.info("Regenerating .SRCINFO after pkgrel bump...")
+                srcinfo_result = self.subprocess_runner.run_command(
+                    ["makepkg", "--printsrcinfo"]
+                )
+                (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
+                self.result.changes_detected = True
 
             # 6. Process local source files (uses self.package_update_info.sources, which came from the PKGBUILD from the source repo)
             if (

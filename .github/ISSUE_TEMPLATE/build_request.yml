@@ -34,6 +34,6 @@ body:
     attributes:
       label: Reason for Build
       description: Why do you need this package built? - keep it short as this becomes the title
-      placeholder: e.g., "Security update needed" or "New version available"
+      placeholder: e.g., "Shasums changed" or "Source file replaced"
     validations:
       required: true

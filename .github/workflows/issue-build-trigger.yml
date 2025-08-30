@@ -45,8 +45,8 @@ jobs:
               title: newTitle
             });
             
-            // Format as JSON string for the manual build workflow
-            const packagesJson = `"${packageName}"`;
+            // Format as JSON array string for the manual build workflow
+            const packagesJson = `["${packageName}"]`;
             
             console.log('Parsed package:', packageName);
             console.log('Reason:', reason);

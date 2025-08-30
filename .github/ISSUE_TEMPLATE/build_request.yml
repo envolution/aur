@@ -1,0 +1,51 @@
+name: Request Package Build
+description: Request a package to be built
+title: "[BUILD REQUEST]: "
+labels: ["build-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for requesting a package build! Please select the package you'd like to build.
+
+  - type: dropdown
+    id: package_name
+    attributes:
+      label: Package to Build
+      description: Select the package you want to build
+      options:
+        - waterfox-bin
+        - firefox-developer-edition
+        - chromium-dev
+        - custom-package
+      default: 0
+    validations:
+      required: true
+
+  - type: input
+    id: custom_package
+    attributes:
+      label: Custom Package Name
+      description: If you selected "custom-package" above, specify the package name here
+      placeholder: e.g., "my-custom-app"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_info
+    attributes:
+      label: Additional Information
+      description: Any additional details about the build request
+      placeholder: Special build flags, version requirements, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Acknowledgment
+      description: Please confirm you understand this will trigger an automated build
+      options:
+        - label: I understand this will trigger an automated package build
+          required: true
+

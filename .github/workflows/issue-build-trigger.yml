@@ -15,27 +15,139 @@ jobs:
           script: |
             const issueBody = context.payload.issue.body || '';
             console.log('Issue body:', issueBody);
-            
-            // Parse the package name
+
+            // Parse and validate the package name
             let packageName = 'waterfox-bin'; // default
             const packageMatch = issueBody.match(/### Package to Build\s*\n\s*([^\n]+)/);
             if (packageMatch) {
               packageName = packageMatch[1].trim();
             }
-            
+
             // Check for custom package name
             const customMatch = issueBody.match(/### Custom Package Name\s*\n\s*([^\n]+)/);
             if (packageName === 'custom-package' && customMatch && customMatch[1].trim() !== '*No response*') {
               packageName = customMatch[1].trim();
             }
-            
-            // Parse the reason
+
+            // Validate package name
+            const packageValidationErrors = [];
+
+            // Package name validation
+            if (packageName.length > 100) {
+              packageValidationErrors.push('Package name too long (max 100 characters)');
+            }
+
+            // Only allow package-name-like format
+            const validPackageName = /^[a-zA-Z0-9\-_.+]+$/;
+            if (!validPackageName.test(packageName)) {
+              packageValidationErrors.push('Package name contains invalid characters (only a-z, A-Z, 0-9, -, _, ., + allowed)');
+            }
+
+            // Prevent path traversal
+            if (packageName.includes('..') || packageName.includes('/') || packageName.includes('\\')) {
+              packageValidationErrors.push('Package name cannot contain path separators or traversal sequences');
+            }
+
+            if (packageValidationErrors.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `❌ **Build Request Rejected**\n\nPackage name validation errors:\n${packageValidationErrors.map(err => `- ${err}`).join('\n')}\n\nPlease create a new issue with a valid package name.`
+              });
+              
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                state: 'closed',
+                labels: ['invalid', 'security-rejected']
+              });
+              
+              core.setFailed('Build request rejected due to package name validation errors');
+              return;
+            }
+
+            // Parse the reason with validation
             let reason = 'Build requested';
             const reasonMatch = issueBody.match(/### Reason for Build\s*\n\s*([^\n]+)/);
             if (reasonMatch && reasonMatch[1].trim() !== '*No response*') {
-              reason = reasonMatch[1].trim();
+              let rawReason = reasonMatch[1].trim();
+              
+              // Security validation for the reason field
+              const validationErrors = [];
+              
+              // Length validation
+              if (rawReason.length > 200) {
+                validationErrors.push('Reason too long (max 200 characters)');
+              }
+              
+              // Character whitelist - only allow alphanumeric, spaces, and safe punctuation
+              const allowedChars = /^[a-zA-Z0-9\s\-_.,!?()[\]]+$/;
+              if (!allowedChars.test(rawReason)) {
+                validationErrors.push('Reason contains invalid characters');
+              }
+              
+              // Check for potential command injection patterns
+              const dangerousPatterns = [
+                /[;&|`$(){}]/,  // Shell metacharacters
+                /\$\{[^}]*\}/,  // Variable expansion
+                /\$\([^)]*\)/,  // Command substitution
+                /\|\s*\w+/,     // Pipe to commands
+                />\s*[\/\w]/,   // Redirections
+                /<\s*[\/\w]/,   // Input redirections
+                /\\\w/,         // Escape sequences
+                /\r|\n/,        // Line breaks
+                /\x00-\x1F/,    // Control characters
+              ];
+              
+              for (const pattern of dangerousPatterns) {
+                if (pattern.test(rawReason)) {
+                  validationErrors.push('Reason contains potentially dangerous characters');
+                  break;
+                }
+              }
+              
+              // Check for suspicious keywords
+              const suspiciousKeywords = [
+                'eval', 'exec', 'system', 'shell', 'cmd', 'powershell',
+                'bash', 'sh', 'zsh', 'fish', 'sudo', 'su', 'chmod',
+                'rm', 'del', 'format', 'fdisk', 'mkfs', 'dd',
+                'curl', 'wget', 'nc', 'netcat', 'telnet', 'ssh'
+              ];
+              
+              const lowerReason = rawReason.toLowerCase();
+              for (const keyword of suspiciousKeywords) {
+                if (lowerReason.includes(keyword)) {
+                  validationErrors.push(`Reason contains suspicious keyword: ${keyword}`);
+                  break;
+                }
+              }
+              
+              if (validationErrors.length > 0) {
+                // Post validation errors and exit
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: `❌ **Build Request Rejected**\n\nValidation errors:\n${validationErrors.map(err => `- ${err}`).join('\n')}\n\nPlease create a new issue with a valid reason.`
+                });
+                
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  state: 'closed',
+                  labels: ['invalid', 'security-rejected']
+                });
+                
+                core.setFailed('Build request rejected due to validation errors');
+                return;
+              }
+              
+              reason = rawReason;
             }
-            
+
             // Update the issue title
             const newTitle = `[BUILD REQUEST] ${packageName} - ${reason}`;
             await github.rest.issues.update({
@@ -44,15 +156,15 @@ jobs:
               issue_number: context.issue.number,
               title: newTitle
             });
-            
+
             // Format as JSON array string for the manual build workflow
             const packagesJson = `["${packageName}"]`;
-            
+
             console.log('Parsed package:', packageName);
             console.log('Reason:', reason);
             console.log('Updated title to:', newTitle);
             console.log('Packages JSON:', packagesJson);
-            
+
             core.setOutput('packages_json', packagesJson);
             core.setOutput('package_name', packageName);
             core.setOutput('reason', reason);
@@ -78,7 +190,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `🚀 Build request received for package: **${packageName}**\nReason: ${reason}\n\nTriggering build workflow...`
+              body: `�� Build request received for package: **${packageName}**\nReason: ${reason}\n\nTriggering build workflow...`
             });
 
       - name: Trigger manual build workflow
@@ -86,7 +198,7 @@ jobs:
         with:
           script: |
             const packagesJson = '${{ steps.parse.outputs.packages_json }}';
-            
+
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -97,7 +209,7 @@ jobs:
                 build_mode: 'build'
               }
             });
-            
+
             console.log(`Triggered manual_build.yml with packages_json: ${packagesJson}`);
 
       - name: Update issue with build status
@@ -111,7 +223,7 @@ jobs:
               issue_number: context.issue.number,
               body: `✅ Build workflow triggered successfully for **${packageName}**\n\nYou can monitor the build progress in the [Actions tab](https://github.com/${context.repo.owner}/${context.repo.repo}/actions).`
             });
-            
+
             // Close the issue since the build has been triggered
             github.rest.issues.update({
               owner: context.repo.owner,

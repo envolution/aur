@@ -1,6 +1,6 @@
 name: Request Package Build
 description: Request a package to be built
-title: "[BUILD REQUEST] - Please wait for auto-update"
+title: "[BUILD REQUEST] - [DO NOT MODIFY THIS]"
 labels: [build-request]
 body:
   - type: markdown
@@ -15,23 +15,11 @@ body:
       description: Select the package you want to build
       options:
         - waterfox-bin
-        - firefox-developer-edition
-        - chromium-dev
-        - custom-package
       default: 0
     validations:
       required: true
 
   - type: input
-    id: custom_package
-    attributes:
-      label: Custom Package Name
-      description: If you selected "custom-package" above, specify the package name here
-      placeholder: e.g., "my-custom-app"
-    validations:
-      required: false
-
-  - type: textarea
     id: reason
     attributes:
       label: Reason for Build

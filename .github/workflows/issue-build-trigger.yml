@@ -1,0 +1,125 @@
+name: Issue Triggered Build
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  parse-and-build:
+    if: contains(github.event.issue.labels.*.name, 'build-request')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse issue body and update title
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueBody = context.payload.issue.body;
+            console.log('Issue body:', issueBody);
+            
+            // Parse the issue body to extract the selected package
+            let packageName = 'waterfox-bin'; // default
+            
+            // Look for the dropdown selection in the issue body
+            const packageMatch = issueBody.match(/### Package to Build\s*\n\s*([^\n]+)/);
+            if (packageMatch) {
+              packageName = packageMatch[1].trim();
+            }
+            
+            // Check for custom package name
+            const customMatch = issueBody.match(/### Custom Package Name\s*\n\s*([^\n]+)/);
+            if (packageName === 'custom-package' && customMatch && customMatch[1].trim() !== '_No response_') {
+              packageName = customMatch[1].trim();
+            }
+            
+            // Extract the reason
+            let reason = 'Build requested';
+            const reasonMatch = issueBody.match(/### Reason for Build\s*\n\s*([^\n]+)/);
+            if (reasonMatch && reasonMatch[1].trim() !== '_No response_') {
+              reason = reasonMatch[1].trim();
+            }
+            
+            // Update the issue title
+            const newTitle = `[BUILD REQUEST] ${packageName} - ${reason}`;
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              title: newTitle
+            });
+            
+            // Format as JSON string for the manual build workflow
+            const packagesJson = `"${packageName}"`;
+            
+            console.log('Parsed package:', packageName);
+            console.log('Reason:', reason);
+            console.log('Updated title to:', newTitle);
+            console.log('Packages JSON:', packagesJson);
+            
+            core.setOutput('packages_json', packagesJson);
+            core.setOutput('package_name', packageName);
+            core.setOutput('reason', reason);
+
+      - name: Add reaction to issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.reactions.createForIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              content: 'rocket'
+            });
+
+      - name: Comment on issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const packageName = '${{ steps.parse.outputs.package_name }}';
+            const reason = '${{ steps.parse.outputs.reason }}';
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🚀 Build request received for package: **${packageName}**\nReason: ${reason}\n\nTriggering build workflow...`
+            });
+
+      - name: Trigger manual build workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const packagesJson = '${{ steps.parse.outputs.packages_json }}';
+            
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'manual_build.yml',
+              ref: 'main',
+              inputs: {
+                MANUAL_PACKAGES_JSON: packagesJson
+              }
+            });
+            
+            console.log(`Triggered manual_build.yml with MANUAL_PACKAGES_JSON: ${packagesJson}`);
+
+      - name: Update issue with build status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const packageName = '${{ steps.parse.outputs.package_name }}';
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `✅ Build workflow triggered successfully for **${packageName}**\n\nYou can monitor the build progress in the [Actions tab](https://github.com/${context.repo.owner}/${context.repo.repo}/actions).`
+            });
+            
+            // Close the issue since the build has been triggered
+            github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

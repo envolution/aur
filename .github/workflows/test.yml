@@ -12,7 +12,8 @@ jobs:
       ROOT: /home/runner/work/aur/aur
       ARCHROOT: /home/runner/work/aur/aur/arch-root
       WORKFLOWCMD: /tmp/workflowcmd.sh
-      TEMPENV: /tmp/tmp.env
+      TEMPENV: /github_env
+      ENV_EXPORTS: "AUR_MAINTAINER_NAME GIT_USERNAME ROOT ARCHROOT WORKFLOWCMD TEMPENV"
 
     steps:
       - name: Maximize build space
@@ -21,6 +22,7 @@ jobs:
           root-reserve-mb: 512
           swap-size-mb: 1024
           remove-dotnet: "true"
+
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -41,9 +43,9 @@ jobs:
           sudo mount --bind /proc ${ARCHROOT}/proc
           sudo mount --bind /sys ${ARCHROOT}/sys
           sudo mount --bind /run ${ARCHROOT}/run
-          ( set -o posix ; set ) | \
-            sed -E 's/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/export \1=${\1:-\2}/' \
-            > ${ARCHROOT}/${TEMPENV}
+          for var in $ENV_EXPORTS; do
+            echo "export $var=\${$var:-$(eval echo \$$var)}" >> ${ARCHROOT}/${TEMPENV}
+          done
 
       - name: Build
         run: |
@@ -109,7 +111,6 @@ jobs:
         run: |
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Setup non-root user 'builder'"
-          source /tmp/tmp.env
           source /github_env
           echo "Creating build user 'builder'..."
           useradd -m -s /bin/bash builder
@@ -144,7 +145,6 @@ jobs:
           printf "GPG_PRIVATE_KEY<<EOF\n%s\nEOF\n" "$GPG_PRIVATE_KEY" >> "$GITHUB_ENV"
           cat > ${ARCHROOT}/${WORKFLOWCMD} <<'EOF'
           echo "::group::Exporting GPG_SIGNATURE short key"
-          source /tmp/tmp.env
           source /github_env
           SHORT_KEY=$(sudo -u builder env HOME=/home/builder \
             gpg --with-colons --import-options show-only --import <<< "$GPG_PRIVATE_KEY" \

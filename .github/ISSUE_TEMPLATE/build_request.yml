@@ -1,12 +1,12 @@
 name: Request Package Build
 description: Request a package to be built
-title: "[BUILD REQUEST]: "
+title: "[BUILD REQUEST] - Please wait for auto-update"
 labels: ["build-request"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for requesting a package build! Please select the package you'd like to build.
+        Select a package to build and provide a reason. The title will be automatically updated after submission.
 
   - type: dropdown
     id: package_name
@@ -32,20 +32,10 @@ body:
       required: false
 
   - type: textarea
-    id: additional_info
+    id: reason
     attributes:
-      label: Additional Information
-      description: Any additional details about the build request
-      placeholder: Special build flags, version requirements, etc.
+      label: Reason for Build
+      description: Why do you need this package built?
+      placeholder: e.g., "Security update needed" or "New version available"
     validations:
-      required: false
-
-  - type: checkboxes
-    id: terms
-    attributes:
-      label: Acknowledgment
-      description: Please confirm you understand this will trigger an automated build
-      options:
-        - label: I understand this will trigger an automated package build
-          required: true
-
+      required: true

@@ -1,0 +1,24 @@
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Relocate Docker storage
+        run: |
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          mkdir -p /home/runner/work/aur/aur/DOCKER
+          sudo ln -s /home/runner/work/aur/aur/DOCKER /var/lib/docker
+          sudo systemctl start docker
+          docker info | grep "Docker Root Dir"
+
+    container:
+      image: archlinux:base-devel
+      options: --workdir /__w/aur/aur
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Show disk space
+        run: df -h /__w/aur/aur
+

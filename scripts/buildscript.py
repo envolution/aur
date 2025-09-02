@@ -1760,12 +1760,16 @@ class ArchPackageBuilder:
                 # changes_detected might be set by updpkgsums or if local files differ from AUR git history later
 
             # Check for file content changes when versions are identical
+            self.logger.info(
+                f"determined result version = {self.result.version} | provided package_update_info.pkgver = {self.package_update_info.pkgver}"
+            )
+
             if (
                 self.package_update_info.pkgver == self.package_update_info.aur_pkgver
                 and self.package_update_info.pkgrel
                 == self.package_update_info.aur_pkgrel
+                and self.result.version == self.package_update_info.pkgver
                 and self._working_dir_has_changes()
-                and 1 == 2
             ):
                 self.logger.info(
                     "Versions match AUR, but changes detected in tracked files. Bumping pkgrel."

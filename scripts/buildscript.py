@@ -1761,11 +1761,11 @@ class ArchPackageBuilder:
 
             # Check for file content changes when versions are identical
             if (
-                self.package_update_info.pkgver
-                == self.package_update_info.aur_pkgver
+                self.package_update_info.pkgver == self.package_update_info.aur_pkgver
                 and self.package_update_info.pkgrel
                 == self.package_update_info.aur_pkgrel
                 and self._working_dir_has_changes()
+                and 1 == 2
             ):
                 self.logger.info(
                     "Versions match AUR, but changes detected in tracked files. Bumping pkgrel."

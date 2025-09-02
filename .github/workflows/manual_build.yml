@@ -58,7 +58,7 @@ jobs:
             pyalpm python-awesomeversion python-packaging python-lxml \
             python-gobject python-requests libnotify nvchecker \
             binutils multilib-devel python-aiohttp clang python-jq \
-            sudo
+            sudo wget
 
           echo "Configuring makepkg for parallel compilation..."
           # Check if MAKEFLAGS is already set and uncommented

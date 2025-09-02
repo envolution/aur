@@ -139,6 +139,7 @@ jobs:
             cd ..
             sudo pacman -S --noconfirm wget
             wget https://github.com/envolution/aur/releases/download/folly/folly-${_VER}-1-x86_64.pkg.tar.zst || true
+            wget https://github.com/envolution/aur/releases/download/folly/folly-${_VER}-2-x86_64.pkg.tar.zst || true
             wget https://github.com/envolution/aur/releases/download/fizz/fizz-${_VER}-1-x86_64.pkg.tar.zst || true
             wget https://github.com/envolution/aur/releases/download/wangle/wangle-${_VER}-1-x86_64.pkg.tar.zst || true
             wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-${_VER}-1-x86_64.pkg.tar.zst || true

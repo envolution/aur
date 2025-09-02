@@ -134,20 +134,40 @@ jobs:
       - name: Facebook Tools Install
         if: contains(env.MANUAL_PACKAGES_JSON, '"fizz"') || contains(env.MANUAL_PACKAGES_JSON, '"wangle"') || contains(env.MANUAL_PACKAGES_JSON, '"mvfst"') || contains(env.MANUAL_PACKAGES_JSON, '"fbthrift"') || contains(env.MANUAL_PACKAGES_JSON, '"fb303"') || contains(env.MANUAL_PACKAGES_JSON, '"edencommon"') || contains(env.MANUAL_PACKAGES_JSON, '"proxygen"') || contains(env.MANUAL_PACKAGES_JSON, '"watchman"')
         run: |
-          _VER=2025.09.01.00
-          if [ -v _VER ]; then
-            cd ..
-            sudo pacman -S --noconfirm wget
-            wget https://github.com/envolution/aur/releases/download/folly/folly-${_VER}-1-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/folly/folly-${_VER}-2-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/fizz/fizz-${_VER}-1-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/wangle/wangle-${_VER}-1-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/mvfst/mvfst-${_VER}-1-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/fbthrift/fbthrift-${_VER}-1-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/fb303/fb303-${_VER}-1-x86_64.pkg.tar.zst || true
-            wget https://github.com/envolution/aur/releases/download/edencommon/edencommon-${_VER}-1-x86_64.pkg.tar.zst || true
-            sudo pacman -U --noconfirm *zst && rm -f *zst || true
-          fi
+          REPO='envolution/aur'
+          PACKAGES=(folly fizz wangle mvfst fbthrift fb303 edencommon)
+          PRIMARY='folly'
+
+          for pkg in "${PACKAGES[@]}"; do
+            echo "Fetching release for $pkg..."
+            api="https://api.github.com/repos/$REPO/releases/tags/$pkg"
+            urls=$(curl -s "$api" | jq -r '.assets[]?.browser_download_url')
+
+            # pick the main package (non-debug, no .sig)
+            main_pkg=$(printf "%s\n" "$urls" |
+              grep -E "${pkg}-[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}-[0-9]+-x86_64\.pkg\.tar\.zst$" |
+              head -n1 || true)
+
+            if [[ -z "$main_pkg" ]]; then
+              echo "No valid package found for $pkg"
+              continue
+            fi
+
+            # extract version from chosen file
+            pkgver=$(echo "$main_pkg" | sed -E "s|.*/${pkg}-([0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2})-[0-9]+-x86_64.pkg.tar.zst|\1|")
+            echo "Detected $pkg version $pkgver"
+            if [ "$pkg" == "$PRIMARY" ]; then
+              mainver="$pkgver"
+            fi
+
+            if [[ ! -z "$mainver" ]] && [[ "$mainver" = "$pkgver" ]]; then
+              echo "Downloading $main_pkg"
+            fi
+            wget -q "$main_pkg"
+          done
+
+          sudo pacman -U --noconfirm ./*.pkg.tar.zst
+          rm -f ./*.pkg.tar.zst
 
       - name: Setup SSH key for AUR
         run: |
@@ -198,7 +218,7 @@ jobs:
           SECRET_GHUK_VALUE: ${{ secrets.GHuK }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUNID: ${{ github.run_id }}
-          # ACTIONS_STEP_DEBUG: true
+          ACTIONS_STEP_DEBUG: true
         run: |
           echo "::notice::Executing manual build task from main_task_script.py"
           # The main_task_script.py will detect the MANUAL_* env vars and run accordingly

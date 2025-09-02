@@ -63,12 +63,14 @@ options=(
 )
 source=(
  "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+ "add-missing-include-algorithm.patch::https://patch-diff.githubusercontent.com/raw/facebook/fbthrift/pull/669.patch"
 )
 sha256sums=('1bb005d5cff2149c2326a4b5bfc0535ca2fa1ecb6ed3ef0e044b3612fe0a9810')
 
 prepare() {
   cd "$pkgname-$pkgver"
   # Use system CMake config instead of bundled module
+  patch -Np1 -i ../add-missing-include-algorithm.patch
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt
 }

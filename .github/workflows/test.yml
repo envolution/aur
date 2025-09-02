@@ -38,16 +38,18 @@ jobs:
           FROM archlinux:base-devel
           WORKDIR /workspace
           CMD ["df", "-h", "/workspace"]
+          CMD ["ls", "-latr", "/workspace"]
+          CMD ["ls", "-latr", "/"]
           EOF
 
       - name: Build Docker image
         run: docker build -t archlinux-space .
 
-      - name: Run container using /home/runner/work/aur/aur
-        run: docker run --rm -v /home/runner/work/aur/aur:/workspace archlinux-space
-
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Run container using /home/runner/work/aur/aur
+        run: docker run --rm -v /home/runner/work/aur/aur:/workspace archlinux-space
 
       - name: Download Arch bootstrap
         run: |

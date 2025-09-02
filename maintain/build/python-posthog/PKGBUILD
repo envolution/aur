@@ -1,5 +1,6 @@
 # Maintainer: envolution
 # Contributor: Mark Wagie <mark dot wagie at proton dot me>
+# ci|forcedep=python-protobuf|
 # shellcheck shell=bash disable=SC2034,SC2154
 pkgname=python-posthog
 _name=posthog-python

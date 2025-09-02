@@ -23,6 +23,19 @@ jobs:
           swap-size-mb: 1024
           remove-dotnet: "true"
 
+      - name: Create Dockerfile
+        run: |
+          cat > Dockerfile <<'EOF'
+          FROM archlinux:base-devel
+          CMD ["df", "-h"]
+          EOF
+
+      - name: Build Docker image
+        run: docker build -t archlinux-space .
+
+      - name: Run container and show disk usage
+        run: docker run --rm archlinux-space
+
       - name: Checkout
         uses: actions/checkout@v5
 

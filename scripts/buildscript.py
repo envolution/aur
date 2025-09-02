@@ -1358,80 +1358,91 @@ class ArchPackageBuilder:
         Returns:
             bool: True if successful, False if all attempts failed
         """
-
-        def _attempt_commit_and_push() -> bool:
-            """Internal function containing the original commit and push logic."""
-            if (self.build_dir / "PKGBUILD").is_file() and not (
-                self.build_dir / ".SRCINFO"
-            ).is_file():
-                try:
-                    self.logger.info(".SRCINFO missing, attempting to generate it...")
-                    srcinfo_result = self.subprocess_runner.run_command(
-                        ["makepkg", "--printsrcinfo"]
-                    )
-                    (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
-                    self.result.changes_detected = True
-                except Exception as e:
-                    self.logger.error(f"Failed to generate .SRCINFO before commit: {e}")
-                    self.result.error_message = "Failed to generate .SRCINFO"
-                    return False
-
-            self.logger.info(
-                f"Preparing to commit to AUR. Tracked files: {self.tracked_files}"
-            )
-            existing_tracked_files_for_add = []
-            for file_name in self.tracked_files:
-                if (self.build_dir / file_name).is_file():
-                    existing_tracked_files_for_add.append(file_name)
-                else:
-                    self.logger.warning(
-                        f"Tracked file '{file_name}' not found in {self.build_dir}. It will not be added to git."
-                    )
-
-            if not existing_tracked_files_for_add:
-                self.logger.info(
-                    "No existing tracked files to 'git add'. Checking for other changes..."
+        # First, handle the commit logic (only once)
+        if (self.build_dir / "PKGBUILD").is_file() and not (
+            self.build_dir / ".SRCINFO"
+        ).is_file():
+            try:
+                self.logger.info(".SRCINFO missing, attempting to generate it...")
+                srcinfo_result = self.subprocess_runner.run_command(
+                    ["makepkg", "--printsrcinfo"]
                 )
+                (self.build_dir / ".SRCINFO").write_text(srcinfo_result.stdout)
+                self.result.changes_detected = True
+            except Exception as e:
+                self.logger.error(f"Failed to generate .SRCINFO before commit: {e}")
+                self.result.error_message = "Failed to generate .SRCINFO"
+                return False
+
+        self.logger.info(
+            f"Preparing to commit to AUR. Tracked files: {self.tracked_files}"
+        )
+        existing_tracked_files_for_add = []
+        for file_name in self.tracked_files:
+            if (self.build_dir / file_name).is_file():
+                existing_tracked_files_for_add.append(file_name)
             else:
-                self.subprocess_runner.run_command(
-                    ["git", "add"] + existing_tracked_files_for_add
+                self.logger.warning(
+                    f"Tracked file '{file_name}' not found in {self.build_dir}. It will not be added to git."
                 )
 
-            if not self._has_git_changes_to_commit():
-                self.logger.info("No git changes to commit to AUR.")
-                return True
-
+        if not existing_tracked_files_for_add:
             self.logger.info(
-                "Git changes detected. Proceeding with commit and push to AUR."
+                "No existing tracked files to 'git add'. Checking for other changes..."
             )
-            self.result.changes_detected = True
-            commit_version_suffix = (
-                f" (v{self.result.version})" if self.result.version else ""
+        else:
+            self.subprocess_runner.run_command(
+                ["git", "add"] + existing_tracked_files_for_add
             )
-            final_commit_msg = f"{self.config.commit_message}{commit_version_suffix}"
+
+        if not self._has_git_changes_to_commit():
+            self.logger.info("No git changes to commit to AUR.")
+            return True
+
+        # Commit once
+        self.logger.info(
+            "Git changes detected. Proceeding with commit and push to AUR."
+        )
+        self.result.changes_detected = True
+        commit_version_suffix = (
+            f" (v{self.result.version})" if self.result.version else ""
+        )
+        final_commit_msg = f"{self.config.commit_message}{commit_version_suffix}"
+
+        try:
+            env = os.environ.copy()
+            env["GIT_AUTHOR_NAME"] = os.environ.get(
+                "GIT_COMMIT_USER_NAME", "Github Actions"
+            )
+            env["GIT_AUTHOR_EMAIL"] = os.environ.get(
+                "GIT_COMMIT_USER_EMAIL", "default@example.com"
+            )
+            env["GIT_COMMITTER_NAME"] = env["GIT_AUTHOR_NAME"]
+            env["GIT_COMMITTER_EMAIL"] = env["GIT_AUTHOR_EMAIL"]
+
+            self.subprocess_runner.run_command(
+                ["git", "commit", "-m", final_commit_msg], env=env
+            )
+            self.logger.info("Local commit successful")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Git commit failed: {e}")
+            return False
+
+        # retry if needed
+        for attempt in range(max_retries):
+            attempt_num = attempt + 1
+            if attempt > 0:
+                self.logger.info(
+                    f"Retrying push (attempt {attempt_num}/{max_retries})..."
+                )
 
             try:
-                env = os.environ.copy()
-                env["GIT_AUTHOR_NAME"] = os.environ.get(
-                    "GIT_COMMIT_USER_NAME", "Github Actions"
-                )
-                env["GIT_AUTHOR_EMAIL"] = os.environ.get(
-                    "GIT_COMMIT_USER_EMAIL", "default@example.com"
-                )
-                env["GIT_COMMITTER_NAME"] = env["GIT_AUTHOR_NAME"]
-                env["GIT_COMMITTER_EMAIL"] = env["GIT_AUTHOR_EMAIL"]
-
-                self.subprocess_runner.run_command(
-                    ["git", "commit", "-m", final_commit_msg], env=env
-                )
                 self.subprocess_runner.run_command(
                     ["git", "push", "origin", "master"], env=env
                 )
+                self.logger.info("Changes successfully pushed to AUR.")
 
-                self.logger.info("Changes successfully committed and pushed to AUR.")
-                self.logger.info(
-                    "Syncing committed files back to source GitHub repository..."
-                )
+                # ... existing sync logic ...
                 for file_name_in_aur_commit in existing_tracked_files_for_add:
                     file_path_in_aur_clone = self.build_dir / file_name_in_aur_commit
                     path_in_source_repo = (
@@ -1442,70 +1453,26 @@ class ArchPackageBuilder:
                         file_path_in_aur_clone,
                         final_commit_msg,
                     )
+
+                if attempt > 0:
+                    self.logger.info(f"Push succeeded on attempt {attempt_num}")
                 return True
 
             except subprocess.CalledProcessError as e:
-                self.logger.error(
-                    f"Git operation (commit/push to AUR or update to source repo) failed: CMD: {e.cmd}, RC: {e.returncode}"
-                )
-                self.logger.error(f"Stdout: {e.stdout}")
-                self.logger.error(f"Stderr: {e.stderr}")
-                self.result.error_message = (
-                    self.result.error_message or ""
-                ) + f"; Git op failed: {e.cmd} -> {e.stderr[:100]}"
-                return False
+                if "src refspec master does not match any" in (e.stderr or ""):
+                    # This is not a network issue, don't retry
+                    self.logger.error("No commits exist on master branch to push")
+                    return False
 
-            except Exception as e:
-                self.logger.error(
-                    f"Unexpected error during git operations or source repo update: {e}",
-                    exc_info=self.config.debug,
-                )
-                self.result.error_message = (
-                    self.result.error_message or ""
-                ) + f"; Unexpected error in git/source repo update: {str(e)}"
-                return False
+                self.logger.warning(f"Push failed on attempt {attempt_num}: {e.stderr}")
 
-        # Main retry logic
-        last_exception: Optional[Exception] = None
-
-        for attempt in range(max_retries):
-            attempt_num = attempt + 1
-
-            if attempt > 0:
-                self.logger.info(
-                    f"Retrying commit and push (attempt {attempt_num}/{max_retries})..."
-                )
-
-            try:
-                result = _attempt_commit_and_push()
-                if result:
-                    if attempt > 0:
-                        self.logger.info(
-                            f"Commit and push succeeded on attempt {attempt_num}"
-                        )
-                    return True
-                else:
-                    # Function returned False, but we should still retry for network issues
-                    self.logger.warning(
-                        f"Commit and push failed on attempt {attempt_num}"
+                if attempt < max_retries - 1:
+                    self.logger.info(
+                        f"Waiting {retry_delay} seconds before next attempt..."
                     )
+                    time.sleep(retry_delay)
 
-            except Exception as e:
-                last_exception = e
-                self.logger.warning(f"Exception on attempt {attempt_num}: {e}")
-
-            # Don't wait after the last attempt
-            if attempt < max_retries - 1:
-                self.logger.info(
-                    f"Waiting {retry_delay} seconds before next attempt..."
-                )
-                time.sleep(retry_delay)
-
-        # All attempts failed
-        self.logger.error(f"All {max_retries} attempts failed for commit and push")
-        if last_exception:
-            self.logger.error(f"Last exception: {last_exception}")
-
+        self.logger.error(f"All {max_retries} push attempts failed")
         return False
 
     def _update_github_file(

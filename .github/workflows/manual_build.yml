@@ -162,8 +162,8 @@ jobs:
 
             if [[ ! -z "$mainver" ]] && [[ "$mainver" = "$pkgver" ]]; then
               echo "Downloading $main_pkg"
+              wget -q "$main_pkg"
             fi
-            wget -q "$main_pkg"
           done
 
           sudo pacman -U --noconfirm ./*.pkg.tar.zst

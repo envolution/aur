@@ -27,14 +27,18 @@ jobs:
         run: |
           cat > Dockerfile <<'EOF'
           FROM archlinux:base-devel
-          CMD ["df", "-h"]
+          WORKDIR /workspace
+          CMD ["df", "-h", "/workspace"]
           EOF
 
       - name: Build Docker image
         run: docker build -t archlinux-space .
 
-      - name: Run container and show disk usage
-        run: docker run --rm archlinux-space
+      - name: Run container using /home/runner/work/aur/aur
+        run: |
+          docker run --rm \
+            -v /home/runner/work/aur/aur:/workspace \
+            archlinux-space
 
       - name: Checkout
         uses: actions/checkout@v5

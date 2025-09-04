@@ -32,6 +32,9 @@ jobs:
           sudo systemctl start docker
           docker info | grep "Docker Root Dir"
 
+      - name: Checkout
+        uses: actions/checkout@v5
+
       - name: Create Dockerfile
         run: |
           cat > Dockerfile <<'EOF'
@@ -44,9 +47,6 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t archlinux-space .
-
-      - name: Checkout
-        uses: actions/checkout@v5
 
       - name: Run container using /home/runner/work/aur/aur
         run: |

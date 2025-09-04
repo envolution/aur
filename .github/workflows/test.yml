@@ -41,8 +41,6 @@ jobs:
           FROM archlinux:base-devel
           WORKDIR /workspace
           CMD ["df", "-h", "/workspace"]
-          CMD ["ls", "-latr", "/workspace"]
-          CMD ["ls", "-latr", "/"]
           EOF
 
       - name: Build Docker image
@@ -50,9 +48,8 @@ jobs:
 
       - name: Run container using /home/runner/work/aur/aur
         run: |
-          tree /home/runner/work
+          docker run --rm -v /home/runner/work/aur/aur:/workspace/aur:ro archlinux-space
           exit 1
-          docker run --rm -v /home/runner/work/aur/aur:/workspace archlinux-space
 
       - name: Download Arch bootstrap
         run: |

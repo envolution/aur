@@ -23,6 +23,9 @@ jobs:
           swap-size-mb: 1024
           remove-dotnet: "true"
 
+      - name: Checkout
+        uses: actions/checkout@v5
+
       - name: Relocate Docker storage
         run: |
           sudo systemctl stop docker
@@ -31,9 +34,6 @@ jobs:
           sudo ln -s /home/runner/work/aur/aur/DOCKER /var/lib/docker
           sudo systemctl start docker
           docker info | grep "Docker Root Dir"
-
-      - name: Checkout
-        uses: actions/checkout@v5
 
       - name: Create Dockerfile
         run: |

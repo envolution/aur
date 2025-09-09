@@ -1374,6 +1374,12 @@ class ArchPackageBuilder:
                 self.result.error_message = "Failed to generate .SRCINFO"
                 return False
 
+        if self.config.build_mode in ["test"]:
+            self.logger.info(
+                f"Build mode is {self.config.build_mode} - skipping AUR commit"
+            )
+            return True
+
         self.logger.info(
             f"Preparing to commit to AUR. Tracked files: {self.tracked_files}"
         )

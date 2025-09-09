@@ -7,7 +7,7 @@ pkgver=1.11.2
 pkgrel=1
 pkgdesc="Structured outputs for LLMs"
 arch=(any)
-url="https://github.com/jxnl/instructor"
+url="https://github.com/567-labs/instructor"
 license=(MIT)
 depends=(
   python
@@ -40,7 +40,7 @@ optdepends=(
   'python-google-generativeai: support for Google Gemini models'
   'python-writerai: Writer authenticates your API requests using your account’s API keys.'
 )
-source=("$pkgname-$pkgver.tar.gz::$url/archive/$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('b0da5f89d5c92502cf6abeb2a75dc0ddfe99f057c92303e33bdd56e1a23e296c')
 
 _archive="$_pkgname-$pkgver"

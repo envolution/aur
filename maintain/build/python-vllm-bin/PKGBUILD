@@ -76,7 +76,7 @@ makedepends=(
 options=(!strip)
 _cpy=38
 _cuda=129
-_whl="vllm-${pkgver}+${_cuda}-cp${_cpy}-abi3-manylinux1_x86_64.whl"
+_whl="vllm-${pkgver}+cu${_cuda}-cp${_cpy}-abi3-manylinux1_x86_64.whl"
 source=(
   "https://github.com/vllm-project/vllm/releases/download/v${pkgver}/${_whl}"
 )

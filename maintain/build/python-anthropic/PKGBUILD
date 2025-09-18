@@ -21,6 +21,7 @@ depends=(
   python-sniffio
   python-tokenizers
   python-typing_extensions
+  python-docstring-parser
 )
 makedepends=(
   python-build

@@ -22,6 +22,7 @@ depends=(
   python-tokenizers
   python-typing_extensions
   python-docstring-parser
+  python-inline-snapshot
 )
 makedepends=(
   python-build

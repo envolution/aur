@@ -31,7 +31,7 @@ provides=(
 options=(!lto)
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
   pass-thrift-include-to-python.patch::https://patch-diff.githubusercontent.com/raw/facebook/fb303/pull/68.patch)
-sha256sums=('a98c30ea070ef111b83973fa74b6319907eeebe0888187037375857da97256ba'
+sha256sums=('b4b29f7c8ebffaff928d025239c2def360cbacea60db995073e8b1c6c2d0cd57'
             '89ccb751f778b43d1eb4804eee1c041a5f9d8626d82034564300ee2bd4e731d9')
 
 prepare() {

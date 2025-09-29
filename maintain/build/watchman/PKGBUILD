@@ -63,6 +63,7 @@ prepare() {
   # v0.7.0+
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt
+  patch -Np1 -i ../fix-link-pathutils.patch
 }
 
 build() {

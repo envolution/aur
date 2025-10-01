@@ -1,8 +1,10 @@
-# Maintainer: Marco Rubin <marco.rubin@protonmail.com>
-# Maintainer: sukanka <su975853527[AT]gmail.com>
+# Maintainer: envolution
+# Contributor: Marco Rubin <marco.rubin@protonmail.com>
+# Contributor: sukanka <su975853527[AT]gmail.com>
+# shellcheck shell=bash disable=SC2034,SC2154
 
 pkgname=matlab-meta
-pkgver=9.14.0.2239454
+pkgver=R2025b
 pkgrel=1
 pkgdesc='Meta package for MATLAB dependecies'
 arch=(x86_64)
@@ -53,3 +55,4 @@ depends+=(
   'qt5-webkit'
   'xerces-c'
 )
+# vim:set ts=2 sw=2 et:

@@ -57,8 +57,7 @@ source=(
   "fix-cmake-find-glog.patch"
   "fix-setup-py-for-python-extensions.patch"
   "fix-cmake-for-setup-py-extensions.patch"
-  "fix-gcc-traits.patch"
-  "fix-checksum-include-stdexcept.patch")
+  "fix-gcc-traits.patch")
 sha256sums=('80aeac7bd7b26647fc65012c3fc5facfd6b98a0fad609820f6949290152a46b6'
             'a6e57c9ec968ed6de454803d141035585ee9ab1355beba64b2b176ab8c793d2c'
             'a4701d37451bec6063ce5b5efc29f67ac6cc030fda699dac56d81e6064c0d7b5'
@@ -72,7 +71,6 @@ prepare() {
   patch --forward --strip=1 --input="$srcdir/fix-cmake-for-setup-py-extensions.patch"
   patch --forward --strip=1 --input="$srcdir/fix-setup-py-for-python-extensions.patch"
   patch --forward --strip=1 --input="$srcdir/fix-gcc-traits.patch"
-  patch --forward --strip=1 --input="$srcdir/fix-checksum-include-stdexcept.patch"
   #concurrency tests currently don't compile (2025-07-21)
   sed -i '/^    DIRECTORY concurrency\/test\//,/^$/d' CMakeLists.txt
   #pass $pkgver to python extensions

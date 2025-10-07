@@ -46,7 +46,6 @@ source=(
   "watchman.json"
   "watchman.service"
   "watchman.socket"
-  "fix-link-pathutils.patch"
 )
 sha256sums=('24640e2ba975cd70b2185a731f52dc8181920bb61d494a4fc1dcf54e9160fa85'
             'd40feab6aa7dc6522c648660e88642fdf721ee1f9d80c23f6891a6381067a38b'
@@ -63,7 +62,6 @@ prepare() {
   # v0.7.0+
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt
-  patch -Np1 -i ../fix-link-pathutils.patch
 }
 
 build() {

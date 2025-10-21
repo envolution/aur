@@ -89,6 +89,7 @@ build() {
     -DPYTHON_PACKAGE_INSTALL_DIR=$pkgdir/usr \
     -DCMAKE_CXX_STANDARD=20 \
     -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+    -DBoost_NO_BOOST_CMAKE=ON \
     -Wno-dev
   cmake --build build
 }

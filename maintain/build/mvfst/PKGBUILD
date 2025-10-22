@@ -69,11 +69,13 @@ provides=(
   libmvfst_transport_knobs.so
   libmvfst_transport_settings_functions.so
 )
-source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+"fix-cmake-remove-boost-system.patch::https://github.com/facebook/mvfst/pull/405.patch")
 sha256sums=('c6416c6c79c1a4b5b74d1aa1cf8ef8e80f625c28f6afc9154c8d7d77f796fcb6')
 
 prepare() {
   cd $pkgname-$pkgver
+  patch --forward --strip=1 --input="$srcdir/fix-cmake-remove-boost-system.patch"
   # Use system CMake config instead of bundled module
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt

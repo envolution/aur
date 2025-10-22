@@ -113,6 +113,7 @@ check() {
     singleton_thread_local_test.ThreadLocal.DependencyTest
     singleton_thread_local_test.SingletonThreadLocalDeathTest.Overload
     container_heap_vector_types_test.HeapVectorTypes.SimpleSetTest
+    fbstring_test.FBString.testAllClauses
   )
   local skipped_tests_pattern="${skipped_tests[0]}$(printf '|%s' "${skipped_tests[@]:1}")"
   ctest --test-dir build --output-on-failure -E "$skipped_tests_pattern"

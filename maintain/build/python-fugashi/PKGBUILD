@@ -21,6 +21,7 @@ makedepends=(
   git
   python-setuptools
   python-setuptools-scm
+  python-build
   python-wheel
 )
 optdepends=(

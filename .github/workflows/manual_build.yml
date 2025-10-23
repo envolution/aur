@@ -129,6 +129,7 @@ jobs:
           cd aur && sudo -u builder makepkg -si --noconfirm
           cd ../.. && rm -rf paru-bin
           #sudo -u builder paru -S --nocheck python-google-genai
+          sudo -u builder paru -S --nocheck python-mcp
           echo "::endgroup::"
 
       - name: Facebook Tools Install

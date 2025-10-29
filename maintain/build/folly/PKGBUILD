@@ -54,7 +54,6 @@ provides=(
 options=(!lto)
 source=(
   "git+https://github.com/facebook/folly.git#tag=v${pkgver}"
-  "fix-cmake-remove-boost-system.patch::https://patch-diff.githubusercontent.com/raw/facebook/folly/pull/2523.patch"
   "fix-cmake-find-glog.patch"
   "fix-setup-py-for-python-extensions.patch"
   "fix-cmake-for-setup-py-extensions.patch"
@@ -72,7 +71,6 @@ prepare() {
   patch --forward --strip=1 --input="$srcdir/fix-cmake-for-setup-py-extensions.patch"
   patch --forward --strip=1 --input="$srcdir/fix-setup-py-for-python-extensions.patch"
   patch --forward --strip=1 --input="$srcdir/fix-gcc-traits.patch"
-  patch --forward --strip=1 --input="$srcdir/fix-cmake-remove-boost-system.patch"
   #concurrency tests currently don't compile (2025-07-21)
   sed -i '/^    DIRECTORY concurrency\/test\//,/^$/d' CMakeLists.txt
   #pass $pkgver to python extensions

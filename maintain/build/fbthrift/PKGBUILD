@@ -63,11 +63,13 @@ options=(
 )
 source=(
  "$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz"
+ "fix-link-error.patch::https://github.com/facebook/fbthrift/commit/94d56756734f57d8357478cf9a8e199bbc996c7d.patch"
 )
 sha256sums=('dbe4c1b5af45faef2edf73d69802021aa073a7bdf2ea0a1bab55918a4685d975')
 
 prepare() {
   cd "$pkgname-$pkgver"
+  patch -Np1 -i ../fix-link-error.patch
   # Use system CMake config instead of bundled module
   sed -i 's/find_package(Glog REQUIRED)/find_package(Glog CONFIG REQUIRED)/' \
     CMakeLists.txt

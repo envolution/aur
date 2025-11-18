@@ -1,0 +1,10 @@
+--- a/thrift/compiler/ast/t_program.h	2025-11-18 15:11:11.069071022 -0500
++++ b/thrift/compiler/ast/t_program.h	2025-11-18 15:12:28.266948048 -0500
+@@ -24,6 +24,7 @@
+ #include <string_view>
+ #include <utility>
+ #include <vector>
++#include <algorithm>
+ 
+ #include <fmt/core.h>
+ 

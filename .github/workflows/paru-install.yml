@@ -1,0 +1,23 @@
+name: Paru install test
+on:
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  arch-task:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged # Required for system-level changes like useradd, pacman
+
+    steps:
+      - name: Install paru (AUR helper)
+        run: |
+          set -e
+          echo "::group::Install paru (AUR helper)"
+          echo "Installing paru for 'builder' user..."
+          cd /tmp
+          sudo -u builder mkdir -p paru && cd paru
+          sudo -u builder git clone --depth 1 --filter=blob:none --sparse --branch paru https://github.com/archlinux/aur.git
+          cd aur && sudo -u builder makepkg -si --noconfirm
+          cd ../.. && rm -rf paru
+          echo "::endgroup::"
